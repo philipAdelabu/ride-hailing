@@ -6,7 +6,10 @@
       "Bash(go vet:*)",
       "Bash(go build:*)",
       "Bash(./fix_lint.sh)",
-      "Bash(go get:*)"
+      "Bash(go get:*)",
+      "Bash(docker-compose:*)",
+      "Bash(go test:*)",
+      "Bash(go mod tidy:*)"
     ],
     "deny": [],
     "ask": []

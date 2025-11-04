@@ -25,6 +25,7 @@ type ServerConfig struct {
 	ServiceName  string
 	ReadTimeout  int
 	WriteTimeout int
+	CORSOrigins  string // Comma-separated list of allowed origins
 }
 
 // DatabaseConfig holds database configuration
@@ -78,6 +79,7 @@ func Load(serviceName string) (*Config, error) {
 			ServiceName:  serviceName,
 			ReadTimeout:  getEnvAsInt("READ_TIMEOUT", 10),
 			WriteTimeout: getEnvAsInt("WRITE_TIMEOUT", 10),
+			CORSOrigins:  getEnv("CORS_ORIGINS", "http://localhost:3000"),
 		},
 		Database: DatabaseConfig{
 			Host:     getEnv("DB_HOST", "localhost"),

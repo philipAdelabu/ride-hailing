@@ -389,6 +389,13 @@ func (h *Handler) GetRideReceipt(c *gin.Context) {
 		return
 	}
 
+	// Get payment method from payments table
+	paymentMethod, err := h.service.repo.GetPaymentByRideID(c.Request.Context(), rideID)
+	if err != nil {
+		// If payment not found, default to "unknown"
+		paymentMethod = "unknown"
+	}
+
 	receipt := gin.H{
 		"ride_id":           ride.ID,
 		"date":              ride.CompletedAt,
@@ -399,7 +406,7 @@ func (h *Handler) GetRideReceipt(c *gin.Context) {
 		"base_fare":         ride.EstimatedFare,
 		"surge_multiplier":  ride.SurgeMultiplier,
 		"final_fare":        ride.FinalFare,
-		"payment_method":    "wallet", // TODO: get from payment service
+		"payment_method":    paymentMethod,
 		"rider_id":          ride.RiderID,
 		"driver_id":         ride.DriverID,
 	}
@@ -409,36 +416,47 @@ func (h *Handler) GetRideReceipt(c *gin.Context) {
 
 // GetUserProfile retrieves user profile data
 func (h *Handler) GetUserProfile(c *gin.Context) {
-	userID, _ := c.Get("user_id")
-	role, _ := c.Get("role")
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 
-	// Placeholder - in production, you'd query the users table for full profile
-	// For now, just return basic info
-	c.JSON(http.StatusOK, gin.H{
-		"user_id": userID,
-		"role":    role,
-		"message": "Profile endpoint - full implementation requires user service integration",
-	})
+	user, err := h.service.GetUserProfile(c.Request.Context(), userID)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get user profile")
+		return
+	}
+
+	common.SuccessResponse(c, user)
 }
 
 // UpdateUserProfile updates user profile
 func (h *Handler) UpdateUserProfile(c *gin.Context) {
-	userID, _ := c.Get("user_id")
-
-	var req struct {
-		FirstName   string `json:"first_name"`
-		LastName    string `json:"last_name"`
-		PhoneNumber string `json:"phone_number"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
-	// Placeholder - in production, update the users table
-	c.JSON(http.StatusOK, gin.H{
-		"user_id": userID,
+	var req struct {
+		FirstName   string `json:"first_name" binding:"required"`
+		LastName    string `json:"last_name" binding:"required"`
+		PhoneNumber string `json:"phone_number" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	err = h.service.UpdateUserProfile(c.Request.Context(), userID, req.FirstName, req.LastName, req.PhoneNumber)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to update user profile")
+		return
+	}
+
+	common.SuccessResponse(c, gin.H{
 		"message": "Profile updated successfully",
 	})
 }

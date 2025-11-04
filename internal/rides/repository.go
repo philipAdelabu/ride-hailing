@@ -462,3 +462,67 @@ func (r *Repository) GetRidesByRiderWithFilters(ctx context.Context, riderID uui
 
 	return rides, total, nil
 }
+
+// GetUserProfile retrieves a user's profile information
+func (r *Repository) GetUserProfile(ctx context.Context, userID uuid.UUID) (*models.User, error) {
+	query := `
+		SELECT id, email, phone_number, first_name, last_name, role,
+			   is_active, is_verified, profile_image, created_at, updated_at
+		FROM users
+		WHERE id = $1
+	`
+
+	user := &models.User{}
+	err := r.db.QueryRow(ctx, query, userID).Scan(
+		&user.ID,
+		&user.Email,
+		&user.PhoneNumber,
+		&user.FirstName,
+		&user.LastName,
+		&user.Role,
+		&user.IsActive,
+		&user.IsVerified,
+		&user.ProfileImage,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user profile: %w", err)
+	}
+
+	return user, nil
+}
+
+// UpdateUserProfile updates a user's profile information
+func (r *Repository) UpdateUserProfile(ctx context.Context, userID uuid.UUID, firstName, lastName, phoneNumber string) error {
+	query := `
+		UPDATE users
+		SET first_name = $1, last_name = $2, phone_number = $3, updated_at = NOW()
+		WHERE id = $4
+	`
+
+	result, err := r.db.Exec(ctx, query, firstName, lastName, phoneNumber, userID)
+	if err != nil {
+		return fmt.Errorf("failed to update user profile: %w", err)
+	}
+
+	if result.RowsAffected() == 0 {
+		return fmt.Errorf("user not found")
+	}
+
+	return nil
+}
+
+// GetPaymentByRideID retrieves payment information for a ride
+func (r *Repository) GetPaymentByRideID(ctx context.Context, rideID uuid.UUID) (string, error) {
+	query := `SELECT method FROM payments WHERE ride_id = $1 LIMIT 1`
+
+	var method string
+	err := r.db.QueryRow(ctx, query, rideID).Scan(&method)
+	if err != nil {
+		return "", fmt.Errorf("failed to get payment method: %w", err)
+	}
+
+	return method, nil
+}

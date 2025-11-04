@@ -302,3 +302,13 @@ func calculateSurgeMultiplier(t time.Time) float64 {
 
 	return 1.0
 }
+
+// GetUserProfile retrieves a user's profile
+func (s *Service) GetUserProfile(ctx context.Context, userID uuid.UUID) (*models.User, error) {
+	return s.repo.GetUserProfile(ctx, userID)
+}
+
+// UpdateUserProfile updates a user's profile
+func (s *Service) UpdateUserProfile(ctx context.Context, userID uuid.UUID, firstName, lastName, phoneNumber string) error {
+	return s.repo.UpdateUserProfile(ctx, userID, firstName, lastName, phoneNumber)
+}

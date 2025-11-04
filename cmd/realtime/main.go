@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"log"
+	"strings"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -60,11 +61,25 @@ func main() {
 	router := gin.Default()
 
 	// CORS configuration
-	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{"*"} // TODO: Configure properly for production
-	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
-	config.AllowHeaders = []string{"Origin", "Content-Type", "Authorization"}
-	router.Use(cors.New(config))
+	corsConfig := cors.DefaultConfig()
+	// Parse CORS origins from config (comma-separated for production)
+	if cfg.Server.CORSOrigins != "" {
+		origins := strings.Split(cfg.Server.CORSOrigins, ",")
+		// Trim whitespace from each origin
+		for i := range origins {
+			origins[i] = strings.TrimSpace(origins[i])
+		}
+		corsConfig.AllowOrigins = origins
+		log.Printf("CORS configured with origins: %v", origins)
+	} else {
+		// Development fallback
+		corsConfig.AllowOrigins = []string{"http://localhost:3000"}
+		log.Println("CORS configured for development (localhost:3000)")
+	}
+	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
+	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "Authorization"}
+	corsConfig.AllowCredentials = true
+	router.Use(cors.New(corsConfig))
 
 	// Health check and metrics (no auth required)
 	router.GET("/healthz", handler.HealthCheck)
@@ -82,8 +97,8 @@ func main() {
 		// Driver location
 		api.GET("/drivers/:driver_id/location", middleware.AuthMiddleware(jwtSecret), handler.GetDriverLocation)
 
-		// Stats (admin only - TODO: add admin middleware)
-		api.GET("/stats", middleware.AuthMiddleware(jwtSecret), handler.GetStats)
+		// Stats (admin only)
+		api.GET("/stats", middleware.AuthMiddleware(jwtSecret), middleware.RequireAdmin(), handler.GetStats)
 
 		// Internal endpoints (for other services to broadcast)
 		internal := api.Group("/internal")

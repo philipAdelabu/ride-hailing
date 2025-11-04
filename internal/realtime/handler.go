@@ -4,6 +4,8 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -14,8 +16,29 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		// TODO: In production, implement proper origin checking
-		return true
+		// Get allowed origins from environment
+		allowedOrigins := os.Getenv("CORS_ORIGINS")
+		if allowedOrigins == "" {
+			// Development fallback
+			allowedOrigins = "http://localhost:3000"
+		}
+
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			// Allow requests with no origin (e.g., mobile apps, Postman)
+			return true
+		}
+
+		// Check if origin is in allowed list
+		origins := strings.Split(allowedOrigins, ",")
+		for _, allowedOrigin := range origins {
+			if strings.TrimSpace(allowedOrigin) == origin {
+				return true
+			}
+		}
+
+		log.Printf("WebSocket connection rejected from origin: %s", origin)
+		return false
 	},
 }
 
