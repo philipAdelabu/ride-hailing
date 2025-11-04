@@ -1,0 +1,357 @@
+package rides
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/richxcame/ride-hailing/pkg/models"
+)
+
+// Repository handles database operations for rides
+type Repository struct {
+	db *pgxpool.Pool
+}
+
+// NewRepository creates a new rides repository
+func NewRepository(db *pgxpool.Pool) *Repository {
+	return &Repository{db: db}
+}
+
+// CreateRide creates a new ride request
+func (r *Repository) CreateRide(ctx context.Context, ride *models.Ride) error {
+	query := `
+		INSERT INTO rides (
+			id, rider_id, status, pickup_latitude, pickup_longitude, pickup_address,
+			dropoff_latitude, dropoff_longitude, dropoff_address, estimated_distance,
+			estimated_duration, estimated_fare, surge_multiplier, requested_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+		RETURNING created_at, updated_at
+	`
+
+	err := r.db.QueryRow(ctx, query,
+		ride.ID,
+		ride.RiderID,
+		ride.Status,
+		ride.PickupLatitude,
+		ride.PickupLongitude,
+		ride.PickupAddress,
+		ride.DropoffLatitude,
+		ride.DropoffLongitude,
+		ride.DropoffAddress,
+		ride.EstimatedDistance,
+		ride.EstimatedDuration,
+		ride.EstimatedFare,
+		ride.SurgeMultiplier,
+		ride.RequestedAt,
+	).Scan(&ride.CreatedAt, &ride.UpdatedAt)
+
+	if err != nil {
+		return fmt.Errorf("failed to create ride: %w", err)
+	}
+
+	return nil
+}
+
+// GetRideByID retrieves a ride by ID
+func (r *Repository) GetRideByID(ctx context.Context, id uuid.UUID) (*models.Ride, error) {
+	query := `
+		SELECT id, rider_id, driver_id, status, pickup_latitude, pickup_longitude,
+			   pickup_address, dropoff_latitude, dropoff_longitude, dropoff_address,
+			   estimated_distance, estimated_duration, estimated_fare, actual_distance,
+			   actual_duration, final_fare, surge_multiplier, requested_at, accepted_at,
+			   started_at, completed_at, cancelled_at, cancellation_reason, rating,
+			   feedback, created_at, updated_at
+		FROM rides
+		WHERE id = $1
+	`
+
+	ride := &models.Ride{}
+	err := r.db.QueryRow(ctx, query, id).Scan(
+		&ride.ID,
+		&ride.RiderID,
+		&ride.DriverID,
+		&ride.Status,
+		&ride.PickupLatitude,
+		&ride.PickupLongitude,
+		&ride.PickupAddress,
+		&ride.DropoffLatitude,
+		&ride.DropoffLongitude,
+		&ride.DropoffAddress,
+		&ride.EstimatedDistance,
+		&ride.EstimatedDuration,
+		&ride.EstimatedFare,
+		&ride.ActualDistance,
+		&ride.ActualDuration,
+		&ride.FinalFare,
+		&ride.SurgeMultiplier,
+		&ride.RequestedAt,
+		&ride.AcceptedAt,
+		&ride.StartedAt,
+		&ride.CompletedAt,
+		&ride.CancelledAt,
+		&ride.CancellationReason,
+		&ride.Rating,
+		&ride.Feedback,
+		&ride.CreatedAt,
+		&ride.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ride: %w", err)
+	}
+
+	return ride, nil
+}
+
+// UpdateRideStatus updates ride status and related fields
+func (r *Repository) UpdateRideStatus(ctx context.Context, id uuid.UUID, status models.RideStatus, driverID *uuid.UUID) error {
+	now := time.Now()
+	var query string
+	var args []interface{}
+
+	switch status {
+	case models.RideStatusAccepted:
+		query = `UPDATE rides SET status = $1, driver_id = $2, accepted_at = $3, updated_at = $4 WHERE id = $5`
+		args = []interface{}{status, driverID, now, now, id}
+	case models.RideStatusInProgress:
+		query = `UPDATE rides SET status = $1, started_at = $2, updated_at = $3 WHERE id = $4`
+		args = []interface{}{status, now, now, id}
+	case models.RideStatusCompleted:
+		query = `UPDATE rides SET status = $1, completed_at = $2, updated_at = $3 WHERE id = $4`
+		args = []interface{}{status, now, now, id}
+	case models.RideStatusCancelled:
+		query = `UPDATE rides SET status = $1, cancelled_at = $2, updated_at = $3 WHERE id = $4`
+		args = []interface{}{status, now, now, id}
+	default:
+		query = `UPDATE rides SET status = $1, updated_at = $2 WHERE id = $3`
+		args = []interface{}{status, now, id}
+	}
+
+	_, err := r.db.Exec(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("failed to update ride status: %w", err)
+	}
+
+	return nil
+}
+
+// UpdateRideCompletion updates ride with actual data upon completion
+func (r *Repository) UpdateRideCompletion(ctx context.Context, id uuid.UUID, actualDistance float64, actualDuration int, finalFare float64) error {
+	query := `
+		UPDATE rides
+		SET actual_distance = $1, actual_duration = $2, final_fare = $3, updated_at = $4
+		WHERE id = $5
+	`
+
+	_, err := r.db.Exec(ctx, query, actualDistance, actualDuration, finalFare, time.Now(), id)
+	if err != nil {
+		return fmt.Errorf("failed to update ride completion: %w", err)
+	}
+
+	return nil
+}
+
+// UpdateRideRating updates ride rating and feedback
+func (r *Repository) UpdateRideRating(ctx context.Context, id uuid.UUID, rating int, feedback *string) error {
+	query := `
+		UPDATE rides
+		SET rating = $1, feedback = $2, updated_at = $3
+		WHERE id = $4
+	`
+
+	_, err := r.db.Exec(ctx, query, rating, feedback, time.Now(), id)
+	if err != nil {
+		return fmt.Errorf("failed to update ride rating: %w", err)
+	}
+
+	return nil
+}
+
+// GetRidesByRider retrieves rides for a specific rider
+func (r *Repository) GetRidesByRider(ctx context.Context, riderID uuid.UUID, limit, offset int) ([]*models.Ride, error) {
+	query := `
+		SELECT id, rider_id, driver_id, status, pickup_latitude, pickup_longitude,
+			   pickup_address, dropoff_latitude, dropoff_longitude, dropoff_address,
+			   estimated_distance, estimated_duration, estimated_fare, actual_distance,
+			   actual_duration, final_fare, surge_multiplier, requested_at, accepted_at,
+			   started_at, completed_at, cancelled_at, cancellation_reason, rating,
+			   feedback, created_at, updated_at
+		FROM rides
+		WHERE rider_id = $1
+		ORDER BY created_at DESC
+		LIMIT $2 OFFSET $3
+	`
+
+	rows, err := r.db.Query(ctx, query, riderID, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get rides: %w", err)
+	}
+	defer rows.Close()
+
+	var rides []*models.Ride
+	for rows.Next() {
+		ride := &models.Ride{}
+		err := rows.Scan(
+			&ride.ID,
+			&ride.RiderID,
+			&ride.DriverID,
+			&ride.Status,
+			&ride.PickupLatitude,
+			&ride.PickupLongitude,
+			&ride.PickupAddress,
+			&ride.DropoffLatitude,
+			&ride.DropoffLongitude,
+			&ride.DropoffAddress,
+			&ride.EstimatedDistance,
+			&ride.EstimatedDuration,
+			&ride.EstimatedFare,
+			&ride.ActualDistance,
+			&ride.ActualDuration,
+			&ride.FinalFare,
+			&ride.SurgeMultiplier,
+			&ride.RequestedAt,
+			&ride.AcceptedAt,
+			&ride.StartedAt,
+			&ride.CompletedAt,
+			&ride.CancelledAt,
+			&ride.CancellationReason,
+			&ride.Rating,
+			&ride.Feedback,
+			&ride.CreatedAt,
+			&ride.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan ride: %w", err)
+		}
+		rides = append(rides, ride)
+	}
+
+	return rides, nil
+}
+
+// GetRidesByDriver retrieves rides for a specific driver
+func (r *Repository) GetRidesByDriver(ctx context.Context, driverID uuid.UUID, limit, offset int) ([]*models.Ride, error) {
+	query := `
+		SELECT id, rider_id, driver_id, status, pickup_latitude, pickup_longitude,
+			   pickup_address, dropoff_latitude, dropoff_longitude, dropoff_address,
+			   estimated_distance, estimated_duration, estimated_fare, actual_distance,
+			   actual_duration, final_fare, surge_multiplier, requested_at, accepted_at,
+			   started_at, completed_at, cancelled_at, cancellation_reason, rating,
+			   feedback, created_at, updated_at
+		FROM rides
+		WHERE driver_id = $1
+		ORDER BY created_at DESC
+		LIMIT $2 OFFSET $3
+	`
+
+	rows, err := r.db.Query(ctx, query, driverID, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get rides: %w", err)
+	}
+	defer rows.Close()
+
+	var rides []*models.Ride
+	for rows.Next() {
+		ride := &models.Ride{}
+		err := rows.Scan(
+			&ride.ID,
+			&ride.RiderID,
+			&ride.DriverID,
+			&ride.Status,
+			&ride.PickupLatitude,
+			&ride.PickupLongitude,
+			&ride.PickupAddress,
+			&ride.DropoffLatitude,
+			&ride.DropoffLongitude,
+			&ride.DropoffAddress,
+			&ride.EstimatedDistance,
+			&ride.EstimatedDuration,
+			&ride.EstimatedFare,
+			&ride.ActualDistance,
+			&ride.ActualDuration,
+			&ride.FinalFare,
+			&ride.SurgeMultiplier,
+			&ride.RequestedAt,
+			&ride.AcceptedAt,
+			&ride.StartedAt,
+			&ride.CompletedAt,
+			&ride.CancelledAt,
+			&ride.CancellationReason,
+			&ride.Rating,
+			&ride.Feedback,
+			&ride.CreatedAt,
+			&ride.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan ride: %w", err)
+		}
+		rides = append(rides, ride)
+	}
+
+	return rides, nil
+}
+
+// GetPendingRides retrieves all pending ride requests
+func (r *Repository) GetPendingRides(ctx context.Context) ([]*models.Ride, error) {
+	query := `
+		SELECT id, rider_id, driver_id, status, pickup_latitude, pickup_longitude,
+			   pickup_address, dropoff_latitude, dropoff_longitude, dropoff_address,
+			   estimated_distance, estimated_duration, estimated_fare, actual_distance,
+			   actual_duration, final_fare, surge_multiplier, requested_at, accepted_at,
+			   started_at, completed_at, cancelled_at, cancellation_reason, rating,
+			   feedback, created_at, updated_at
+		FROM rides
+		WHERE status = 'requested'
+		ORDER BY requested_at ASC
+	`
+
+	rows, err := r.db.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pending rides: %w", err)
+	}
+	defer rows.Close()
+
+	var rides []*models.Ride
+	for rows.Next() {
+		ride := &models.Ride{}
+		err := rows.Scan(
+			&ride.ID,
+			&ride.RiderID,
+			&ride.DriverID,
+			&ride.Status,
+			&ride.PickupLatitude,
+			&ride.PickupLongitude,
+			&ride.PickupAddress,
+			&ride.DropoffLatitude,
+			&ride.DropoffLongitude,
+			&ride.DropoffAddress,
+			&ride.EstimatedDistance,
+			&ride.EstimatedDuration,
+			&ride.EstimatedFare,
+			&ride.ActualDistance,
+			&ride.ActualDuration,
+			&ride.FinalFare,
+			&ride.SurgeMultiplier,
+			&ride.RequestedAt,
+			&ride.AcceptedAt,
+			&ride.StartedAt,
+			&ride.CompletedAt,
+			&ride.CancelledAt,
+			&ride.CancellationReason,
+			&ride.Rating,
+			&ride.Feedback,
+			&ride.CreatedAt,
+			&ride.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan ride: %w", err)
+		}
+		rides = append(rides, ride)
+	}
+
+	return rides, nil
+}

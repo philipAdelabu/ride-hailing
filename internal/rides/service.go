@@ -1,0 +1,304 @@
+package rides
+
+import (
+	"context"
+	"math"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/richxcame/ride-hailing/pkg/common"
+	"github.com/richxcame/ride-hailing/pkg/models"
+)
+
+const (
+	baseFarePerKm      = 1.5  // Base fare per kilometer
+	baseFarePerMinute  = 0.25 // Base fare per minute
+	minimumFare        = 5.0  // Minimum fare
+	commissionRate     = 0.20 // 20% commission
+)
+
+// Service handles ride business logic
+type Service struct {
+	repo *Repository
+}
+
+// NewService creates a new rides service
+func NewService(repo *Repository) *Service {
+	return &Service{repo: repo}
+}
+
+// RequestRide creates a new ride request
+func (s *Service) RequestRide(ctx context.Context, riderID uuid.UUID, req *models.RideRequest) (*models.Ride, error) {
+	// Calculate estimated values
+	distance := calculateDistance(
+		req.PickupLatitude, req.PickupLongitude,
+		req.DropoffLatitude, req.DropoffLongitude,
+	)
+
+	duration := estimateDuration(distance)
+	surgeMultiplier := calculateSurgeMultiplier(time.Now())
+	fare := calculateFare(distance, duration, surgeMultiplier)
+
+	ride := &models.Ride{
+		ID:                uuid.New(),
+		RiderID:           riderID,
+		Status:            models.RideStatusRequested,
+		PickupLatitude:    req.PickupLatitude,
+		PickupLongitude:   req.PickupLongitude,
+		PickupAddress:     req.PickupAddress,
+		DropoffLatitude:   req.DropoffLatitude,
+		DropoffLongitude:  req.DropoffLongitude,
+		DropoffAddress:    req.DropoffAddress,
+		EstimatedDistance: distance,
+		EstimatedDuration: duration,
+		EstimatedFare:     fare,
+		SurgeMultiplier:   surgeMultiplier,
+		RequestedAt:       time.Now(),
+	}
+
+	if err := s.repo.CreateRide(ctx, ride); err != nil {
+		return nil, common.NewInternalServerError("failed to create ride request")
+	}
+
+	return ride, nil
+}
+
+// GetRide retrieves a ride by ID
+func (s *Service) GetRide(ctx context.Context, rideID uuid.UUID) (*models.Ride, error) {
+	ride, err := s.repo.GetRideByID(ctx, rideID)
+	if err != nil {
+		return nil, common.NewNotFoundError("ride not found")
+	}
+
+	return ride, nil
+}
+
+// AcceptRide allows a driver to accept a ride request
+func (s *Service) AcceptRide(ctx context.Context, rideID, driverID uuid.UUID) (*models.Ride, error) {
+	ride, err := s.repo.GetRideByID(ctx, rideID)
+	if err != nil {
+		return nil, common.NewNotFoundError("ride not found")
+	}
+
+	if ride.Status != models.RideStatusRequested {
+		return nil, common.NewBadRequestError("ride is not available for acceptance")
+	}
+
+	if err := s.repo.UpdateRideStatus(ctx, rideID, models.RideStatusAccepted, &driverID); err != nil {
+		return nil, common.NewInternalServerError("failed to accept ride")
+	}
+
+	ride.Status = models.RideStatusAccepted
+	ride.DriverID = &driverID
+	now := time.Now()
+	ride.AcceptedAt = &now
+
+	return ride, nil
+}
+
+// StartRide marks a ride as in progress
+func (s *Service) StartRide(ctx context.Context, rideID, driverID uuid.UUID) (*models.Ride, error) {
+	ride, err := s.repo.GetRideByID(ctx, rideID)
+	if err != nil {
+		return nil, common.NewNotFoundError("ride not found")
+	}
+
+	if ride.Status != models.RideStatusAccepted {
+		return nil, common.NewBadRequestError("ride has not been accepted")
+	}
+
+	if ride.DriverID == nil || *ride.DriverID != driverID {
+		return nil, common.NewBadRequestError("unauthorized driver")
+	}
+
+	if err := s.repo.UpdateRideStatus(ctx, rideID, models.RideStatusInProgress, nil); err != nil {
+		return nil, common.NewInternalServerError("failed to start ride")
+	}
+
+	ride.Status = models.RideStatusInProgress
+	now := time.Now()
+	ride.StartedAt = &now
+
+	return ride, nil
+}
+
+// CompleteRide marks a ride as completed
+func (s *Service) CompleteRide(ctx context.Context, rideID, driverID uuid.UUID, actualDistance float64) (*models.Ride, error) {
+	ride, err := s.repo.GetRideByID(ctx, rideID)
+	if err != nil {
+		return nil, common.NewNotFoundError("ride not found")
+	}
+
+	if ride.Status != models.RideStatusInProgress {
+		return nil, common.NewBadRequestError("ride is not in progress")
+	}
+
+	if ride.DriverID == nil || *ride.DriverID != driverID {
+		return nil, common.NewBadRequestError("unauthorized driver")
+	}
+
+	// Calculate actual duration
+	actualDuration := int(time.Since(*ride.StartedAt).Minutes())
+
+	// Calculate final fare based on actual distance and duration
+	finalFare := calculateFare(actualDistance, actualDuration, ride.SurgeMultiplier)
+
+	if err := s.repo.UpdateRideCompletion(ctx, rideID, actualDistance, actualDuration, finalFare); err != nil {
+		return nil, common.NewInternalServerError("failed to update ride completion")
+	}
+
+	if err := s.repo.UpdateRideStatus(ctx, rideID, models.RideStatusCompleted, nil); err != nil {
+		return nil, common.NewInternalServerError("failed to complete ride")
+	}
+
+	ride.Status = models.RideStatusCompleted
+	ride.ActualDistance = &actualDistance
+	ride.ActualDuration = &actualDuration
+	ride.FinalFare = &finalFare
+	now := time.Now()
+	ride.CompletedAt = &now
+
+	return ride, nil
+}
+
+// CancelRide cancels a ride
+func (s *Service) CancelRide(ctx context.Context, rideID, userID uuid.UUID, reason string) (*models.Ride, error) {
+	ride, err := s.repo.GetRideByID(ctx, rideID)
+	if err != nil {
+		return nil, common.NewNotFoundError("ride not found")
+	}
+
+	// Verify user is either the rider or driver
+	isRider := ride.RiderID == userID
+	isDriver := ride.DriverID != nil && *ride.DriverID == userID
+
+	if !isRider && !isDriver {
+		return nil, common.NewBadRequestError("unauthorized to cancel this ride")
+	}
+
+	if ride.Status == models.RideStatusCompleted || ride.Status == models.RideStatusCancelled {
+		return nil, common.NewBadRequestError("cannot cancel completed or already cancelled ride")
+	}
+
+	if err := s.repo.UpdateRideStatus(ctx, rideID, models.RideStatusCancelled, nil); err != nil {
+		return nil, common.NewInternalServerError("failed to cancel ride")
+	}
+
+	ride.Status = models.RideStatusCancelled
+	now := time.Now()
+	ride.CancelledAt = &now
+	ride.CancellationReason = &reason
+
+	return ride, nil
+}
+
+// RateRide allows a rider to rate a completed ride
+func (s *Service) RateRide(ctx context.Context, rideID, riderID uuid.UUID, req *models.RideRatingRequest) error {
+	ride, err := s.repo.GetRideByID(ctx, rideID)
+	if err != nil {
+		return common.NewNotFoundError("ride not found")
+	}
+
+	if ride.RiderID != riderID {
+		return common.NewBadRequestError("unauthorized to rate this ride")
+	}
+
+	if ride.Status != models.RideStatusCompleted {
+		return common.NewBadRequestError("can only rate completed rides")
+	}
+
+	if err := s.repo.UpdateRideRating(ctx, rideID, req.Rating, req.Feedback); err != nil {
+		return common.NewInternalServerError("failed to rate ride")
+	}
+
+	return nil
+}
+
+// GetRiderRides retrieves rides for a rider
+func (s *Service) GetRiderRides(ctx context.Context, riderID uuid.UUID, page, perPage int) ([]*models.Ride, error) {
+	offset := (page - 1) * perPage
+	rides, err := s.repo.GetRidesByRider(ctx, riderID, perPage, offset)
+	if err != nil {
+		return nil, common.NewInternalServerError("failed to get rides")
+	}
+
+	return rides, nil
+}
+
+// GetDriverRides retrieves rides for a driver
+func (s *Service) GetDriverRides(ctx context.Context, driverID uuid.UUID, page, perPage int) ([]*models.Ride, error) {
+	offset := (page - 1) * perPage
+	rides, err := s.repo.GetRidesByDriver(ctx, driverID, perPage, offset)
+	if err != nil {
+		return nil, common.NewInternalServerError("failed to get rides")
+	}
+
+	return rides, nil
+}
+
+// GetAvailableRides retrieves all available ride requests
+func (s *Service) GetAvailableRides(ctx context.Context) ([]*models.Ride, error) {
+	rides, err := s.repo.GetPendingRides(ctx)
+	if err != nil {
+		return nil, common.NewInternalServerError("failed to get available rides")
+	}
+
+	return rides, nil
+}
+
+// Helper functions
+
+// calculateDistance calculates distance between two coordinates in kilometers
+// Using Haversine formula
+func calculateDistance(lat1, lon1, lat2, lon2 float64) float64 {
+	const earthRadius = 6371.0 // km
+
+	dLat := (lat2 - lat1) * math.Pi / 180.0
+	dLon := (lon2 - lon1) * math.Pi / 180.0
+
+	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
+		math.Cos(lat1*math.Pi/180.0)*math.Cos(lat2*math.Pi/180.0)*
+			math.Sin(dLon/2)*math.Sin(dLon/2)
+
+	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+	distance := earthRadius * c
+
+	return math.Round(distance*100) / 100 // Round to 2 decimal places
+}
+
+// estimateDuration estimates trip duration in minutes based on distance
+// Assumes average speed of 40 km/h in city traffic
+func estimateDuration(distance float64) int {
+	const averageSpeed = 40.0 // km/h
+	duration := (distance / averageSpeed) * 60
+	return int(math.Round(duration))
+}
+
+// calculateFare calculates ride fare
+func calculateFare(distance float64, duration int, surgeMultiplier float64) float64 {
+	baseFare := (distance * baseFarePerKm) + (float64(duration) * baseFarePerMinute)
+	fare := baseFare * surgeMultiplier
+
+	if fare < minimumFare {
+		fare = minimumFare
+	}
+
+	return math.Round(fare*100) / 100 // Round to 2 decimal places
+}
+
+// calculateSurgeMultiplier calculates surge pricing multiplier based on time
+func calculateSurgeMultiplier(t time.Time) float64 {
+	hour := t.Hour()
+
+	// Peak hours: 7-9 AM and 5-8 PM
+	if (hour >= 7 && hour < 9) || (hour >= 17 && hour < 20) {
+		return 1.5
+	}
+
+	// Late night: 11 PM - 5 AM
+	if hour >= 23 || hour < 5 {
+		return 1.3
+	}
+
+	return 1.0
+}
