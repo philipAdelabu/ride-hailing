@@ -74,9 +74,9 @@ type ScheduleNotificationRequest struct {
 
 // RideNotificationRequest represents a ride-related notification
 type RideNotificationRequest struct {
-	UserID   string                 `json:"user_id" binding:"required"`
-	RideID   string                 `json:"ride_id"`
-	Data     map[string]interface{} `json:"data"`
+	UserID string                 `json:"user_id" binding:"required"`
+	RideID string                 `json:"ride_id"`
+	Data   map[string]interface{} `json:"data"`
 }
 
 // SendNotification sends a notification
@@ -198,7 +198,7 @@ func (h *Handler) GetNotifications(c *gin.Context) {
 		Limit:  limit,
 		Offset: offset,
 		Total:  int64(len(notifications)),
-	}, nil)
+	})
 }
 
 // GetUnreadCount gets count of unread notifications

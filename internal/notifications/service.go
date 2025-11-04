@@ -1,13 +1,13 @@
 package notifications
 
 import (
-	"go.uber.org/zap"
 	"context"
 	"fmt"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/google/uuid"
-	"github.com/richxcame/ride-hailing/pkg/common"
 	"github.com/richxcame/ride-hailing/pkg/logger"
 	"github.com/richxcame/ride-hailing/pkg/models"
 )
@@ -70,18 +70,18 @@ func (s *Service) processNotification(ctx context.Context, notification *models.
 
 	if err != nil {
 		logger.Get().Error("Failed to send notification",
-			"notification_id", notification.ID,
-			"channel", notification.Channel,
-			"error", err)
+			zap.String("notification_id", notification.ID.String()),
+			zap.String("channel", notification.Channel),
+			zap.Error(err))
 
 		errMsg := err.Error()
 		s.repo.UpdateNotificationStatus(ctx, notification.ID, "failed", &errMsg)
 	} else {
 		s.repo.UpdateNotificationStatus(ctx, notification.ID, "sent", nil)
 		logger.Get().Info("Notification sent successfully",
-			"notification_id", notification.ID,
-			"channel", notification.Channel,
-			"user_id", notification.UserID)
+			zap.String("notification_id", notification.ID.String()),
+			zap.String("channel", notification.Channel),
+			zap.String("user_id", notification.UserID.String()))
 	}
 }
 
@@ -325,7 +325,7 @@ func (s *Service) ProcessPendingNotifications(ctx context.Context) error {
 		go s.processNotification(ctx, notification)
 	}
 
-	logger.Get().Info("Processed pending notifications", "count", len(notifications))
+	logger.Get().Info("Processed pending notifications", zap.Int("count", len(notifications)))
 	return nil
 }
 
@@ -357,11 +357,11 @@ func (s *Service) SendBulkNotification(ctx context.Context, userIDs []uuid.UUID,
 		_, err := s.SendNotification(ctx, userID, notifType, channel, title, body, data)
 		if err != nil {
 			logger.Get().Error("Failed to send bulk notification",
-				"user_id", userID,
-				"error", err)
+				zap.String("user_id", userID.String()),
+				zap.Error(err))
 		}
 	}
 
-	logger.Get().Info("Sent bulk notifications", "count", len(userIDs))
+	logger.Get().Info("Sent bulk notifications", zap.Int("count", len(userIDs)))
 	return nil
 }

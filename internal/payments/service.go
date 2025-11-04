@@ -1,10 +1,11 @@
 package payments
 
 import (
-	"go.uber.org/zap"
 	"context"
 	"fmt"
 	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/google/uuid"
 	"github.com/richxcame/ride-hailing/pkg/common"
@@ -66,11 +67,11 @@ func (s *Service) processWalletPayment(ctx context.Context, payment *models.Paym
 
 	err := s.repo.ProcessPaymentWithWallet(ctx, payment, walletTx)
 	if err != nil {
-		logger.Get().Error("Failed to process wallet payment", zap.Error(err), "payment_id", payment.ID)
+		logger.Get().Error("Failed to process wallet payment", zap.Error(err), zap.String("payment_id", payment.ID.String()))
 		return nil, err
 	}
 
-	logger.Get().Info("Wallet payment processed successfully", zap.String("payment_id", payment.ID.String()), "amount", payment.Amount)
+	logger.Get().Info("Wallet payment processed successfully", zap.String("payment_id", payment.ID.String()), zap.Float64("amount", payment.Amount))
 	return payment, nil
 }
 
@@ -109,7 +110,7 @@ func (s *Service) processStripePayment(ctx context.Context, payment *models.Paym
 		return nil, err
 	}
 
-	logger.Get().Info("Stripe payment created successfully", zap.String("payment_id", payment.ID.String()), "stripe_pi", pi.ID)
+	logger.Get().Info("Stripe payment created successfully", zap.String("payment_id", payment.ID.String()), zap.String("stripe_pi", pi.ID))
 	return payment, nil
 }
 
@@ -175,7 +176,7 @@ func (s *Service) TopUpWallet(ctx context.Context, userID uuid.UUID, amount floa
 		return nil, err
 	}
 
-	logger.Get().Info("Wallet top-up initiated", "user_id", userID, "amount", amount, "stripe_pi", pi.ID)
+	logger.Get().Info("Wallet top-up initiated", zap.String("user_id", userID.String()), zap.Float64("amount", amount), zap.String("stripe_pi", pi.ID))
 	return walletTx, nil
 }
 
@@ -211,7 +212,7 @@ func (s *Service) ConfirmWalletTopUp(ctx context.Context, userID uuid.UUID, amou
 		return err
 	}
 
-	logger.Get().Info("Wallet top-up confirmed", "user_id", userID, "amount", amount)
+	logger.Get().Info("Wallet top-up confirmed", zap.String("user_id", userID.String()), zap.Float64("amount", amount))
 	return nil
 }
 
@@ -272,11 +273,11 @@ func (s *Service) PayoutToDriver(ctx context.Context, paymentID uuid.UUID) error
 	}
 
 	logger.Get().Info("Driver payout processed",
-		"payment_id", paymentID,
-		"driver_id", payment.DriverID,
-		"amount", payment.Amount,
-		"commission", commission,
-		"driver_earnings", driverEarnings)
+		zap.String("payment_id", paymentID.String()),
+		zap.String("driver_id", payment.DriverID.String()),
+		zap.Float64("amount", payment.Amount),
+		zap.Float64("commission", commission),
+		zap.Float64("driver_earnings", driverEarnings))
 
 	return nil
 }
@@ -298,7 +299,7 @@ func (s *Service) ProcessRefund(ctx context.Context, paymentID uuid.UUID, reason
 	if reason == "rider_cancelled" {
 		cancellationFee := payment.Amount * cancellationFeeRate
 		refundAmount = payment.Amount - cancellationFee
-		logger.Get().Info("Applying cancellation fee", "payment_id", paymentID, "fee", cancellationFee)
+		logger.Get().Info("Applying cancellation fee", zap.String("payment_id", paymentID.String()), zap.Float64("fee", cancellationFee))
 	}
 
 	if payment.PaymentMethod == "stripe" && payment.StripePaymentID != nil {
@@ -348,10 +349,10 @@ func (s *Service) ProcessRefund(ctx context.Context, paymentID uuid.UUID, reason
 	}
 
 	logger.Get().Info("Refund processed successfully",
-		"payment_id", paymentID,
-		"original_amount", payment.Amount,
-		"refund_amount", refundAmount,
-		"reason", reason)
+		zap.String("payment_id", paymentID.String()),
+		zap.Float64("original_amount", payment.Amount),
+		zap.Float64("refund_amount", refundAmount),
+		zap.String("reason", reason))
 
 	return nil
 }
@@ -373,7 +374,7 @@ func (s *Service) GetWalletTransactions(ctx context.Context, userID uuid.UUID, l
 
 // HandleStripeWebhook handles Stripe webhook events
 func (s *Service) HandleStripeWebhook(ctx context.Context, eventType string, paymentIntentID string) error {
-	logger.Get().Info("Handling Stripe webhook", "event_type", eventType, "payment_intent_id", paymentIntentID)
+	logger.Get().Info("Handling Stripe webhook", zap.String("event_type", eventType), zap.String("payment_intent_id", paymentIntentID))
 
 	switch eventType {
 	case "payment_intent.succeeded":
@@ -382,18 +383,18 @@ func (s *Service) HandleStripeWebhook(ctx context.Context, eventType string, pay
 		// 1. Retrieve payment by stripe_payment_id
 		// 2. Update payment status to 'completed'
 		// 3. If it's a wallet top-up, credit the wallet
-		logger.Get().Info("Payment intent succeeded", "payment_intent_id", paymentIntentID)
+		logger.Get().Info("Payment intent succeeded", zap.String("payment_intent_id", paymentIntentID))
 
 	case "payment_intent.payment_failed":
 		// Payment failed - update status
-		logger.Get().Warn("Payment intent failed", "payment_intent_id", paymentIntentID)
+		logger.Get().Warn("Payment intent failed", zap.String("payment_intent_id", paymentIntentID))
 
 	case "charge.refunded":
 		// Refund processed
-		logger.Get().Info("Charge refunded", "payment_intent_id", paymentIntentID)
+		logger.Get().Info("Charge refunded", zap.String("payment_intent_id", paymentIntentID))
 
 	default:
-		logger.Get().Debug("Unhandled webhook event", "event_type", eventType)
+		logger.Get().Debug("Unhandled webhook event", zap.String("event_type", eventType))
 	}
 
 	return nil

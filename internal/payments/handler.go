@@ -164,7 +164,7 @@ func (h *Handler) GetWallet(c *gin.Context) {
 		return
 	}
 
-	common.SuccessResponseWithStatus(c, http.StatusOK, wallet, nil)
+	common.SuccessResponseWithStatus(c, http.StatusOK, wallet, "")
 }
 
 // GetWalletTransactions retrieves wallet transaction history
@@ -206,7 +206,7 @@ func (h *Handler) GetWalletTransactions(c *gin.Context) {
 		Limit:  limit,
 		Offset: offset,
 		Total:  int64(len(transactions)),
-	}, nil)
+	})
 }
 
 // GetPayment retrieves payment details
@@ -241,7 +241,7 @@ func (h *Handler) GetPayment(c *gin.Context) {
 		return
 	}
 
-	common.SuccessResponseWithStatus(c, http.StatusOK, payment, nil)
+	common.SuccessResponseWithStatus(c, http.StatusOK, payment, "")
 }
 
 // RefundPayment processes a refund

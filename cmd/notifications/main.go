@@ -10,12 +10,14 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/richxcame/ride-hailing/internal/notifications"
 	"github.com/richxcame/ride-hailing/pkg/common"
 	"github.com/richxcame/ride-hailing/pkg/config"
 	"github.com/richxcame/ride-hailing/pkg/database"
 	"github.com/richxcame/ride-hailing/pkg/logger"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
+	"go.uber.org/zap"
 )
 
 const (
@@ -25,20 +27,26 @@ const (
 
 func main() {
 	// Load configuration
-	cfg := config.Load()
+	cfg, err := config.Load(serviceName)
+	if err != nil {
+		panic(fmt.Sprintf("failed to load config: %v", err))
+	}
 
 	// Initialize logger
-	logger.Init(cfg.Server.Environment)
-	log := logger.Get()
+	if err := logger.Init(cfg.Server.Environment); err != nil {
+		panic(fmt.Sprintf("failed to initialize logger: %v", err))
+	}
+	defer logger.Sync()
 
-	log.Info("Starting notifications service", "version", version)
+	log := logger.Get()
+	log.Info("Starting notifications service", zap.String("version", version))
 
 	// Initialize database
 	db, err := database.NewPostgresPool(&cfg.Database)
 	if err != nil {
-		log.Fatal("Failed to connect to database", "error", err)
+		log.Fatal("Failed to connect to database", zap.Error(err))
 	}
-	defer db.Close()
+	defer database.Close(db)
 
 	log.Info("Connected to database")
 
@@ -50,7 +58,7 @@ func main() {
 	if firebaseCredPath != "" {
 		firebaseClient, err = notifications.NewFirebaseClient(firebaseCredPath)
 		if err != nil {
-			log.Warn("Failed to initialize Firebase client", "error", err)
+			log.Warn("Failed to initialize Firebase client", zap.Error(err))
 		} else {
 			log.Info("Firebase client initialized")
 		}
@@ -106,7 +114,7 @@ func main() {
 		for range ticker.C {
 			err := notificationService.ProcessPendingNotifications(context.Background())
 			if err != nil {
-				log.Error("Failed to process pending notifications", "error", err)
+				log.Error("Failed to process pending notifications", zap.Error(err))
 			}
 		}
 	}()
@@ -119,36 +127,34 @@ func main() {
 	router := gin.New()
 
 	// Global middleware
-	router.Use(middleware.LoggingMiddleware())
-	router.Use(middleware.RecoveryMiddleware())
-	router.Use(middleware.CORSMiddleware())
-	router.Use(middleware.MetricsMiddleware())
+	router.Use(middleware.Recovery())
+	router.Use(middleware.RequestLogger())
+	router.Use(middleware.CORS())
+	router.Use(middleware.Metrics(serviceName))
 
 	// Health check
-	router.GET("/healthz", func(c *gin.Context) {
-		common.HealthCheckResponse(c, serviceName, version)
-	})
+	router.GET("/healthz", common.HealthCheck(serviceName, version))
 
 	// Metrics endpoint
-	router.GET("/metrics", middleware.PrometheusHandler())
+	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	// Register notification routes
 	notificationHandler.RegisterRoutes(router, cfg.JWT.Secret)
 
 	// Setup HTTP server
 	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
+		Addr:         fmt.Sprintf(":%s", cfg.Server.Port),
 		Handler:      router,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		ReadTimeout:  time.Duration(cfg.Server.ReadTimeout) * time.Second,
+		WriteTimeout: time.Duration(cfg.Server.WriteTimeout) * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 
 	// Start server in a goroutine
 	go func() {
-		log.Info("Server starting", "port", cfg.Server.Port, "environment", cfg.Server.Environment)
+		log.Info("Server starting", zap.String("port", cfg.Server.Port), zap.String("environment", cfg.Server.Environment))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal("Server failed to start", "error", err)
+			log.Fatal("Server failed to start", zap.Error(err))
 		}
 	}()
 
@@ -164,7 +170,7 @@ func main() {
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatal("Server forced to shutdown", "error", err)
+		log.Fatal("Server forced to shutdown", zap.Error(err))
 	}
 
 	log.Info("Server stopped")
