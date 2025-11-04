@@ -2,9 +2,7 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
 	"log"
-	"os"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -18,20 +16,17 @@ import (
 )
 
 func main() {
-	// Load environment variables
-	dbHost := getEnv("DB_HOST", "localhost")
-	dbPort := getEnv("DB_PORT", "5432")
-	dbUser := getEnv("DB_USER", "postgres")
-	dbPassword := getEnv("DB_PASSWORD", "postgres")
-	dbName := getEnv("DB_NAME", "ride_hailing")
-	redisAddr := getEnv("REDIS_ADDR", "localhost:6379")
-	redisPassword := getEnv("REDIS_PASSWORD", "")
-	jwtSecret := getEnv("JWT_SECRET", "your-secret-key")
-	port := getEnv("PORT", "8086")
+	// Load configuration
+	cfg, err := config.Load("realtime")
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+
+	port := cfg.Server.Port
+	jwtSecret := cfg.JWT.Secret
 
 	// Connect to PostgreSQL
-	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-		dbHost, dbPort, dbUser, dbPassword, dbName)
+	dsn := cfg.Database.DSN()
 
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
@@ -46,12 +41,7 @@ func main() {
 	log.Println("Connected to PostgreSQL database")
 
 	// Connect to Redis
-	redisConfig := &config.RedisConfig{
-		Host:     redisAddr,
-		Password: redisPassword,
-		DB:       0,
-	}
-	redisClient, err := redis.NewRedisClient(redisConfig)
+	redisClient, err := redis.NewRedisClient(&cfg.Redis)
 	if err != nil {
 		log.Fatalf("Failed to connect to Redis: %v", err)
 	}
@@ -109,13 +99,4 @@ func main() {
 	if err := router.Run(addr); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
-}
-
-// getEnv gets an environment variable or returns a default value
-func getEnv(key, defaultValue string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultValue
-	}
-	return value
 }
