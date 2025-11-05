@@ -13,7 +13,17 @@
       "Bash(curl:*)",
       "Bash(docker logs:*)",
       "Bash(docker ps:*)",
-      "Bash(migrate -path:*)"
+      "Bash(migrate -path:*)",
+      "Bash(docker exec:*)",
+      "Bash(for:*)",
+      "Bash(do echo -n \"Port $port: \")",
+      "Bash(done)",
+      "Bash(awk:*)",
+      "Bash(PHASE1_COMPLETE.md PHASE2_COMPLETE.md PHASE2_COMPLETION_REPORT.md )",
+      "Bash(PHASE2_IMPLEMENTATION_SUMMARY.md PHASE2_OPTION_A_COMPLETE.md PHASE2_PROGRESS.md )",
+      "Bash(PHASE2_SUMMARY.md PROGRESS.md PROJECT_SUMMARY.md QUICKSTART.md STATUS_REPORT.md )",
+      "Bash(fix_lint.sh)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

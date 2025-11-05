@@ -1,10 +1,10 @@
 # Ride Hailing Platform - Production-Ready Backend
 
-A complete, production-ready ride-hailing platform backend built with Go, featuring 8 microservices that handle everything from authentication to real-time WebSocket communications.
+A complete, production-ready ride-hailing platform backend built with Go, featuring 12 microservices that handle everything from authentication to fraud detection.
 
-## Status: Phase 1 Complete ✅
+## Status: Phase 2 In Progress 🚀
 
-**8 Microservices** | **60+ API Endpoints** | **~8,000+ Lines of Code** | **Production Ready**
+**12 Microservices** | **80+ API Endpoints** | **Production Ready**
 
 ---
 
@@ -12,13 +12,19 @@ A complete, production-ready ride-hailing platform backend built with Go, featur
 
 ### Core Services
 - ✅ **Authentication Service** - JWT-based auth with role-based access control
-- ✅ **Rides Service** - Complete ride lifecycle management with ratings
+- ✅ **Rides Service** - Complete ride lifecycle management with ratings & scheduled rides
 - ✅ **Geolocation Service** - Redis GeoSpatial driver matching (10km radius)
 - ✅ **Payment Service** - Stripe integration + wallet system with auto payouts
 - ✅ **Notification Service** - Multi-channel (Firebase push, Twilio SMS, Email)
 - ✅ **Real-time Service** - WebSockets with in-app chat (Hub pattern)
 - ✅ **Mobile Service** - Optimized APIs for mobile apps
 - ✅ **Admin Service** - Complete dashboard backend with analytics
+
+### Advanced Services (Phase 2)
+- ✅ **Promos Service** - Promo codes, referral system, ride types
+- ✅ **Scheduler Service** - Automated ride scheduling and notifications
+- ✅ **Analytics Service** - Business intelligence and reporting
+- ✅ **Fraud Service** - Fraud detection and prevention
 
 ### Key Capabilities
 - 🔐 Secure JWT authentication with refresh tokens
@@ -30,6 +36,10 @@ A complete, production-ready ride-hailing platform backend built with Go, featur
 - 💬 In-app chat with 24h message history
 - 📊 Admin dashboard with analytics
 - 📱 Mobile-optimized APIs
+- 🎁 Promo codes & referral system
+- 📅 Scheduled rides
+- 🚗 Multiple ride types (Economy, Premium, XL)
+- 🛡️ Fraud detection & prevention
 - 📈 Prometheus metrics + Grafana dashboards
 
 ---
@@ -89,13 +99,17 @@ A complete, production-ready ride-hailing platform backend built with Go, featur
 | Service | Port | Purpose | Status |
 |---------|------|---------|--------|
 | Auth | 8081 | User authentication & JWT | ✅ Production |
-| Rides | 8082 | Ride lifecycle management | ✅ Production |
+| Rides | 8082 | Ride lifecycle management + scheduling | ✅ Production |
 | Geo | 8083 | Location tracking + driver matching | ✅ Production |
 | Payments | 8084 | Stripe integration + wallets | ✅ Production |
 | Notifications | 8085 | Multi-channel notifications | ✅ Production |
 | Real-time | 8086 | WebSocket + chat | ✅ Production |
 | Mobile | 8087 | Mobile-optimized APIs | ✅ Production |
 | Admin | 8088 | Admin dashboard backend | ✅ Production |
+| Promos | 8089 | Promo codes & referrals | ✅ Production |
+| Scheduler | 8090 | Automated ride scheduling | ✅ Production |
+| Analytics | 8091 | Business intelligence | ✅ Production |
+| Fraud | 8092 | Fraud detection | ✅ Production |
 
 ### 1. Auth Service (Port 8081)
 - User registration (riders, drivers, admins)
@@ -184,6 +198,47 @@ A complete, production-ready ride-hailing platform backend built with Go, featur
 
 **Endpoints**: 10 (dashboard, users, drivers, rides, stats, health)
 
+### 9. Promos Service (Port 8089)
+- Promo code creation & management (percentage/fixed discounts)
+- Promo code usage tracking & limits
+- Referral code generation (unique per user)
+- Referral bonus system (for both referrer & referred)
+- Ride type management (Economy, Premium, XL)
+- Usage analytics & reporting
+
+**Endpoints**: 12+ (promo CRUD, apply, validate, referral system, ride types)
+
+### 10. Scheduler Service (Port 8090)
+- Scheduled ride management
+- Automated ride dispatch (30 minutes before scheduled time)
+- Notification system for upcoming rides
+- Background worker for scheduled tasks
+- Ride cleanup & optimization
+
+**Endpoints**: 6 (schedule ride, list scheduled, update, cancel, health)
+
+### 11. Analytics Service (Port 8091)
+- Real-time business metrics & KPIs
+- Revenue tracking & forecasting
+- Driver performance analytics
+- Ride completion & cancellation rates
+- Demand heat maps & patterns
+- Materialized views for performance
+- Custom date range reporting
+
+**Endpoints**: 8 (overview, revenue, drivers, rides, demand, export)
+
+### 12. Fraud Service (Port 8092)
+- Suspicious activity detection
+- Duplicate account prevention
+- Payment fraud monitoring
+- Driver behavior analysis
+- Ride pattern anomaly detection
+- Risk scoring algorithm
+- Automated flagging & alerts
+
+**Endpoints**: 7 (check ride, check payment, check user, reports, health)
+
 ---
 
 ## Quick Start
@@ -219,6 +274,10 @@ A complete, production-ready ride-hailing platform backend built with Go, featur
    curl http://localhost:8086/healthz  # Real-time
    curl http://localhost:8087/healthz  # Mobile
    curl http://localhost:8088/healthz  # Admin
+   curl http://localhost:8089/healthz  # Promos
+   curl http://localhost:8090/healthz  # Scheduler
+   curl http://localhost:8091/healthz  # Analytics
+   curl http://localhost:8092/healthz  # Fraud
    ```
 
 4. **View logs**
@@ -243,6 +302,10 @@ A complete, production-ready ride-hailing platform backend built with Go, featur
    go build -o bin/realtime ./cmd/realtime
    go build -o bin/mobile ./cmd/mobile
    go build -o bin/admin ./cmd/admin
+   go build -o bin/promos ./cmd/promos
+   go build -o bin/scheduler ./cmd/scheduler
+   go build -o bin/analytics ./cmd/analytics
+   go build -o bin/fraud ./cmd/fraud
    ```
 
 3. **Run a single service**
@@ -377,6 +440,7 @@ ws.onmessage = (event) => {
 
 The platform uses PostgreSQL with the following tables:
 
+### Core Tables (Migration 000001)
 - `users` - User accounts (riders, drivers, admins)
 - `drivers` - Driver profiles and vehicle information
 - `rides` - Ride records with full lifecycle
@@ -384,10 +448,24 @@ The platform uses PostgreSQL with the following tables:
 - `payments` - Payment transaction records
 - `wallet_transactions` - All wallet transactions
 - `notifications` - Notification records
-- `driver_locations` - Driver location history
+
+### Location Tables (Migration 000002)
+- `driver_locations` - Driver location history with GPS tracking
 - `favorite_locations` - User's saved addresses
 
-See [IMPLEMENTATION_NOTES.md](IMPLEMENTATION_NOTES.md) for complete schema.
+### Promo System (Migration 000003)
+- `promo_codes` - Promotional codes with discount rules
+- `promo_code_uses` - Usage tracking per user/ride
+- `referral_codes` - User referral codes
+- `referrals` - Referral relationships & bonuses
+- `ride_types` - Ride categories (Economy, Premium, XL)
+
+### Scheduling (Migration 000004)
+- Enhanced `rides` table with scheduling columns
+- `scheduled_rides` view for upcoming rides
+- Helper functions for scheduled ride queries
+
+See [db/migrations/](db/migrations/) for complete schema definitions.
 
 ---
 
@@ -444,10 +522,8 @@ See [IMPLEMENTATION_NOTES.md](IMPLEMENTATION_NOTES.md) for complete end-to-end t
 
 ## Documentation
 
-- **[PROGRESS.md](PROGRESS.md)** - Development progress and completed features
-- **[ROADMAP.md](ROADMAP.md)** - Future features and development roadmap
-- **[IMPLEMENTATION_NOTES.md](IMPLEMENTATION_NOTES.md)** - Complete technical documentation
-- **[QUICKSTART.md](QUICKSTART.md)** - Quick start guide (if available)
+- **[ROADMAP.md](ROADMAP.md)** - Development roadmap and feature planning
+- **[db/migrations/](db/migrations/)** - Database schema migrations
 
 ---
 
@@ -469,8 +545,8 @@ See [IMPLEMENTATION_NOTES.md](IMPLEMENTATION_NOTES.md) for complete end-to-end t
 - [ ] Configure error alerting
 - [ ] Load testing (100+ concurrent rides)
 - [ ] Security audit
-
-See [IMPLEMENTATION_NOTES.md](IMPLEMENTATION_NOTES.md) for complete production checklist.
+- [ ] Configure fraud detection rules
+- [ ] Test scheduled ride dispatch
 
 ---
 
@@ -486,7 +562,11 @@ ride-hailing/
 │   ├── notifications/     # Notifications service
 │   ├── realtime/          # Real-time service
 │   ├── mobile/            # Mobile service
-│   └── admin/             # Admin service
+│   ├── admin/             # Admin service
+│   ├── promos/            # Promos service
+│   ├── scheduler/         # Scheduler service
+│   ├── analytics/         # Analytics service
+│   └── fraud/             # Fraud service
 ├── internal/              # Private application code
 │   ├── auth/             # Auth business logic
 │   ├── rides/            # Rides business logic
@@ -495,15 +575,20 @@ ride-hailing/
 │   ├── notifications/    # Notifications business logic
 │   ├── realtime/         # Real-time business logic
 │   ├── favorites/        # Favorites business logic
-│   └── admin/            # Admin business logic
+│   ├── admin/            # Admin business logic
+│   ├── promos/           # Promos business logic
+│   ├── analytics/        # Analytics business logic
+│   └── fraud/            # Fraud business logic
 ├── pkg/                   # Public shared libraries
 │   ├── common/           # Common utilities
 │   ├── middleware/       # HTTP middleware
 │   ├── models/           # Data models
 │   ├── redis/            # Redis client
 │   └── websocket/        # WebSocket utilities
+├── db/migrations/         # Database migrations
 ├── docker-compose.yml     # Docker Compose config
 ├── go.mod                 # Go dependencies
+├── ROADMAP.md            # Development roadmap
 └── README.md             # This file
 ```
 
@@ -528,9 +613,9 @@ This project is licensed under the MIT License.
 ## Support
 
 For questions or issues:
-- Check the [IMPLEMENTATION_NOTES.md](IMPLEMENTATION_NOTES.md) for technical details
-- Review the [ROADMAP.md](ROADMAP.md) for future plans
-- See [PROGRESS.md](PROGRESS.md) for completed features
+- Review the [ROADMAP.md](ROADMAP.md) for development plans
+- Check [db/migrations/](db/migrations/) for database schema
+- Examine service code in [cmd/](cmd/) and [internal/](internal/)
 
 ---
 
@@ -547,6 +632,6 @@ Built with:
 
 ---
 
-**Version**: 1.0.0 (Phase 1 Complete)
+**Version**: 2.0.0 (Phase 2 In Progress)
 **Status**: Production Ready ✅
 **Last Updated**: 2025-11-05
