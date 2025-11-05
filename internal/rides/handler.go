@@ -364,28 +364,33 @@ func (h *Handler) GetRideHistory(c *gin.Context) {
 
 // GetRideReceipt generates a receipt for a completed ride
 func (h *Handler) GetRideReceipt(c *gin.Context) {
-	userID, _ := c.Get("user_id")
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
 	rideID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ride ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid ride ID")
 		return
 	}
 
 	ride, err := h.service.repo.GetRideByID(c.Request.Context(), rideID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Ride not found"})
+		common.ErrorResponse(c, http.StatusNotFound, "ride not found")
 		return
 	}
 
 	// Verify user is part of this ride
-	if ride.RiderID != userID.(uuid.UUID) && (ride.DriverID == nil || *ride.DriverID != userID.(uuid.UUID)) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Unauthorized"})
+	if ride.RiderID != userID && (ride.DriverID == nil || *ride.DriverID != userID) {
+		common.ErrorResponse(c, http.StatusForbidden, "unauthorized")
 		return
 	}
 
 	// Only completed rides have receipts
 	if ride.Status != models.RideStatusCompleted {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Ride is not completed"})
+		common.ErrorResponse(c, http.StatusBadRequest, "ride is not completed")
 		return
 	}
 
@@ -411,7 +416,7 @@ func (h *Handler) GetRideReceipt(c *gin.Context) {
 		"driver_id":         ride.DriverID,
 	}
 
-	c.JSON(http.StatusOK, receipt)
+	common.SuccessResponse(c, receipt)
 }
 
 // GetUserProfile retrieves user profile data

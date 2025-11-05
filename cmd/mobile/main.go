@@ -52,12 +52,16 @@ func main() {
 	}
 	log.Println("Connected to PostgreSQL database")
 
+	// Get Promos service URL from environment
+	promosServiceURL := getEnv("PROMOS_SERVICE_URL", "http://localhost:8089")
+	log.Printf("Promos service URL configured: %s", promosServiceURL)
+
 	// Initialize repositories
 	ridesRepo := rides.NewRepository(db)
 	favoritesRepo := favorites.NewRepository(db)
 
 	// Initialize services
-	ridesService := rides.NewService(ridesRepo)
+	ridesService := rides.NewService(ridesRepo, promosServiceURL)
 	favoritesService := favorites.NewService(favoritesRepo)
 
 	// Initialize handlers

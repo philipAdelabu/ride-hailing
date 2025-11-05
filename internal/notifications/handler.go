@@ -162,8 +162,8 @@ func (h *Handler) ScheduleNotification(c *gin.Context) {
 
 // GetNotifications retrieves user's notifications
 func (h *Handler) GetNotifications(c *gin.Context) {
-	userID := c.GetString("user_id")
-	if userID == "" {
+	userUUID, err := middleware.GetUserID(c)
+	if err != nil {
 		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
@@ -174,8 +174,6 @@ func (h *Handler) GetNotifications(c *gin.Context) {
 	if limit > 100 {
 		limit = 100
 	}
-
-	userUUID, _ := uuid.Parse(userID)
 
 	notifications, err := h.service.GetUserNotifications(
 		c.Request.Context(),
@@ -203,13 +201,11 @@ func (h *Handler) GetNotifications(c *gin.Context) {
 
 // GetUnreadCount gets count of unread notifications
 func (h *Handler) GetUnreadCount(c *gin.Context) {
-	userID := c.GetString("user_id")
-	if userID == "" {
+	userUUID, err := middleware.GetUserID(c)
+	if err != nil {
 		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-
-	userUUID, _ := uuid.Parse(userID)
 
 	count, err := h.service.GetUnreadCount(c.Request.Context(), userUUID)
 	if err != nil {

@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/richxcame/ride-hailing/pkg/common"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
+	"github.com/richxcame/ride-hailing/pkg/models"
 )
 
 type Handler struct {
@@ -61,8 +62,8 @@ type RefundRequest struct {
 
 // ProcessPayment processes a payment for a ride
 func (h *Handler) ProcessPayment(c *gin.Context) {
-	userID := c.GetString("user_id")
-	if userID == "" {
+	userUUID, err := middleware.GetUserID(c)
+	if err != nil {
 		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
@@ -78,8 +79,6 @@ func (h *Handler) ProcessPayment(c *gin.Context) {
 		common.ErrorResponse(c, http.StatusBadRequest, "invalid ride ID")
 		return
 	}
-
-	userUUID, _ := uuid.Parse(userID)
 
 	// In a real implementation, you would fetch the driver ID from the ride
 	// For now, we'll use a placeholder
@@ -109,8 +108,8 @@ func (h *Handler) ProcessPayment(c *gin.Context) {
 
 // TopUpWallet adds funds to user's wallet
 func (h *Handler) TopUpWallet(c *gin.Context) {
-	userID := c.GetString("user_id")
-	if userID == "" {
+	userUUID, err := middleware.GetUserID(c)
+	if err != nil {
 		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
@@ -120,8 +119,6 @@ func (h *Handler) TopUpWallet(c *gin.Context) {
 		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
-
-	userUUID, _ := uuid.Parse(userID)
 
 	transaction, err := h.service.TopUpWallet(
 		c.Request.Context(),
@@ -145,13 +142,11 @@ func (h *Handler) TopUpWallet(c *gin.Context) {
 
 // GetWallet retrieves user's wallet information
 func (h *Handler) GetWallet(c *gin.Context) {
-	userID := c.GetString("user_id")
-	if userID == "" {
+	userUUID, err := middleware.GetUserID(c)
+	if err != nil {
 		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-
-	userUUID, _ := uuid.Parse(userID)
 
 	wallet, err := h.service.GetWallet(c.Request.Context(), userUUID)
 	if err != nil {
@@ -169,8 +164,8 @@ func (h *Handler) GetWallet(c *gin.Context) {
 
 // GetWalletTransactions retrieves wallet transaction history
 func (h *Handler) GetWalletTransactions(c *gin.Context) {
-	userID := c.GetString("user_id")
-	if userID == "" {
+	userUUID, err := middleware.GetUserID(c)
+	if err != nil {
 		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
@@ -182,8 +177,6 @@ func (h *Handler) GetWalletTransactions(c *gin.Context) {
 	if limit > 100 {
 		limit = 100
 	}
-
-	userUUID, _ := uuid.Parse(userID)
 
 	transactions, err := h.service.GetWalletTransactions(
 		c.Request.Context(),
@@ -211,8 +204,8 @@ func (h *Handler) GetWalletTransactions(c *gin.Context) {
 
 // GetPayment retrieves payment details
 func (h *Handler) GetPayment(c *gin.Context) {
-	userID := c.GetString("user_id")
-	if userID == "" {
+	userUUID, err := middleware.GetUserID(c)
+	if err != nil {
 		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
@@ -235,7 +228,6 @@ func (h *Handler) GetPayment(c *gin.Context) {
 	}
 
 	// Verify user owns this payment
-	userUUID, _ := uuid.Parse(userID)
 	if payment.RiderID != userUUID && payment.DriverID != userUUID {
 		common.ErrorResponse(c, http.StatusForbidden, "access denied")
 		return
@@ -246,11 +238,20 @@ func (h *Handler) GetPayment(c *gin.Context) {
 
 // RefundPayment processes a refund
 func (h *Handler) RefundPayment(c *gin.Context) {
-	userID := c.GetString("user_id")
-	role := c.GetString("role")
+	userUUID, err := middleware.GetUserID(c)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	role, err := middleware.GetUserRole(c)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 
 	// Only admins and riders can request refunds
-	if role != "admin" && role != "rider" {
+	if role != models.RoleAdmin && role != models.RoleRider {
 		common.ErrorResponse(c, http.StatusForbidden, "access denied")
 		return
 	}
@@ -268,14 +269,12 @@ func (h *Handler) RefundPayment(c *gin.Context) {
 	}
 
 	// Verify user owns this payment (if not admin)
-	if role != "admin" {
+	if role != models.RoleAdmin {
 		payment, err := h.service.repo.GetPaymentByID(c.Request.Context(), paymentID)
 		if err != nil {
 			common.ErrorResponse(c, http.StatusNotFound, "payment not found")
 			return
 		}
-
-		userUUID, _ := uuid.Parse(userID)
 		if payment.RiderID != userUUID {
 			common.ErrorResponse(c, http.StatusForbidden, "access denied")
 			return
