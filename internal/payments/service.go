@@ -19,11 +19,19 @@ const (
 )
 
 type Service struct {
-	repo         *Repository
-	stripeClient *StripeClient
+	repo         RepositoryInterface
+	stripeClient StripeClientInterface
 }
 
-func NewService(repo *Repository, stripeAPIKey string) *Service {
+func NewService(repo RepositoryInterface, stripeClient StripeClientInterface) *Service {
+	return &Service{
+		repo:         repo,
+		stripeClient: stripeClient,
+	}
+}
+
+// NewServiceWithStripeKey creates a service with a Stripe API key (for production use)
+func NewServiceWithStripeKey(repo *Repository, stripeAPIKey string) *Service {
 	return &Service{
 		repo:         repo,
 		stripeClient: NewStripeClient(stripeAPIKey),

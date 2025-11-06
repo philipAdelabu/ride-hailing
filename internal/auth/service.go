@@ -15,13 +15,13 @@ import (
 
 // Service handles authentication business logic
 type Service struct {
-	repo      *Repository
+	repo      RepositoryInterface
 	jwtSecret string
 	jwtExpiry int
 }
 
 // NewService creates a new auth service
-func NewService(repo *Repository, jwtSecret string, jwtExpiry int) *Service {
+func NewService(repo RepositoryInterface, jwtSecret string, jwtExpiry int) *Service {
 	return &Service{
 		repo:      repo,
 		jwtSecret: jwtSecret,

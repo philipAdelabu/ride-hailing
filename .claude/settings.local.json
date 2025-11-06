@@ -33,7 +33,13 @@
       "Bash(make help:*)",
       "Bash(golangci-lint run:*)",
       "Bash(gofmt:*)",
-      "Bash(/dev/null)"
+      "Bash(/dev/null)",
+      "Bash(go tool cover:*)",
+      "Bash(git checkout:*)",
+      "Bash(coverage_report.md)",
+      "Bash(do echo '## $service Service')",
+      "Bash(do echo \"Building $service...\")",
+      "Bash(echo:*)"
     ],
     "deny": [],
     "ask": []

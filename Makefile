@@ -239,6 +239,25 @@ db-restore: ## Restore database from latest backup
 	fi
 
 #==========================================
+# Test Services (Docker Compose for Tests)
+#==========================================
+
+test-services-up: ## Start test dependencies (Postgres and Redis)
+	@echo "Starting test services..."
+	@docker-compose -f docker-compose.test.yml up -d
+	@echo "Waiting for test services to be ready..."
+	@sleep 5
+	@echo "$(GREEN)✓ Test services are ready!$(NC)"
+
+test-services-down: ## Stop test dependencies
+	@echo "Stopping test services..."
+	@docker-compose -f docker-compose.test.yml down
+	@echo "$(GREEN)✓ Test services stopped!$(NC)"
+
+test-services-logs: ## View test services logs
+	@docker-compose -f docker-compose.test.yml logs -f
+
+#==========================================
 # Utilities
 #==========================================
 

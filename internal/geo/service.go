@@ -30,11 +30,11 @@ type DriverLocation struct {
 
 // Service handles geolocation business logic
 type Service struct {
-	redis *redisClient.Client
+	redis redisClient.ClientInterface
 }
 
 // NewService creates a new geo service
-func NewService(redis *redisClient.Client) *Service {
+func NewService(redis redisClient.ClientInterface) *Service {
 	return &Service{redis: redis}
 }
 

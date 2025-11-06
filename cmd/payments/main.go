@@ -59,7 +59,7 @@ func main() {
 
 	// Initialize payment service
 	paymentRepo := payments.NewRepository(db)
-	paymentService := payments.NewService(paymentRepo, stripeAPIKey)
+	paymentService := payments.NewServiceWithStripeKey(paymentRepo, stripeAPIKey)
 	paymentHandler := payments.NewHandler(paymentService)
 
 	// Setup Gin router
