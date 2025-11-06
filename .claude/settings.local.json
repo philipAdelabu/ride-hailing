@@ -29,7 +29,8 @@
       "Bash(do echo '=== $service ===' echo 'cmd/$service files:' ls -la /Users/richxcame/dev/richxcame/ride-hailing/cmd/$service/)",
       "Bash(xargs dirname:*)",
       "Bash(xargs:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(make help:*)"
     ],
     "deny": [],
     "ask": []

@@ -22,7 +22,11 @@ func RequestLogger() gin.HandlerFunc {
 		clientIP := c.ClientIP()
 		method := c.Request.Method
 
+		// Get correlation ID from context
+		correlationID := GetCorrelationID(c)
+
 		fields := []zap.Field{
+			zap.String("correlation_id", correlationID),
 			zap.Int("status", statusCode),
 			zap.String("method", method),
 			zap.String("path", path),
