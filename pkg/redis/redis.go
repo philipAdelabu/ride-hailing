@@ -137,3 +137,128 @@ func (c *Client) LRange(ctx context.Context, key string, start, stop int64) ([]s
 func (c *Client) Expire(ctx context.Context, key string, expiration time.Duration) error {
 	return c.Client.Expire(ctx, key, expiration).Err()
 }
+
+// Cache wraps caching operations with JSON serialization
+func (c *Client) Cache(ctx context.Context, key string, ttl time.Duration, fn func() (interface{}, error)) (interface{}, error) {
+	// Try to get from cache first
+	result, err := c.GetString(ctx, key)
+	if err == nil {
+		return result, nil
+	}
+
+	// If not in cache, execute function
+	data, err := fn()
+	if err != nil {
+		return nil, err
+	}
+
+	// Store in cache
+	if err := c.SetWithExpiration(ctx, key, data, ttl); err != nil {
+		// Log error but don't fail - cache is not critical
+		fmt.Printf("failed to cache key %s: %v\n", key, err)
+	}
+
+	return data, nil
+}
+
+// MGet retrieves multiple keys at once
+func (c *Client) MGet(ctx context.Context, keys ...string) ([]interface{}, error) {
+	return c.Client.MGet(ctx, keys...).Result()
+}
+
+// MSet sets multiple key-value pairs at once
+func (c *Client) MSet(ctx context.Context, values map[string]interface{}) error {
+	pairs := make([]interface{}, 0, len(values)*2)
+	for k, v := range values {
+		pairs = append(pairs, k, v)
+	}
+	return c.Client.MSet(ctx, pairs...).Err()
+}
+
+// Incr increments a counter
+func (c *Client) Incr(ctx context.Context, key string) (int64, error) {
+	return c.Client.Incr(ctx, key).Result()
+}
+
+// Decr decrements a counter
+func (c *Client) Decr(ctx context.Context, key string) (int64, error) {
+	return c.Client.Decr(ctx, key).Result()
+}
+
+// HSet sets a field in a hash
+func (c *Client) HSet(ctx context.Context, key, field string, value interface{}) error {
+	return c.Client.HSet(ctx, key, field, value).Err()
+}
+
+// HGet gets a field from a hash
+func (c *Client) HGet(ctx context.Context, key, field string) (string, error) {
+	return c.Client.HGet(ctx, key, field).Result()
+}
+
+// HGetAll gets all fields from a hash
+func (c *Client) HGetAll(ctx context.Context, key string) (map[string]string, error) {
+	return c.Client.HGetAll(ctx, key).Result()
+}
+
+// HMSet sets multiple fields in a hash
+func (c *Client) HMSet(ctx context.Context, key string, values map[string]interface{}) error {
+	return c.Client.HMSet(ctx, key, values).Err()
+}
+
+// HDel deletes fields from a hash
+func (c *Client) HDel(ctx context.Context, key string, fields ...string) error {
+	return c.Client.HDel(ctx, key, fields...).Err()
+}
+
+// SAdd adds members to a set
+func (c *Client) SAdd(ctx context.Context, key string, members ...interface{}) error {
+	return c.Client.SAdd(ctx, key, members...).Err()
+}
+
+// SMembers gets all members of a set
+func (c *Client) SMembers(ctx context.Context, key string) ([]string, error) {
+	return c.Client.SMembers(ctx, key).Result()
+}
+
+// SRem removes members from a set
+func (c *Client) SRem(ctx context.Context, key string, members ...interface{}) error {
+	return c.Client.SRem(ctx, key, members...).Err()
+}
+
+// SIsMember checks if member is in set
+func (c *Client) SIsMember(ctx context.Context, key string, member interface{}) (bool, error) {
+	return c.Client.SIsMember(ctx, key, member).Result()
+}
+
+// ZAdd adds members to a sorted set with scores
+func (c *Client) ZAdd(ctx context.Context, key string, score float64, member interface{}) error {
+	return c.Client.ZAdd(ctx, key, redis.Z{Score: score, Member: member}).Err()
+}
+
+// ZRange gets a range from sorted set (by rank)
+func (c *Client) ZRange(ctx context.Context, key string, start, stop int64) ([]string, error) {
+	return c.Client.ZRange(ctx, key, start, stop).Result()
+}
+
+// ZRangeByScore gets members by score range
+func (c *Client) ZRangeByScore(ctx context.Context, key string, min, max float64) ([]string, error) {
+	return c.Client.ZRangeByScore(ctx, key, &redis.ZRangeBy{
+		Min: fmt.Sprintf("%f", min),
+		Max: fmt.Sprintf("%f", max),
+	}).Result()
+}
+
+// ZRem removes members from sorted set
+func (c *Client) ZRem(ctx context.Context, key string, members ...interface{}) error {
+	return c.Client.ZRem(ctx, key, members...).Err()
+}
+
+// Pipeline creates a pipeline for batching commands
+func (c *Client) Pipeline() redis.Pipeliner {
+	return c.Client.Pipeline()
+}
+
+// TxPipeline creates a transactional pipeline
+func (c *Client) TxPipeline() redis.Pipeliner {
+	return c.Client.TxPipeline()
+}

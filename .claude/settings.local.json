@@ -23,7 +23,8 @@
       "Bash(PHASE2_IMPLEMENTATION_SUMMARY.md PHASE2_OPTION_A_COMPLETE.md PHASE2_PROGRESS.md )",
       "Bash(PHASE2_SUMMARY.md PROGRESS.md PROJECT_SUMMARY.md QUICKSTART.md STATUS_REPORT.md )",
       "Bash(fix_lint.sh)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(mkdir:*)"
     ],
     "deny": [],
     "ask": []

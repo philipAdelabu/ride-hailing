@@ -48,8 +48,15 @@ func main() {
 	defer database.Close(db)
 	logger.Info("Connected to database")
 
+	// Get Notifications service URL from environment
+	notificationsServiceURL := os.Getenv("NOTIFICATIONS_SERVICE_URL")
+	if notificationsServiceURL == "" {
+		notificationsServiceURL = "http://localhost:8085" // Default for development
+	}
+	logger.Info("Notifications service URL configured", zap.String("url", notificationsServiceURL))
+
 	// Create scheduler worker
-	worker := scheduler.NewWorker(db, logger.Get())
+	worker := scheduler.NewWorker(db, logger.Get(), notificationsServiceURL)
 
 	// Start worker in background
 	ctx, cancel := context.WithCancel(context.Background())

@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/richxcame/ride-hailing/pkg/httpclient"
 	"go.uber.org/zap"
 )
 
@@ -22,20 +23,27 @@ const (
 
 // Worker handles scheduled ride processing and maintenance tasks
 type Worker struct {
-	db                      *pgxpool.Pool
-	logger                  *zap.Logger
-	done                    chan struct{}
-	lastDemandZonesRefresh  time.Time
-	lastDriverPerfRefresh   time.Time
-	lastRevenueRefresh      time.Time
+	db                     *pgxpool.Pool
+	logger                 *zap.Logger
+	notificationsClient    *httpclient.Client
+	done                   chan struct{}
+	lastDemandZonesRefresh time.Time
+	lastDriverPerfRefresh  time.Time
+	lastRevenueRefresh     time.Time
 }
 
 // NewWorker creates a new scheduler worker
-func NewWorker(db *pgxpool.Pool, logger *zap.Logger) *Worker {
+func NewWorker(db *pgxpool.Pool, logger *zap.Logger, notificationsServiceURL string) *Worker {
+	var notificationsClient *httpclient.Client
+	if notificationsServiceURL != "" {
+		notificationsClient = httpclient.NewClient(notificationsServiceURL, 10*time.Second)
+	}
+
 	return &Worker{
-		db:     db,
-		logger: logger,
-		done:   make(chan struct{}),
+		db:                  db,
+		logger:              logger,
+		notificationsClient: notificationsClient,
+		done:                make(chan struct{}),
 	}
 }
 
@@ -197,11 +205,9 @@ func (w *Worker) activateScheduledRide(ctx context.Context, rideID uuid.UUID) er
 	return nil
 }
 
-// sendUpcomingRideNotification marks that a notification was sent for an upcoming ride
+// sendUpcomingRideNotification sends a notification to the rider about an upcoming scheduled ride
 func (w *Worker) sendUpcomingRideNotification(ctx context.Context, rideID, riderID uuid.UUID) error {
-	// In a real implementation, this would call the notifications service
-	// For now, we'll just mark it as sent in the database
-
+	// Mark as sent first to prevent duplicate notifications
 	query := `
 		UPDATE rides
 		SET scheduled_notification_sent = true,
@@ -210,15 +216,49 @@ func (w *Worker) sendUpcomingRideNotification(ctx context.Context, rideID, rider
 		  AND scheduled_notification_sent = false
 	`
 
-	_, err := w.db.Exec(ctx, query, rideID)
+	result, err := w.db.Exec(ctx, query, rideID)
 	if err != nil {
 		return err
 	}
 
-	// TODO: Actually send notification via notifications service
-	w.logger.Info("Notification marked as sent (actual notification sending not yet implemented)",
-		zap.String("ride_id", rideID.String()),
-		zap.String("rider_id", riderID.String()))
+	// If no rows were updated, notification was already sent
+	if result.RowsAffected() == 0 {
+		w.logger.Debug("Notification already sent for scheduled ride",
+			zap.String("ride_id", rideID.String()))
+		return nil
+	}
+
+	// Send notification via notifications service
+	if w.notificationsClient != nil {
+		notificationReq := map[string]interface{}{
+			"user_id": riderID.String(),
+			"type":    "scheduled_ride_reminder",
+			"channel": "push",
+			"title":   "Upcoming Ride Scheduled",
+			"body":    "Your scheduled ride is coming up soon. Get ready!",
+			"data": map[string]interface{}{
+				"ride_id": rideID.String(),
+				"action":  "view_ride",
+			},
+		}
+
+		_, err := w.notificationsClient.Post(ctx, "/api/v1/notifications", notificationReq, nil)
+		if err != nil {
+			w.logger.Error("Failed to send notification via notifications service",
+				zap.String("ride_id", rideID.String()),
+				zap.String("rider_id", riderID.String()),
+				zap.Error(err))
+			// Don't fail the whole operation if notification fails
+			// The notification is already marked as sent to prevent retries
+		} else {
+			w.logger.Info("Notification sent successfully",
+				zap.String("ride_id", rideID.String()),
+				zap.String("rider_id", riderID.String()))
+		}
+	} else {
+		w.logger.Warn("Notifications service client not configured, skipping notification",
+			zap.String("ride_id", rideID.String()))
+	}
 
 	return nil
 }

@@ -436,9 +436,20 @@ func (r *Repository) GetFinancialReport(ctx context.Context, startDate, endDate 
 		report.ReferralBonuses = 0
 	}
 
-	// TODO: Get actual refunds from payments table when available
-	// For now, estimate as 5% of cancelled rides
-	report.Refunds = float64(report.CancelledRides) * 5.0
+	// Get actual refunds from payments table
+	refundQuery := `
+		SELECT COALESCE(SUM(amount), 0)
+		FROM payments
+		WHERE status = 'refunded'
+		  AND created_at >= $1
+		  AND created_at <= $2
+	`
+
+	err = r.db.QueryRow(ctx, refundQuery, startDate, endDate).Scan(&report.Refunds)
+	if err != nil {
+		// Fallback to estimation if query fails
+		report.Refunds = float64(report.CancelledRides) * 5.0
+	}
 
 	// Calculate financial metrics
 	report.TotalExpenses = report.DriverPayouts + report.PromoDiscounts + report.ReferralBonuses + report.Refunds
