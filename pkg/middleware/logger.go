@@ -22,11 +22,7 @@ func RequestLogger() gin.HandlerFunc {
 		clientIP := c.ClientIP()
 		method := c.Request.Method
 
-		// Get correlation ID from context
-		correlationID := GetCorrelationID(c)
-
 		fields := []zap.Field{
-			zap.String("correlation_id", correlationID),
 			zap.Int("status", statusCode),
 			zap.String("method", method),
 			zap.String("path", path),
@@ -35,10 +31,12 @@ func RequestLogger() gin.HandlerFunc {
 			zap.Duration("latency", latency),
 		}
 
+		reqLogger := logger.WithContext(c.Request.Context())
+
 		if len(c.Errors) > 0 {
-			logger.Error("Request completed with errors", append(fields, zap.String("errors", c.Errors.String()))...)
+			reqLogger.Error("Request completed with errors", append(fields, zap.String("errors", c.Errors.String()))...)
 		} else {
-			logger.Info("Request completed", fields...)
+			reqLogger.Info("Request completed", fields...)
 		}
 	}
 }
