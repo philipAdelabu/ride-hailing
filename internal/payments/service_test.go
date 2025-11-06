@@ -8,31 +8,31 @@ import (
 
 func TestCalculateDriverEarnings(t *testing.T) {
 	tests := []struct {
-		name            string
-		totalAmount     float64
-		commissionRate  float64
-		expectedEarnings float64
+		name               string
+		totalAmount        float64
+		commissionRate     float64
+		expectedEarnings   float64
 		expectedCommission float64
 	}{
 		{
-			name:            "standard fare",
-			totalAmount:     100.00,
-			commissionRate:  0.20,
-			expectedEarnings: 80.00,
+			name:               "standard fare",
+			totalAmount:        100.00,
+			commissionRate:     0.20,
+			expectedEarnings:   80.00,
 			expectedCommission: 20.00,
 		},
 		{
-			name:            "minimum fare",
-			totalAmount:     10.00,
-			commissionRate:  0.20,
-			expectedEarnings: 8.00,
+			name:               "minimum fare",
+			totalAmount:        10.00,
+			commissionRate:     0.20,
+			expectedEarnings:   8.00,
 			expectedCommission: 2.00,
 		},
 		{
-			name:            "high fare",
-			totalAmount:     500.00,
-			commissionRate:  0.20,
-			expectedEarnings: 400.00,
+			name:               "high fare",
+			totalAmount:        500.00,
+			commissionRate:     0.20,
+			expectedEarnings:   400.00,
 			expectedCommission: 100.00,
 		},
 	}
@@ -137,25 +137,25 @@ func TestWalletTransactionTypes(t *testing.T) {
 
 func TestPaymentValidation(t *testing.T) {
 	tests := []struct {
-		name            string
-		amount          float64
-		commission      float64
-		driverEarnings  float64
-		wantErr         bool
+		name           string
+		amount         float64
+		commission     float64
+		driverEarnings float64
+		wantErr        bool
 	}{
 		{
-			name:            "valid payment",
-			amount:          100.00,
-			commission:      20.00,
-			driverEarnings:  80.00,
-			wantErr:         false,
+			name:           "valid payment",
+			amount:         100.00,
+			commission:     20.00,
+			driverEarnings: 80.00,
+			wantErr:        false,
 		},
 		{
-			name:            "zero amount",
-			amount:          0.00,
-			commission:      0.00,
-			driverEarnings:  0.00,
-			wantErr:         true,
+			name:           "zero amount",
+			amount:         0.00,
+			commission:     0.00,
+			driverEarnings: 0.00,
+			wantErr:        true,
 		},
 	}
 

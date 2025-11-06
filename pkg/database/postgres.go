@@ -24,11 +24,11 @@ type DBPool struct {
 
 // DBMetrics holds Prometheus metrics for database pools
 type DBMetrics struct {
-	primaryConns   prometheus.Gauge
-	replicaConns   prometheus.Gauge
-	queryDuration  *prometheus.HistogramVec
-	queryErrors    *prometheus.CounterVec
-	poolWaitTime   *prometheus.HistogramVec
+	primaryConns  prometheus.Gauge
+	replicaConns  prometheus.Gauge
+	queryDuration *prometheus.HistogramVec
+	queryErrors   *prometheus.CounterVec
+	poolWaitTime  *prometheus.HistogramVec
 }
 
 // NewDBMetrics creates Prometheus metrics for database monitoring
@@ -43,8 +43,8 @@ func NewDBMetrics(serviceName string) *DBMetrics {
 			Help: "Number of active connections to replica databases",
 		}),
 		queryDuration: promauto.NewHistogramVec(prometheus.HistogramOpts{
-			Name: fmt.Sprintf("%s_db_query_duration_seconds", serviceName),
-			Help: "Database query duration in seconds",
+			Name:    fmt.Sprintf("%s_db_query_duration_seconds", serviceName),
+			Help:    "Database query duration in seconds",
 			Buckets: []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5},
 		}, []string{"query_type", "pool_type"}),
 		queryErrors: promauto.NewCounterVec(prometheus.CounterOpts{
@@ -52,8 +52,8 @@ func NewDBMetrics(serviceName string) *DBMetrics {
 			Help: "Total number of database query errors",
 		}, []string{"query_type", "pool_type"}),
 		poolWaitTime: promauto.NewHistogramVec(prometheus.HistogramOpts{
-			Name: fmt.Sprintf("%s_db_pool_wait_duration_seconds", serviceName),
-			Help: "Time spent waiting for a connection from the pool",
+			Name:    fmt.Sprintf("%s_db_pool_wait_duration_seconds", serviceName),
+			Help:    "Time spent waiting for a connection from the pool",
 			Buckets: []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1},
 		}, []string{"pool_type"}),
 	}
@@ -71,9 +71,9 @@ func NewPostgresPool(cfg *config.DatabaseConfig) (*pgxpool.Pool, error) {
 	// Connection pool settings
 	poolConfig.MaxConns = int32(cfg.MaxConns)
 	poolConfig.MinConns = int32(cfg.MinConns)
-	poolConfig.MaxConnLifetime = time.Hour              // Recycle connections after 1 hour
-	poolConfig.MaxConnIdleTime = 30 * time.Minute       // Close idle connections after 30 mins
-	poolConfig.HealthCheckPeriod = time.Minute          // Check connection health every minute
+	poolConfig.MaxConnLifetime = time.Hour        // Recycle connections after 1 hour
+	poolConfig.MaxConnIdleTime = 30 * time.Minute // Close idle connections after 30 mins
+	poolConfig.HealthCheckPeriod = time.Minute    // Check connection health every minute
 	poolConfig.ConnConfig.ConnectTimeout = 10 * time.Second
 
 	// Statement cache for better performance

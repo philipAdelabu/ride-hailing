@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 )
@@ -99,7 +100,7 @@ func validateUserRole(fl validator.FieldLevel) bool {
 // validateVehicleYear checks if vehicle year is reasonable
 func validateVehicleYear(fl validator.FieldLevel) bool {
 	year := fl.Field().Int()
-	currentYear := 2025 // Update this or use time.Now().Year()
+	currentYear := int64(time.Now().Year())
 	return year >= 1900 && year <= currentYear+1
 }
 

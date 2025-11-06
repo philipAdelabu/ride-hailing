@@ -65,8 +65,8 @@ func (h *Handler) GetPendingAlerts(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"alerts": alerts,
-		"page":   page,
+		"alerts":   alerts,
+		"page":     page,
 		"per_page": perPage,
 	})
 }
@@ -252,8 +252,8 @@ func (h *Handler) GetUserAlerts(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"alerts": alerts,
-		"page":   page,
+		"alerts":   alerts,
+		"page":     page,
 		"per_page": perPage,
 	})
 }

@@ -50,32 +50,32 @@ type ReferralCode struct {
 
 // Referral represents a referral relationship
 type Referral struct {
-	ID                     uuid.UUID  `json:"id"`
-	ReferrerID             uuid.UUID  `json:"referrer_id"`
-	ReferredID             uuid.UUID  `json:"referred_id"`
-	ReferralCodeID         uuid.UUID  `json:"referral_code_id"`
-	ReferrerBonus          float64    `json:"referrer_bonus"`
-	ReferredBonus          float64    `json:"referred_bonus"`
-	ReferrerBonusApplied   bool       `json:"referrer_bonus_applied"`
-	ReferredBonusApplied   bool       `json:"referred_bonus_applied"`
-	ReferredFirstRideID    *uuid.UUID `json:"referred_first_ride_id,omitempty"`
-	CreatedAt              time.Time  `json:"created_at"`
-	CompletedAt            *time.Time `json:"completed_at,omitempty"`
+	ID                   uuid.UUID  `json:"id"`
+	ReferrerID           uuid.UUID  `json:"referrer_id"`
+	ReferredID           uuid.UUID  `json:"referred_id"`
+	ReferralCodeID       uuid.UUID  `json:"referral_code_id"`
+	ReferrerBonus        float64    `json:"referrer_bonus"`
+	ReferredBonus        float64    `json:"referred_bonus"`
+	ReferrerBonusApplied bool       `json:"referrer_bonus_applied"`
+	ReferredBonusApplied bool       `json:"referred_bonus_applied"`
+	ReferredFirstRideID  *uuid.UUID `json:"referred_first_ride_id,omitempty"`
+	CreatedAt            time.Time  `json:"created_at"`
+	CompletedAt          *time.Time `json:"completed_at,omitempty"`
 }
 
 // RideType represents different types of rides with different pricing
 type RideType struct {
-	ID             uuid.UUID `json:"id"`
-	Name           string    `json:"name"`
-	Description    string    `json:"description"`
-	BaseFare       float64   `json:"base_fare"`
-	PerKmRate      float64   `json:"per_km_rate"`
-	PerMinuteRate  float64   `json:"per_minute_rate"`
-	MinimumFare    float64   `json:"minimum_fare"`
-	Capacity       int       `json:"capacity"`
-	IsActive       bool      `json:"is_active"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ID            uuid.UUID `json:"id"`
+	Name          string    `json:"name"`
+	Description   string    `json:"description"`
+	BaseFare      float64   `json:"base_fare"`
+	PerKmRate     float64   `json:"per_km_rate"`
+	PerMinuteRate float64   `json:"per_minute_rate"`
+	MinimumFare   float64   `json:"minimum_fare"`
+	Capacity      int       `json:"capacity"`
+	IsActive      bool      `json:"is_active"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 // PromoCodeValidation contains validation result

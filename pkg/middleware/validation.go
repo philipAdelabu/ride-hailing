@@ -149,7 +149,7 @@ func ValidateContentType(contentType string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.ContentType() != contentType {
 			c.JSON(http.StatusUnsupportedMediaType, gin.H{
-				"error": "Unsupported content type",
+				"error":    "Unsupported content type",
 				"expected": contentType,
 				"received": c.ContentType(),
 			})
@@ -176,7 +176,7 @@ func MaxBodySize(maxSize int64) gin.HandlerFunc {
 		if err := decoder.Decode(&jsonData); err != nil {
 			if err.Error() == "http: request body too large" {
 				c.JSON(http.StatusRequestEntityTooLarge, gin.H{
-					"error": "Request body too large",
+					"error":          "Request body too large",
 					"max_size_bytes": maxSize,
 				})
 				c.Abort()

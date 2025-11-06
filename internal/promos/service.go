@@ -125,7 +125,7 @@ func (s *Service) ApplyPromoCode(ctx context.Context, code string, userID, rideI
 	}
 
 	if !validation.Valid {
-		return nil, fmt.Errorf(validation.Message)
+		return nil, fmt.Errorf("%s", validation.Message)
 	}
 
 	// Get promo code again
@@ -323,11 +323,11 @@ func (s *Service) ProcessReferralBonus(ctx context.Context, userID uuid.UUID, ri
 
 	// Return bonus information for both users
 	result := map[string]interface{}{
-		"referrer_id":     referral.ReferrerID,
-		"referrer_bonus":  referral.ReferrerBonus,
-		"referred_id":     referral.ReferredID,
-		"referred_bonus":  referral.ReferredBonus,
-		"has_bonus":       true,
+		"referrer_id":    referral.ReferrerID,
+		"referrer_bonus": referral.ReferrerBonus,
+		"referred_id":    referral.ReferredID,
+		"referred_bonus": referral.ReferredBonus,
+		"has_bonus":      true,
 	}
 
 	return result, nil

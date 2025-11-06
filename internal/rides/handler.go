@@ -402,18 +402,18 @@ func (h *Handler) GetRideReceipt(c *gin.Context) {
 	}
 
 	receipt := gin.H{
-		"ride_id":           ride.ID,
-		"date":              ride.CompletedAt,
-		"pickup_address":    ride.PickupAddress,
-		"dropoff_address":   ride.DropoffAddress,
-		"distance":          ride.ActualDistance,
-		"duration":          ride.ActualDuration,
-		"base_fare":         ride.EstimatedFare,
-		"surge_multiplier":  ride.SurgeMultiplier,
-		"final_fare":        ride.FinalFare,
-		"payment_method":    paymentMethod,
-		"rider_id":          ride.RiderID,
-		"driver_id":         ride.DriverID,
+		"ride_id":          ride.ID,
+		"date":             ride.CompletedAt,
+		"pickup_address":   ride.PickupAddress,
+		"dropoff_address":  ride.DropoffAddress,
+		"distance":         ride.ActualDistance,
+		"duration":         ride.ActualDuration,
+		"base_fare":        ride.EstimatedFare,
+		"surge_multiplier": ride.SurgeMultiplier,
+		"final_fare":       ride.FinalFare,
+		"payment_method":   paymentMethod,
+		"rider_id":         ride.RiderID,
+		"driver_id":        ride.DriverID,
 	}
 
 	common.SuccessResponse(c, receipt)

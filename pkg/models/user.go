@@ -34,22 +34,22 @@ type User struct {
 
 // Driver represents driver-specific information
 type Driver struct {
-	ID                uuid.UUID  `json:"id" db:"id"`
-	UserID            uuid.UUID  `json:"user_id" db:"user_id"`
-	LicenseNumber     string     `json:"license_number" db:"license_number"`
-	VehicleModel      string     `json:"vehicle_model" db:"vehicle_model"`
-	VehiclePlate      string     `json:"vehicle_plate" db:"vehicle_plate"`
-	VehicleColor      string     `json:"vehicle_color" db:"vehicle_color"`
-	VehicleYear       int        `json:"vehicle_year" db:"vehicle_year"`
-	IsAvailable       bool       `json:"is_available" db:"is_available"`
-	IsOnline          bool       `json:"is_online" db:"is_online"`
-	Rating            float64    `json:"rating" db:"rating"`
-	TotalRides        int        `json:"total_rides" db:"total_rides"`
-	CurrentLatitude   *float64   `json:"current_latitude,omitempty" db:"current_latitude"`
-	CurrentLongitude  *float64   `json:"current_longitude,omitempty" db:"current_longitude"`
+	ID                 uuid.UUID  `json:"id" db:"id"`
+	UserID             uuid.UUID  `json:"user_id" db:"user_id"`
+	LicenseNumber      string     `json:"license_number" db:"license_number"`
+	VehicleModel       string     `json:"vehicle_model" db:"vehicle_model"`
+	VehiclePlate       string     `json:"vehicle_plate" db:"vehicle_plate"`
+	VehicleColor       string     `json:"vehicle_color" db:"vehicle_color"`
+	VehicleYear        int        `json:"vehicle_year" db:"vehicle_year"`
+	IsAvailable        bool       `json:"is_available" db:"is_available"`
+	IsOnline           bool       `json:"is_online" db:"is_online"`
+	Rating             float64    `json:"rating" db:"rating"`
+	TotalRides         int        `json:"total_rides" db:"total_rides"`
+	CurrentLatitude    *float64   `json:"current_latitude,omitempty" db:"current_latitude"`
+	CurrentLongitude   *float64   `json:"current_longitude,omitempty" db:"current_longitude"`
 	LastLocationUpdate *time.Time `json:"last_location_update,omitempty" db:"last_location_update"`
-	CreatedAt         time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt         time.Time  `json:"updated_at" db:"updated_at"`
+	CreatedAt          time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at" db:"updated_at"`
 }
 
 // RegisterRequest represents registration request

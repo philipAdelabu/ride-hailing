@@ -7,15 +7,15 @@ import (
 
 // Common error types
 var (
-	ErrNotFound          = errors.New("resource not found")
-	ErrUnauthorized      = errors.New("unauthorized")
-	ErrForbidden         = errors.New("forbidden")
-	ErrBadRequest        = errors.New("bad request")
-	ErrInternalServer    = errors.New("internal server error")
-	ErrConflict          = errors.New("resource conflict")
-	ErrValidation        = errors.New("validation error")
-	ErrInvalidToken      = errors.New("invalid token")
-	ErrExpiredToken      = errors.New("expired token")
+	ErrNotFound           = errors.New("resource not found")
+	ErrUnauthorized       = errors.New("unauthorized")
+	ErrForbidden          = errors.New("forbidden")
+	ErrBadRequest         = errors.New("bad request")
+	ErrInternalServer     = errors.New("internal server error")
+	ErrConflict           = errors.New("resource conflict")
+	ErrValidation         = errors.New("validation error")
+	ErrInvalidToken       = errors.New("invalid token")
+	ErrExpiredToken       = errors.New("expired token")
 	ErrInvalidCredentials = errors.New("invalid credentials")
 )
 

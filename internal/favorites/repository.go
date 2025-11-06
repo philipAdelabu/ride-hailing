@@ -13,7 +13,7 @@ import (
 type FavoriteLocation struct {
 	ID        uuid.UUID `json:"id"`
 	UserID    uuid.UUID `json:"user_id"`
-	Name      string    `json:"name"`       // "Home", "Work", "Gym", etc.
+	Name      string    `json:"name"` // "Home", "Work", "Gym", etc.
 	Address   string    `json:"address"`
 	Latitude  float64   `json:"latitude"`
 	Longitude float64   `json:"longitude"`

@@ -104,7 +104,7 @@ func (s *Service) GetRecentRides(ctx context.Context, limit int) ([]*models.Ride
 
 // DashboardStats represents overall dashboard statistics
 type DashboardStats struct {
-	Users      *UserStats  `json:"users"`
-	Rides      *RideStats  `json:"rides"`
-	TodayRides *RideStats  `json:"today_rides"`
+	Users      *UserStats `json:"users"`
+	Rides      *RideStats `json:"rides"`
+	TodayRides *RideStats `json:"today_rides"`
 }

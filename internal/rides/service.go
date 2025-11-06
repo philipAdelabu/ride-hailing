@@ -14,10 +14,10 @@ import (
 )
 
 const (
-	baseFarePerKm      = 1.5  // Base fare per kilometer
-	baseFarePerMinute  = 0.25 // Base fare per minute
-	minimumFare        = 5.0  // Minimum fare
-	commissionRate     = 0.20 // 20% commission
+	baseFarePerKm     = 1.5  // Base fare per kilometer
+	baseFarePerMinute = 0.25 // Base fare per minute
+	minimumFare       = 5.0  // Minimum fare
+	commissionRate    = 0.20 // 20% commission
 )
 
 // Service handles ride business logic
@@ -386,11 +386,11 @@ func (s *Service) UpdateUserProfile(ctx context.Context, userID uuid.UUID, first
 
 // PromoCodeValidation represents the response from promo code validation
 type PromoCodeValidation struct {
-	Valid          bool    `json:"valid"`
+	Valid          bool      `json:"valid"`
 	PromoCodeID    uuid.UUID `json:"promo_code_id"`
-	DiscountAmount float64 `json:"discount_amount"`
-	FinalAmount    float64 `json:"final_amount"`
-	Message        string  `json:"message"`
+	DiscountAmount float64   `json:"discount_amount"`
+	FinalAmount    float64   `json:"final_amount"`
+	Message        string    `json:"message"`
 }
 
 // validatePromoCode validates a promo code with the Promos service

@@ -121,13 +121,13 @@ func (h *Handler) GetModelAccuracy(c *gin.Context) {
 // TuneHyperparameters allows admins to adjust model hyperparameters
 func (h *Handler) TuneHyperparameters(c *gin.Context) {
 	var params struct {
-		DistanceWeight     *float64 `json:"distance_weight"`
-		TrafficWeight      *float64 `json:"traffic_weight"`
-		TimeOfDayWeight    *float64 `json:"time_of_day_weight"`
-		DayOfWeekWeight    *float64 `json:"day_of_week_weight"`
-		WeatherWeight      *float64 `json:"weather_weight"`
-		HistoricalWeight   *float64 `json:"historical_weight"`
-		BaseSpeed          *float64 `json:"base_speed"`
+		DistanceWeight   *float64 `json:"distance_weight"`
+		TrafficWeight    *float64 `json:"traffic_weight"`
+		TimeOfDayWeight  *float64 `json:"time_of_day_weight"`
+		DayOfWeekWeight  *float64 `json:"day_of_week_weight"`
+		WeatherWeight    *float64 `json:"weather_weight"`
+		HistoricalWeight *float64 `json:"historical_weight"`
+		BaseSpeed        *float64 `json:"base_speed"`
 	}
 
 	if err := c.ShouldBindJSON(&params); err != nil {
@@ -237,18 +237,18 @@ func (h *Handler) GetFeatureImportance(c *gin.Context) {
 	model := h.service.model
 
 	features := map[string]float64{
-		"distance":     model.DistanceWeight,
-		"traffic":      model.TrafficWeight,
-		"time_of_day":  model.TimeOfDayWeight,
-		"day_of_week":  model.DayOfWeekWeight,
-		"weather":      model.WeatherWeight,
-		"historical":   model.HistoricalWeight,
+		"distance":    model.DistanceWeight,
+		"traffic":     model.TrafficWeight,
+		"time_of_day": model.TimeOfDayWeight,
+		"day_of_week": model.DayOfWeekWeight,
+		"weather":     model.WeatherWeight,
+		"historical":  model.HistoricalWeight,
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"success":  true,
-		"features": features,
+		"success":       true,
+		"features":      features,
 		"model_version": "v1.0-ml",
-		"trained_at": model.TrainedAt,
+		"trained_at":    model.TrainedAt,
 	})
 }

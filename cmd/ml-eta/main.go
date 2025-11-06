@@ -10,8 +10,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/richxcame/ride-hailing/internal/mleta"
-	"github.com/richxcame/ride-hailing/pkg/common"
+	"github.com/richxcame/ride-hailing/pkg/config"
 	"github.com/richxcame/ride-hailing/pkg/database"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	redisClient "github.com/richxcame/ride-hailing/pkg/redis"
@@ -19,24 +20,27 @@ import (
 
 func main() {
 	// Load configuration
-	cfg := common.LoadConfig()
+	cfg, err := config.Load("ml-eta")
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
 
-	// Initialize database
-	db, err := database.NewPostgresDB(cfg.DatabaseURL)
+	// Initialize database (pgxpool)
+	dbPool, err := database.NewPostgresPool(&cfg.Database)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	defer db.Close()
+	defer database.Close(dbPool)
 
 	// Initialize Redis
-	redis, err := redisClient.NewRedisClient(cfg.RedisHost, cfg.RedisPort, cfg.RedisPassword)
+	redis, err := redisClient.NewRedisClient(&cfg.Redis)
 	if err != nil {
 		log.Fatalf("Failed to connect to Redis: %v", err)
 	}
 	defer redis.Close()
 
 	// Initialize ML ETA service
-	repo := mleta.NewRepository(db, redis)
+	repo := mleta.NewRepository(dbPool, redis)
 	service := mleta.NewService(repo, redis)
 	handler := mleta.NewHandler(service)
 
@@ -47,8 +51,9 @@ func main() {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(gin.Recovery())
-	router.Use(middleware.Logger())
+	router.Use(middleware.RequestLogger())
 	router.Use(middleware.CORS())
+	router.Use(middleware.Metrics(cfg.Server.ServiceName))
 
 	// Health check
 	router.GET("/healthz", func(c *gin.Context) {
@@ -59,13 +64,13 @@ func main() {
 	api := router.Group("/api/v1/eta")
 	{
 		// Public endpoints
-		api.POST("/predict", handler.PredictETA)                   // Predict ETA for a route
-		api.POST("/predict/batch", handler.BatchPredictETA)        // Batch ETA predictions
+		api.POST("/predict", handler.PredictETA)            // Predict ETA for a route
+		api.POST("/predict/batch", handler.BatchPredictETA) // Batch ETA predictions
 
 		// Admin endpoints (require JWT)
 		admin := api.Group("")
-		admin.Use(middleware.AuthMiddleware(cfg.JWTSecret))
-		admin.Use(middleware.AdminMiddleware())
+		admin.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
+		admin.Use(middleware.RequireAdmin())
 		{
 			admin.POST("/train", handler.TriggerModelTraining)     // Trigger model retraining
 			admin.GET("/model/stats", handler.GetModelStats)       // Get model performance stats
@@ -75,19 +80,19 @@ func main() {
 
 		// Analytics endpoints
 		analytics := api.Group("/analytics")
-		analytics.Use(middleware.AuthMiddleware(cfg.JWTSecret))
+		analytics.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
 		{
-			analytics.GET("/predictions", handler.GetPredictionHistory)   // Historical predictions
-			analytics.GET("/accuracy", handler.GetAccuracyTrends)          // Accuracy over time
-			analytics.GET("/features", handler.GetFeatureImportance)       // Feature importance
+			analytics.GET("/predictions", handler.GetPredictionHistory) // Historical predictions
+			analytics.GET("/accuracy", handler.GetAccuracyTrends)       // Accuracy over time
+			analytics.GET("/features", handler.GetFeatureImportance)    // Feature importance
 		}
 	}
 
 	// Prometheus metrics
-	router.GET("/metrics", middleware.PrometheusHandler())
+	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	// Start server
-	port := cfg.Port
+	port := cfg.Server.Port
 	if port == "" {
 		port = "8080"
 	}

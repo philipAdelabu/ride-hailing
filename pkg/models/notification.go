@@ -49,10 +49,10 @@ type Notification struct {
 
 // NotificationRequest represents a request to send a notification
 type NotificationRequest struct {
-	UserID  uuid.UUID              `json:"user_id" binding:"required"`
-	Type    NotificationType       `json:"type" binding:"required"`
-	Channel NotificationChannel    `json:"channel" binding:"required"`
-	Title   string                 `json:"title" binding:"required"`
-	Body    string                 `json:"body" binding:"required"`
-	Data    map[string]string      `json:"data,omitempty"`
+	UserID  uuid.UUID           `json:"user_id" binding:"required"`
+	Type    NotificationType    `json:"type" binding:"required"`
+	Channel NotificationChannel `json:"channel" binding:"required"`
+	Title   string              `json:"title" binding:"required"`
+	Body    string              `json:"body" binding:"required"`
+	Data    map[string]string   `json:"data,omitempty"`
 }

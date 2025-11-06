@@ -157,7 +157,7 @@ func (h *Handler) GetDemandHeatMap(c *gin.Context) {
 	}
 
 	common.SuccessResponse(c, gin.H{
-		"heat_map": heatMap,
+		"heat_map":     heatMap,
 		"grid_size_km": gridSize * 111, // Approximate conversion to km
 	})
 }

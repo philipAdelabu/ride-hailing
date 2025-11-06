@@ -7,19 +7,17 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/richxcame/ride-hailing/pkg/redis"
 )
 
 type Repository struct {
-	db    *sql.DB
-	redis *redis.RedisClient
+	db    *pgxpool.Pool
+	redis *redis.Client
 }
 
-func NewRepository(db *sql.DB, redis *redis.RedisClient) *Repository {
-	return &Repository{
-		db:    db,
-		redis: redis,
-	}
+func NewRepository(db *pgxpool.Pool, redis *redis.Client) *Repository {
+	return &Repository{db: db, redis: redis}
 }
 
 // ETAPrediction represents a stored ETA prediction
@@ -44,16 +42,16 @@ type ETAPrediction struct {
 
 // TrainingDataPoint represents data used for model training
 type TrainingDataPoint struct {
-	PickupLat      float64 `json:"pickup_lat"`
-	PickupLng      float64 `json:"pickup_lng"`
-	DropoffLat     float64 `json:"dropoff_lat"`
-	DropoffLng     float64 `json:"dropoff_lng"`
-	ActualMinutes  float64 `json:"actual_minutes"`
-	Distance       float64 `json:"distance"`
-	TrafficLevel   string  `json:"traffic_level"`
-	Weather        string  `json:"weather"`
-	TimeOfDay      int     `json:"time_of_day"`
-	DayOfWeek      int     `json:"day_of_week"`
+	PickupLat     float64 `json:"pickup_lat"`
+	PickupLng     float64 `json:"pickup_lng"`
+	DropoffLat    float64 `json:"dropoff_lat"`
+	DropoffLng    float64 `json:"dropoff_lng"`
+	ActualMinutes float64 `json:"actual_minutes"`
+	Distance      float64 `json:"distance"`
+	TrafficLevel  string  `json:"traffic_level"`
+	Weather       string  `json:"weather"`
+	TimeOfDay     int     `json:"time_of_day"`
+	DayOfWeek     int     `json:"day_of_week"`
 }
 
 // StorePrediction stores an ETA prediction
@@ -67,7 +65,7 @@ func (r *Repository) StorePrediction(ctx context.Context, prediction *ETAPredict
 		RETURNING id
 	`
 
-	err := r.db.QueryRowContext(ctx, query,
+	err := r.db.QueryRow(ctx, query,
 		prediction.PickupLat,
 		prediction.PickupLng,
 		prediction.DropoffLat,
@@ -98,7 +96,7 @@ func (r *Repository) UpdatePredictionWithActual(ctx context.Context, rideID stri
 		)
 	`
 
-	_, err := r.db.ExecContext(ctx, query, actualMinutes, rideID, time.Now())
+	_, err := r.db.Exec(ctx, query, actualMinutes, rideID, time.Now())
 	return err
 }
 
@@ -106,7 +104,7 @@ func (r *Repository) UpdatePredictionWithActual(ctx context.Context, rideID stri
 func (r *Repository) GetHistoricalETAForRoute(ctx context.Context, pickupLat, pickupLng, dropoffLat, dropoffLng float64) (float64, error) {
 	// Query for rides in similar area (within 0.5km radius)
 	query := `
-		SELECT AVG(actual_minutes) as avg_eta
+        SELECT COALESCE(AVG(actual_minutes), 0) as avg_eta
 		FROM eta_predictions
 		WHERE actual_minutes IS NOT NULL
 			AND actual_minutes > 0
@@ -120,8 +118,8 @@ func (r *Repository) GetHistoricalETAForRoute(ctx context.Context, pickupLat, pi
 		LIMIT 10
 	`
 
-	var avgETA sql.NullFloat64
-	err := r.db.QueryRowContext(ctx, query, pickupLat, pickupLng, dropoffLat, dropoffLng).Scan(&avgETA)
+	var avgETA float64
+	err := r.db.QueryRow(ctx, query, pickupLat, pickupLng, dropoffLat, dropoffLng).Scan(&avgETA)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return 0, nil
@@ -129,11 +127,7 @@ func (r *Repository) GetHistoricalETAForRoute(ctx context.Context, pickupLat, pi
 		return 0, err
 	}
 
-	if !avgETA.Valid {
-		return 0, nil
-	}
-
-	return avgETA.Float64, nil
+	return avgETA, nil
 }
 
 // GetTrainingData retrieves historical data for model training
@@ -154,7 +148,7 @@ func (r *Repository) GetTrainingData(ctx context.Context, limit int) ([]*Trainin
 		LIMIT $1
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, limit)
+	rows, err := r.db.Query(ctx, query, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +193,7 @@ func (r *Repository) StoreModelStats(ctx context.Context, model *ETAModel) error
 		return fmt.Errorf("failed to marshal model config: %w", err)
 	}
 
-	_, err = r.db.ExecContext(ctx, query,
+	_, err = r.db.Exec(ctx, query,
 		model.TrainedAt,
 		model.TotalPredictions,
 		model.AccuracyRate,
@@ -219,7 +213,7 @@ func (r *Repository) StoreModelStats(ctx context.Context, model *ETAModel) error
 func (r *Repository) GetModelStats(ctx context.Context) (*ETAModel, error) {
 	// Try Redis cache first
 	cacheKey := "eta:model:latest"
-	cached, err := r.redis.Get(ctx, cacheKey)
+	cached, err := r.redis.GetString(ctx, cacheKey)
 	if err == nil && cached != "" {
 		var model ETAModel
 		if err := json.Unmarshal([]byte(cached), &model); err == nil {
@@ -237,7 +231,7 @@ func (r *Repository) GetModelStats(ctx context.Context) (*ETAModel, error) {
 
 	var configJSON []byte
 	var model ETAModel
-	err = r.db.QueryRowContext(ctx, query).Scan(
+	err = r.db.QueryRow(ctx, query).Scan(
 		&configJSON,
 		&model.TrainedAt,
 		&model.TotalPredictions,
@@ -260,14 +254,14 @@ func (r *Repository) GetPredictionHistory(ctx context.Context, limit int, offset
 	query := `
 		SELECT
 			id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng,
-			predicted_minutes, actual_minutes, distance, traffic_level,
-			weather, time_of_day, day_of_week, confidence, ride_id, created_at
+            predicted_minutes, COALESCE(actual_minutes, 0), distance, traffic_level,
+            weather, time_of_day, day_of_week, confidence, COALESCE(ride_id, ''), created_at
 		FROM eta_predictions
 		ORDER BY created_at DESC
 		LIMIT $1 OFFSET $2
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, limit, offset)
+	rows, err := r.db.Query(ctx, query, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -276,9 +270,6 @@ func (r *Repository) GetPredictionHistory(ctx context.Context, limit int, offset
 	var predictions []*ETAPrediction
 	for rows.Next() {
 		var p ETAPrediction
-		var actualMinutes sql.NullFloat64
-		var rideID sql.NullString
-
 		err := rows.Scan(
 			&p.ID,
 			&p.PickupLat,
@@ -286,25 +277,18 @@ func (r *Repository) GetPredictionHistory(ctx context.Context, limit int, offset
 			&p.DropoffLat,
 			&p.DropoffLng,
 			&p.PredictedMinutes,
-			&actualMinutes,
+			&p.ActualMinutes,
 			&p.Distance,
 			&p.TrafficLevel,
 			&p.Weather,
 			&p.TimeOfDay,
 			&p.DayOfWeek,
 			&p.Confidence,
-			&rideID,
+			&p.RideID,
 			&p.CreatedAt,
 		)
 		if err != nil {
 			return nil, err
-		}
-
-		if actualMinutes.Valid {
-			p.ActualMinutes = actualMinutes.Float64
-		}
-		if rideID.Valid {
-			p.RideID = rideID.String
 		}
 
 		predictions = append(predictions, &p)
@@ -329,23 +313,23 @@ func (r *Repository) GetAccuracyMetrics(ctx context.Context, days int) (map[stri
 				THEN (1 - LEAST(ABS(predicted_minutes - actual_minutes) / actual_minutes, 1)) * 100
 			END) as accuracy_percentage
 		FROM eta_predictions
-		WHERE created_at > NOW() - INTERVAL '${days} days'
+        WHERE created_at > NOW() - ($1::int * INTERVAL '1 day')
 		GROUP BY DATE(created_at)
 		ORDER BY date DESC
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, days)
+	rows, err := r.db.Query(ctx, query, days)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
 	type DailyMetric struct {
-		Date                string  `json:"date"`
-		TotalPredictions    int     `json:"total_predictions"`
-		CompletedRides      int     `json:"completed_rides"`
-		MeanAbsoluteError   float64 `json:"mean_absolute_error"`
-		AccuracyPercentage  float64 `json:"accuracy_percentage"`
+		Date               string  `json:"date"`
+		TotalPredictions   int     `json:"total_predictions"`
+		CompletedRides     int     `json:"completed_rides"`
+		MeanAbsoluteError  float64 `json:"mean_absolute_error"`
+		AccuracyPercentage float64 `json:"accuracy_percentage"`
 	}
 
 	var metrics []DailyMetric

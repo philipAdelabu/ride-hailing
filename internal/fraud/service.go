@@ -54,10 +54,10 @@ func (s *Service) AnalyzeUser(ctx context.Context, userID uuid.UUID) (*UserRiskP
 			Status:      AlertStatusPending,
 			Description: "Suspicious payment activity detected",
 			Details: map[string]interface{}{
-				"failed_attempts":        paymentIndicators.FailedPaymentAttempts,
-				"chargebacks":            paymentIndicators.ChargebackCount,
+				"failed_attempts":          paymentIndicators.FailedPaymentAttempts,
+				"chargebacks":              paymentIndicators.ChargebackCount,
 				"multiple_payment_methods": paymentIndicators.MultiplePaymentMethods,
-				"rapid_changes":          paymentIndicators.RapidPaymentChanges,
+				"rapid_changes":            paymentIndicators.RapidPaymentChanges,
 			},
 			RiskScore:  paymentIndicators.RiskScore,
 			DetectedAt: time.Now(),

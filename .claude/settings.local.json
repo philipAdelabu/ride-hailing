@@ -30,7 +30,10 @@
       "Bash(xargs dirname:*)",
       "Bash(xargs:*)",
       "Bash(find:*)",
-      "Bash(make help:*)"
+      "Bash(make help:*)",
+      "Bash(golangci-lint run:*)",
+      "Bash(gofmt:*)",
+      "Bash(/dev/null)"
     ],
     "deny": [],
     "ask": []

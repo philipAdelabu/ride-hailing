@@ -25,7 +25,7 @@ const (
 
 // Message represents a WebSocket message
 type Message struct {
-	Type      string                 `json:"type"`       // Message type (location, status, chat, etc.)
+	Type      string                 `json:"type"` // Message type (location, status, chat, etc.)
 	RideID    string                 `json:"ride_id,omitempty"`
 	UserID    string                 `json:"user_id,omitempty"`
 	Timestamp time.Time              `json:"timestamp"`

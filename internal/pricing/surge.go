@@ -20,11 +20,11 @@ func NewSurgeCalculator(db *pgxpool.Pool) *SurgeCalculator {
 
 // SurgeFactors represents all factors that contribute to surge pricing
 type SurgeFactors struct {
-	DemandRatio     float64 // Rides requested / Available drivers
-	TimeMultiplier  float64 // Based on time of day
-	DayMultiplier   float64 // Based on day of week
-	ZoneMultiplier  float64 // Based on geographic demand
-	WeatherFactor   float64 // Weather conditions (future)
+	DemandRatio    float64 // Rides requested / Available drivers
+	TimeMultiplier float64 // Based on time of day
+	DayMultiplier  float64 // Based on day of week
+	ZoneMultiplier float64 // Based on geographic demand
+	WeatherFactor  float64 // Weather conditions (future)
 }
 
 // CalculateSurgeMultiplier calculates the dynamic surge multiplier
@@ -264,12 +264,12 @@ func (sc *SurgeCalculator) GetCurrentSurgeInfo(ctx context.Context, lat, lon flo
 	return map[string]interface{}{
 		"surge_multiplier": surge,
 		"factors": map[string]interface{}{
-			"demand_ratio":     factors.DemandRatio,
-			"demand_surge":     calculateDemandSurge(factors.DemandRatio),
-			"time_multiplier":  factors.TimeMultiplier,
-			"day_multiplier":   factors.DayMultiplier,
-			"zone_multiplier":  factors.ZoneMultiplier,
-			"weather_factor":   factors.WeatherFactor,
+			"demand_ratio":    factors.DemandRatio,
+			"demand_surge":    calculateDemandSurge(factors.DemandRatio),
+			"time_multiplier": factors.TimeMultiplier,
+			"day_multiplier":  factors.DayMultiplier,
+			"zone_multiplier": factors.ZoneMultiplier,
+			"weather_factor":  factors.WeatherFactor,
 		},
 		"is_surge_active": surge > 1.0,
 		"message":         getSurgeMessage(surge),

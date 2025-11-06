@@ -144,9 +144,9 @@ func (h *Handler) BroadcastRideUpdate(c *gin.Context) {
 // BroadcastToUser broadcasts a message to a specific user (called by other services)
 func (h *Handler) BroadcastToUser(c *gin.Context) {
 	var req struct {
-		UserID  string                 `json:"user_id" binding:"required"`
-		Type    string                 `json:"type" binding:"required"`
-		Data    map[string]interface{} `json:"data" binding:"required"`
+		UserID string                 `json:"user_id" binding:"required"`
+		Type   string                 `json:"type" binding:"required"`
+		Data   map[string]interface{} `json:"data" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {

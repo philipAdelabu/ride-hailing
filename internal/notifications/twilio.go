@@ -9,10 +9,10 @@ import (
 
 // TwilioClient handles Twilio SMS operations
 type TwilioClient struct {
-	client      *twilio.RestClient
-	fromNumber  string
-	accountSid  string
-	authToken   string
+	client     *twilio.RestClient
+	fromNumber string
+	accountSid string
+	authToken  string
 }
 
 // NewTwilioClient creates a new Twilio client
@@ -23,10 +23,10 @@ func NewTwilioClient(accountSid, authToken, fromNumber string) *TwilioClient {
 	})
 
 	return &TwilioClient{
-		client:      client,
-		fromNumber:  fromNumber,
-		accountSid:  accountSid,
-		authToken:   authToken,
+		client:     client,
+		fromNumber: fromNumber,
+		accountSid: accountSid,
+		authToken:  authToken,
 	}
 }
 

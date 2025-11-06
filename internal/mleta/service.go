@@ -13,11 +13,11 @@ import (
 
 type Service struct {
 	repo  *Repository
-	redis *redis.RedisClient
+	redis *redis.Client
 	model *ETAModel
 }
 
-func NewService(repo *Repository, redis *redis.RedisClient) *Service {
+func NewService(repo *Repository, redis *redis.Client) *Service {
 	return &Service{
 		repo:  repo,
 		redis: redis,
@@ -28,25 +28,25 @@ func NewService(repo *Repository, redis *redis.RedisClient) *Service {
 // ETAModel represents the machine learning model for ETA prediction
 type ETAModel struct {
 	// Weights for different features
-	DistanceWeight      float64
-	TrafficWeight       float64
-	TimeOfDayWeight     float64
-	DayOfWeekWeight     float64
-	WeatherWeight       float64
-	HistoricalWeight    float64
-	DriverRatingWeight  float64
+	DistanceWeight     float64
+	TrafficWeight      float64
+	TimeOfDayWeight    float64
+	DayOfWeekWeight    float64
+	WeatherWeight      float64
+	HistoricalWeight   float64
+	DriverRatingWeight float64
 
 	// Baseline parameters
-	BaseSpeed           float64 // km/h
-	TrafficMultipliers  map[string]float64
-	TimeOfDayFactors    map[int]float64
-	WeatherImpact       map[string]float64
+	BaseSpeed          float64 // km/h
+	TrafficMultipliers map[string]float64
+	TimeOfDayFactors   map[int]float64
+	WeatherImpact      map[string]float64
 
 	// Model metadata
-	TrainedAt           time.Time
-	TotalPredictions    int64
-	AccuracyRate        float64
-	MeanAbsoluteError   float64
+	TrainedAt         time.Time
+	TotalPredictions  int64
+	AccuracyRate      float64
+	MeanAbsoluteError float64
 }
 
 func NewETAModel() *ETAModel {
@@ -71,49 +71,49 @@ func NewETAModel() *ETAModel {
 		},
 
 		TimeOfDayFactors: map[int]float64{
-			0: 0.9, 1: 0.9, 2: 0.9, 3: 0.9, 4: 0.9, 5: 0.9,  // Night: faster
-			6: 1.2, 7: 1.4, 8: 1.5, 9: 1.3, 10: 1.1,           // Morning rush
-			11: 1.0, 12: 1.1, 13: 1.1, 14: 1.0, 15: 1.1,       // Midday
-			16: 1.3, 17: 1.5, 18: 1.6, 19: 1.4, 20: 1.2,       // Evening rush
-			21: 1.0, 22: 0.95, 23: 0.9,                        // Night
+			0: 0.9, 1: 0.9, 2: 0.9, 3: 0.9, 4: 0.9, 5: 0.9, // Night: faster
+			6: 1.2, 7: 1.4, 8: 1.5, 9: 1.3, 10: 1.1, // Morning rush
+			11: 1.0, 12: 1.1, 13: 1.1, 14: 1.0, 15: 1.1, // Midday
+			16: 1.3, 17: 1.5, 18: 1.6, 19: 1.4, 20: 1.2, // Evening rush
+			21: 1.0, 22: 0.95, 23: 0.9, // Night
 		},
 
 		WeatherImpact: map[string]float64{
-			"clear":     1.0,
-			"cloudy":    1.05,
-			"rain":      1.25,
+			"clear":      1.0,
+			"cloudy":     1.05,
+			"rain":       1.25,
 			"heavy_rain": 1.5,
-			"snow":      1.6,
-			"storm":     1.8,
+			"snow":       1.6,
+			"storm":      1.8,
 		},
 
-		TrainedAt:        time.Now(),
-		AccuracyRate:     0.85, // Initial estimate
-		MeanAbsoluteError: 3.5, // minutes
+		TrainedAt:         time.Now(),
+		AccuracyRate:      0.85, // Initial estimate
+		MeanAbsoluteError: 3.5,  // minutes
 	}
 }
 
 // ETAPredictionRequest contains all parameters for ETA prediction
 type ETAPredictionRequest struct {
-	PickupLat      float64 `json:"pickup_lat"`
-	PickupLng      float64 `json:"pickup_lng"`
-	DropoffLat     float64 `json:"dropoff_lat"`
-	DropoffLng     float64 `json:"dropoff_lng"`
-	TrafficLevel   string  `json:"traffic_level"`   // low, medium, high, severe
-	Weather        string  `json:"weather"`         // clear, cloudy, rain, etc.
-	DriverID       string  `json:"driver_id"`
-	RideTypeID     int     `json:"ride_type_id"`
+	PickupLat    float64 `json:"pickup_lat"`
+	PickupLng    float64 `json:"pickup_lng"`
+	DropoffLat   float64 `json:"dropoff_lat"`
+	DropoffLng   float64 `json:"dropoff_lng"`
+	TrafficLevel string  `json:"traffic_level"` // low, medium, high, severe
+	Weather      string  `json:"weather"`       // clear, cloudy, rain, etc.
+	DriverID     string  `json:"driver_id"`
+	RideTypeID   int     `json:"ride_type_id"`
 }
 
 // ETAPredictionResponse contains the prediction results
 type ETAPredictionResponse struct {
-	EstimatedMinutes    float64            `json:"estimated_minutes"`
-	EstimatedSeconds    int                `json:"estimated_seconds"`
-	Distance            float64            `json:"distance_km"`
-	Confidence          float64            `json:"confidence"`
-	Factors             map[string]float64 `json:"factors"`
-	ModelVersion        string             `json:"model_version"`
-	PredictedArrivalTime time.Time         `json:"predicted_arrival_time"`
+	EstimatedMinutes     float64            `json:"estimated_minutes"`
+	EstimatedSeconds     int                `json:"estimated_seconds"`
+	Distance             float64            `json:"distance_km"`
+	Confidence           float64            `json:"confidence"`
+	Factors              map[string]float64 `json:"factors"`
+	ModelVersion         string             `json:"model_version"`
+	PredictedArrivalTime time.Time          `json:"predicted_arrival_time"`
 }
 
 // PredictETA predicts the estimated time of arrival
@@ -159,10 +159,10 @@ func (s *Service) PredictETA(ctx context.Context, req *ETAPredictionRequest) (*E
 	// Apply weighted factors
 	predictedETA := baseETA
 	predictedETA *= (s.model.DistanceWeight * 1.0) // Distance is already factored in base
-	predictedETA *= (1 + (trafficMultiplier - 1) * s.model.TrafficWeight)
-	predictedETA *= (1 + (timeOfDayFactor - 1) * s.model.TimeOfDayWeight)
-	predictedETA *= (1 + (dayOfWeekFactor - 1) * s.model.DayOfWeekWeight)
-	predictedETA *= (1 + (weatherImpact - 1) * s.model.WeatherWeight)
+	predictedETA *= (1 + (trafficMultiplier-1)*s.model.TrafficWeight)
+	predictedETA *= (1 + (timeOfDayFactor-1)*s.model.TimeOfDayWeight)
+	predictedETA *= (1 + (dayOfWeekFactor-1)*s.model.DayOfWeekWeight)
+	predictedETA *= (1 + (weatherImpact-1)*s.model.WeatherWeight)
 
 	// Blend with historical data if available
 	if historicalETA > 0 {
@@ -174,19 +174,19 @@ func (s *Service) PredictETA(ctx context.Context, req *ETAPredictionRequest) (*E
 
 	// Prepare response
 	response := &ETAPredictionResponse{
-		EstimatedMinutes:    math.Round(predictedETA*10) / 10, // Round to 1 decimal
-		EstimatedSeconds:    int(predictedETA * 60),
-		Distance:            math.Round(distance*10) / 10,
-		Confidence:          confidence,
-		ModelVersion:        "v1.0-ml",
+		EstimatedMinutes:     math.Round(predictedETA*10) / 10, // Round to 1 decimal
+		EstimatedSeconds:     int(predictedETA * 60),
+		Distance:             math.Round(distance*10) / 10,
+		Confidence:           confidence,
+		ModelVersion:         "v1.0-ml",
 		PredictedArrivalTime: time.Now().Add(time.Duration(predictedETA * float64(time.Minute))),
 		Factors: map[string]float64{
-			"base_eta":        baseETA,
-			"traffic":         trafficMultiplier,
-			"time_of_day":     timeOfDayFactor,
-			"day_of_week":     dayOfWeekFactor,
-			"weather":         weatherImpact,
-			"historical_eta":  historicalETA,
+			"base_eta":       baseETA,
+			"traffic":        trafficMultiplier,
+			"time_of_day":    timeOfDayFactor,
+			"day_of_week":    dayOfWeekFactor,
+			"weather":        weatherImpact,
+			"historical_eta": historicalETA,
 		},
 	}
 
@@ -244,7 +244,7 @@ func (s *Service) getHistoricalETA(ctx context.Context, pickupLat, pickupLng, dr
 		math.Round(dropoffLng*100)/100)
 
 	// Try to get from Redis cache
-	cachedETA, err := s.redis.Get(ctx, routeKey)
+	cachedETA, err := s.redis.GetString(ctx, routeKey)
 	if err == nil && cachedETA != "" {
 		var eta float64
 		if err := json.Unmarshal([]byte(cachedETA), &eta); err == nil {
@@ -260,7 +260,7 @@ func (s *Service) getHistoricalETA(ctx context.Context, pickupLat, pickupLng, dr
 
 	// Cache for future use (24 hours)
 	if etaBytes, err := json.Marshal(eta); err == nil {
-		s.redis.SetWithExpiration(ctx, routeKey, string(etaBytes), 24*time.Hour)
+		_ = s.redis.SetWithExpiration(ctx, routeKey, string(etaBytes), 24*time.Hour)
 	}
 
 	return eta, nil

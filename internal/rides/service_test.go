@@ -9,18 +9,18 @@ import (
 
 func TestCalculateFare(t *testing.T) {
 	tests := []struct {
-		name             string
-		distance         float64
-		duration         int
-		surgeMultiplier  float64
-		expectedMinimum  float64
+		name            string
+		distance        float64
+		duration        int
+		surgeMultiplier float64
+		expectedMinimum float64
 	}{
 		{
 			name:            "short ride no surge",
-			distance:        2.0,  // 2 km
-			duration:        10,   // 10 minutes
+			distance:        2.0, // 2 km
+			duration:        10,  // 10 minutes
 			surgeMultiplier: 1.0,
-			expectedMinimum: 5.0,  // minimum fare
+			expectedMinimum: 5.0, // minimum fare
 		},
 		{
 			name:            "medium ride no surge",
@@ -63,10 +63,10 @@ func TestCalculateFare(t *testing.T) {
 
 func TestCalculateSurgeMultiplier(t *testing.T) {
 	tests := []struct {
-		name              string
-		hour              int
-		expectedMinimum   float64
-		expectedMaximum   float64
+		name            string
+		hour            int
+		expectedMinimum float64
+		expectedMaximum float64
 	}{
 		{
 			name:            "morning rush hour (8 AM)",
@@ -122,9 +122,9 @@ func TestFareWithSurge(t *testing.T) {
 	baseFare := calculateFare(distance, duration, 1.0)
 
 	tests := []struct {
-		name              string
-		hour              int
-		expectedIncrease  bool
+		name             string
+		hour             int
+		expectedIncrease bool
 	}{
 		{
 			name:             "rush hour increases fare",
@@ -155,27 +155,27 @@ func TestFareWithSurge(t *testing.T) {
 
 func TestCommissionCalculation(t *testing.T) {
 	tests := []struct {
-		name                string
-		totalFare           float64
-		expectedCommission  float64
+		name                   string
+		totalFare              float64
+		expectedCommission     float64
 		expectedDriverEarnings float64
 	}{
 		{
-			name:                "standard fare",
-			totalFare:           100.00,
-			expectedCommission:  20.00,  // 20%
+			name:                   "standard fare",
+			totalFare:              100.00,
+			expectedCommission:     20.00, // 20%
 			expectedDriverEarnings: 80.00,
 		},
 		{
-			name:                "minimum fare",
-			totalFare:           5.00,
-			expectedCommission:  1.00,
+			name:                   "minimum fare",
+			totalFare:              5.00,
+			expectedCommission:     1.00,
 			expectedDriverEarnings: 4.00,
 		},
 		{
-			name:                "high fare",
-			totalFare:           500.00,
-			expectedCommission:  100.00,
+			name:                   "high fare",
+			totalFare:              500.00,
+			expectedCommission:     100.00,
 			expectedDriverEarnings: 400.00,
 		},
 	}
