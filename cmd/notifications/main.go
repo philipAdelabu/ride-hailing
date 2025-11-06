@@ -128,6 +128,7 @@ func main() {
 
 	// Global middleware
 	router.Use(middleware.Recovery())
+	router.Use(middleware.CorrelationID())
 	router.Use(middleware.RequestLogger())
 	router.Use(middleware.CORS())
 	router.Use(middleware.Metrics(serviceName))
