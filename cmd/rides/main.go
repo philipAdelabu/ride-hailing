@@ -11,6 +11,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	ridesdocs "github.com/richxcame/ride-hailing/docs/rides"
+
 	"github.com/richxcame/ride-hailing/internal/pricing"
 	"github.com/richxcame/ride-hailing/internal/rides"
 	"github.com/richxcame/ride-hailing/pkg/common"
@@ -21,10 +24,44 @@ import (
 	"go.uber.org/zap"
 )
 
+// @title           Rides Service API
+// @version         1.0
+// @description     API for managing rider and driver interactions in the rides domain.
+// @BasePath        /api/v1
+// @schemes         http https
+// @securityDefinitions.apikey BearerAuth
+// @in              header
+// @name            Authorization
+// @description     Provide a valid JWT token using the format `Bearer <token>`.
+
 const (
 	serviceName = "rides-service"
 	version     = "1.0.0"
 )
+
+const swaggerPage = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Rides Service API Docs</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">
+</head>
+<body>
+    <div id="swagger-ui"></div>
+    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>
+    <script>
+        window.onload = function() {
+            window.ui = SwaggerUIBundle({
+                url: '%s',
+                dom_id: '#swagger-ui',
+                presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+                layout: 'BaseLayout',
+            });
+        };
+    </script>
+</body>
+</html>`
 
 func main() {
 	cfg, err := config.Load(serviceName)
@@ -36,6 +73,11 @@ func main() {
 		panic(fmt.Sprintf("failed to initialize logger: %v", err))
 	}
 	defer logger.Sync()
+
+	swaggerSpec, err := ridesdocs.Files.ReadFile("swagger.yaml")
+	if err != nil {
+		logger.Fatal("Failed to load Swagger spec", zap.Error(err))
+	}
 
 	logger.Info("Starting rides service",
 		zap.String("service", serviceName),
@@ -86,6 +128,20 @@ func main() {
 		})
 	})
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+
+	router.GET("/swagger/doc.yaml", func(c *gin.Context) {
+		c.Data(http.StatusOK, "application/yaml; charset=utf-8", swaggerSpec)
+	})
+	router.GET("/swagger", func(c *gin.Context) {
+		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(fmt.Sprintf(swaggerPage, "/swagger/doc.yaml")))
+	})
+	router.GET("/swagger/*path", func(c *gin.Context) {
+		if c.Param("path") == "/doc.yaml" {
+			c.Data(http.StatusOK, "application/yaml; charset=utf-8", swaggerSpec)
+			return
+		}
+		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(fmt.Sprintf(swaggerPage, "/swagger/doc.yaml")))
+	})
 
 	handler.RegisterRoutes(router, cfg.JWT.Secret)
 

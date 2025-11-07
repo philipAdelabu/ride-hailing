@@ -44,11 +44,11 @@ Current coverage is insufficient (only 2 test files). Need comprehensive testing
     -   [ ] Test helper utilities (assertions, database setup/teardown)
     -   [ ] CI/CD pipeline configuration (GitHub Actions)
 
--   [ ] **Coverage Reporting**
-    -   [ ] Set up coverage collection (`go test -cover`)
-    -   [ ] Add coverage badge to README
-    -   [ ] Enforce minimum coverage thresholds (80%)
-    -   [ ] Coverage reports in CI/CD
+-   [x] **Coverage Reporting**
+    -   [x] Set up coverage collection (`go test -cover`)
+    -   [x] Add coverage badge to README
+    -   [x] Enforce minimum coverage thresholds (80%)
+    -   [x] Coverage reports in CI/CD
 
 **Files to Create:**
 
@@ -162,17 +162,17 @@ Essential for API documentation and client generation.
 
 -   [ ] **Generate OpenAPI Specs**
 
-    -   [ ] Use `swaggo/swag` for annotation-based generation
-    -   [ ] Document all endpoints with examples
-    -   [ ] Include request/response schemas
-    -   [ ] Add authentication requirements
-    -   [ ] Document error responses
+    -   [ ] Use `swaggo/swag` for annotation-based generation *(manual spec maintained in `docs/rides/swagger.yaml` until tooling can be introduced)*
+    -   [x] Document all endpoints with examples
+    -   [x] Include request/response schemas
+    -   [x] Add authentication requirements
+    -   [x] Document error responses
 
--   [ ] **Serve Swagger UI**
+-   [x] **Serve Swagger UI**
 
-    -   [ ] Add Swagger UI endpoint (`/swagger`)
+    -   [x] Add Swagger UI endpoint (`/swagger`)
     -   [ ] Auto-generate on code changes
-    -   [ ] Version API endpoints (`/api/v1`)
+    -   [x] Version API endpoints (`/api/v1`)
 
 -   [ ] **API Versioning**
     -   [ ] Implement URL-based versioning

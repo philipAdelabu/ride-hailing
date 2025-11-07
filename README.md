@@ -1,5 +1,8 @@
 # Ride Hailing Platform - Production-Ready Backend
 
+[![CI](https://github.com/richxcame/ride-hailing/actions/workflows/test.yml/badge.svg)](https://github.com/richxcame/ride-hailing/actions/workflows/test.yml)
+[![codecov](https://codecov.io/gh/richxcame/ride-hailing/branch/main/graph/badge.svg)](https://app.codecov.io/gh/richxcame/ride-hailing)
+
 A complete, production-ready ride-hailing platform backend built with Go, featuring 12 microservices that handle everything from authentication to fraud detection.
 
 ## Status: Phase 3 Complete 🎉
