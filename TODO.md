@@ -105,6 +105,7 @@ Current coverage is insufficient (only 2 test files). Need comprehensive testing
 -   ✅ `scripts/install-hooks.sh`
 
 **Bonus Additions:**
+
 -   ✅ Input sanitization package with XSS/SQL injection prevention
 -   ✅ Enhanced CI/CD pipeline with security scanning
 -   ✅ Pre-commit hooks for code quality
@@ -162,7 +163,7 @@ Essential for API documentation and client generation.
 
 -   [ ] **Generate OpenAPI Specs**
 
-    -   [ ] Use `swaggo/swag` for annotation-based generation *(manual spec maintained in `docs/rides/swagger.yaml` until tooling can be introduced)*
+    -   [ ] Use `swaggo/swag` for annotation-based generation _(manual spec maintained in `docs/rides/swagger.yaml` until tooling can be introduced)_
     -   [x] Document all endpoints with examples
     -   [x] Include request/response schemas
     -   [x] Add authentication requirements
@@ -1031,18 +1032,21 @@ These are small improvements with high impact that can be done quickly:
 
 **Correlation IDs:**
 Add to your service's middleware stack:
+
 ```go
 router.Use(middleware.CorrelationID())
 ```
 
 **Security Headers:**
 Add to your service's middleware stack:
+
 ```go
 router.Use(middleware.SecurityHeaders())
 ```
 
 **Health Checks:**
 Add to your service's routes:
+
 ```go
 // Simple liveness probe
 router.GET("/health/live", common.LivenessProbe(serviceName, version))
@@ -1056,11 +1060,13 @@ router.GET("/health/ready", common.ReadinessProbe(serviceName, version, checks))
 ```
 
 **Database Seeding:**
+
 ```bash
 make db-seed
 ```
 
 **Development Workflow:**
+
 ```bash
 # First time setup
 make setup
