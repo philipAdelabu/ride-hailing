@@ -11,13 +11,23 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/redis"
 )
 
+// ETARepository defines the persistence operations needed by the service.
+type ETARepository interface {
+	GetHistoricalETAForRoute(ctx context.Context, pickupLat, pickupLng, dropoffLat, dropoffLng float64) (float64, error)
+	StorePrediction(ctx context.Context, prediction *ETAPrediction) error
+	GetTrainingData(ctx context.Context, limit int) ([]*TrainingDataPoint, error)
+	StoreModelStats(ctx context.Context, model *ETAModel) error
+	GetPredictionHistory(ctx context.Context, limit int, offset int) ([]*ETAPrediction, error)
+	GetAccuracyMetrics(ctx context.Context, days int) (map[string]interface{}, error)
+}
+
 type Service struct {
-	repo  *Repository
-	redis *redis.Client
+	repo  ETARepository
+	redis redis.ClientInterface
 	model *ETAModel
 }
 
-func NewService(repo *Repository, redis *redis.Client) *Service {
+func NewService(repo ETARepository, redis redis.ClientInterface) *Service {
 	return &Service{
 		repo:  repo,
 		redis: redis,

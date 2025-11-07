@@ -15,6 +15,9 @@ type Repository struct {
 	db *pgxpool.Pool
 }
 
+// Ensure the concrete repository satisfies the service's requirements.
+var _ FraudRepository = (*Repository)(nil)
+
 // NewRepository creates a new fraud repository
 func NewRepository(db *pgxpool.Pool) *Repository {
 	return &Repository{db: db}

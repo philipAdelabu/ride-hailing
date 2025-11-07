@@ -9,13 +9,26 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/common"
 )
 
+// FraudRepository defines the persistence operations required by the service.
+type FraudRepository interface {
+	GetUserRiskProfile(ctx context.Context, userID uuid.UUID) (*UserRiskProfile, error)
+	UpdateUserRiskProfile(ctx context.Context, profile *UserRiskProfile) error
+	GetPaymentFraudIndicators(ctx context.Context, userID uuid.UUID) (*PaymentFraudIndicators, error)
+	GetRideFraudIndicators(ctx context.Context, userID uuid.UUID) (*RideFraudIndicators, error)
+	CreateFraudAlert(ctx context.Context, alert *FraudAlert) error
+	GetFraudAlertByID(ctx context.Context, alertID uuid.UUID) (*FraudAlert, error)
+	GetAlertsByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*FraudAlert, error)
+	GetPendingAlerts(ctx context.Context, limit, offset int) ([]*FraudAlert, error)
+	UpdateAlertStatus(ctx context.Context, alertID uuid.UUID, status FraudAlertStatus, investigatorID *uuid.UUID, notes, actionTaken string) error
+}
+
 // Service handles fraud detection business logic
 type Service struct {
-	repo *Repository
+	repo FraudRepository
 }
 
 // NewService creates a new fraud detection service
-func NewService(repo *Repository) *Service {
+func NewService(repo FraudRepository) *Service {
 	return &Service{repo: repo}
 }
 

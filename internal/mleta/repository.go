@@ -16,6 +16,9 @@ type Repository struct {
 	redis *redis.Client
 }
 
+// Ensure Repository satisfies the service interface.
+var _ ETARepository = (*Repository)(nil)
+
 func NewRepository(db *pgxpool.Pool, redis *redis.Client) *Repository {
 	return &Repository{db: db, redis: redis}
 }
