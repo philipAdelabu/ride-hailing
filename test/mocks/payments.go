@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/richxcame/ride-hailing/pkg/models"
-	"github.com/stripe/stripe-go/v76"
+	"github.com/stripe/stripe-go/v83"
 	"github.com/stretchr/testify/mock"
 )
 

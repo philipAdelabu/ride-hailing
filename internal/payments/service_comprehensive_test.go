@@ -9,7 +9,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/common"
 	"github.com/richxcame/ride-hailing/pkg/models"
 	"github.com/richxcame/ride-hailing/test/mocks"
-	"github.com/stripe/stripe-go/v76"
+	"github.com/stripe/stripe-go/v83"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )

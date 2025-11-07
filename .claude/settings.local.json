@@ -39,7 +39,8 @@
       "Bash(coverage_report.md)",
       "Bash(do echo '## $service Service')",
       "Bash(do echo \"Building $service...\")",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(git pull:*)"
     ],
     "deny": [],
     "ask": []

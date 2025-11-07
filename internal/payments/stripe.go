@@ -3,12 +3,12 @@ package payments
 import (
 	"fmt"
 
-	"github.com/stripe/stripe-go/v76"
-	"github.com/stripe/stripe-go/v76/charge"
-	"github.com/stripe/stripe-go/v76/customer"
-	"github.com/stripe/stripe-go/v76/paymentintent"
-	"github.com/stripe/stripe-go/v76/refund"
-	"github.com/stripe/stripe-go/v76/transfer"
+	"github.com/stripe/stripe-go/v83"
+	"github.com/stripe/stripe-go/v83/charge"
+	"github.com/stripe/stripe-go/v83/customer"
+	"github.com/stripe/stripe-go/v83/paymentintent"
+	"github.com/stripe/stripe-go/v83/refund"
+	"github.com/stripe/stripe-go/v83/transfer"
 )
 
 // StripeClient wraps Stripe API operations
