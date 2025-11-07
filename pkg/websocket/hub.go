@@ -102,7 +102,13 @@ func (h *Hub) unregisterClient(client *Client) {
 			}
 		}
 
-		close(client.Send)
+		// Close channel using sync.Once to prevent double-close
+		client.mu.Lock()
+		client.closed = true
+		client.mu.Unlock()
+		client.closeOnce.Do(func() {
+			close(client.Send)
+		})
 		log.Printf("Client unregistered: %s", client.ID)
 	}
 }

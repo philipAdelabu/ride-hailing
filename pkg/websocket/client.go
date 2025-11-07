@@ -34,13 +34,15 @@ type Message struct {
 
 // Client represents a WebSocket client connection
 type Client struct {
-	ID     string          // Unique client identifier (user ID)
-	RideID string          // Current ride ID (if in a ride)
-	Role   string          // "rider" or "driver"
-	Conn   *websocket.Conn // WebSocket connection
-	Send   chan *Message   // Buffered channel of outbound messages
-	Hub    *Hub            // Reference to hub
-	mu     sync.RWMutex    // Protects concurrent access
+	ID        string          // Unique client identifier (user ID)
+	RideID    string          // Current ride ID (if in a ride)
+	Role      string          // "rider" or "driver"
+	Conn      *websocket.Conn // WebSocket connection
+	Send      chan *Message   // Buffered channel of outbound messages
+	Hub       *Hub            // Reference to hub
+	mu        sync.RWMutex    // Protects concurrent access
+	closeOnce sync.Once       // Ensures channel is closed only once
+	closed    bool            // Tracks if channel is closed
 }
 
 // NewClient creates a new WebSocket client
@@ -120,11 +122,23 @@ func (c *Client) WritePump() {
 
 // SendMessage sends a message to the client
 func (c *Client) SendMessage(msg *Message) {
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return
+	}
+	c.mu.Unlock()
+
 	select {
 	case c.Send <- msg:
 	default:
 		log.Printf("Client %s channel full, closing connection", c.ID)
-		close(c.Send)
+		c.mu.Lock()
+		c.closed = true
+		c.mu.Unlock()
+		c.closeOnce.Do(func() {
+			close(c.Send)
+		})
 		c.Hub.Unregister <- c
 	}
 }

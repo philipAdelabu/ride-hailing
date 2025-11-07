@@ -18,15 +18,14 @@ Current coverage is insufficient (only 2 test files). Need comprehensive testing
 
 -   [ ] **Unit Tests for All Services**
 
-    -   [ ] Auth service tests (JWT validation, password hashing, RBAC)
-    -   [ ] Geo service tests (Redis GeoSpatial queries, distance calculations)
-    -   [ ] Notifications service tests (mocked Firebase, Twilio, SMTP)
-    -   [ ] Real-time service tests (WebSocket hub, message routing)
+    -   [x] Auth service tests (JWT validation, password hashing, RBAC) ✅ COMPLETE
+    -   [x] Geo service tests (Redis GeoSpatial queries, distance calculations) ✅ COMPLETE
+    -   [x] Notifications service tests (mocked Firebase, Twilio, SMTP) ✅ COMPLETE
+    -   [x] Real-time service tests (WebSocket hub, message routing) ✅ COMPLETE
     -   [ ] Fraud service tests (risk scoring, alert generation)
     -   [ ] ML ETA service tests (prediction accuracy, feature weights)
     -   [ ] Analytics service tests (aggregation queries, metrics)
     -   [ ] Promos service tests (discount calculations, referral logic)
-    -   Target: 80%+ code coverage
 
 -   [ ] **Integration Tests**
 
