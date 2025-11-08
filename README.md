@@ -3,7 +3,7 @@
 [![CI](https://github.com/richxcame/ride-hailing/actions/workflows/test.yml/badge.svg)](https://github.com/richxcame/ride-hailing/actions/workflows/test.yml)
 [![codecov](https://codecov.io/gh/richxcame/ride-hailing/branch/main/graph/badge.svg)](https://app.codecov.io/gh/richxcame/ride-hailing)
 
-A complete, production-ready ride-hailing platform backend built with Go, featuring 12 microservices that handle everything from authentication to fraud detection.
+A complete, production-ready ride-hailing platform backend built with Go, featuring 13 microservices that handle everything from authentication to ML-powered predictions.
 
 ## Status: Phase 3 Complete 🎉
 
@@ -63,17 +63,20 @@ A complete, production-ready ride-hailing platform backend built with Go, featur
 
 ## Tech Stack
 
--   **Language**: Go 1.22+
+-   **Language**: Go 1.24+
 -   **Framework**: Gin
--   **Database**: PostgreSQL 15 (with connection pooling)
+-   **Database**: PostgreSQL 15 with PostGIS (connection pooling + read replicas)
 -   **Cache**: Redis 7 (GeoSpatial + Pub/Sub)
 -   **WebSocket**: gorilla/websocket
--   **Payments**: Stripe API
+-   **Payments**: Stripe API v83.2.0
 -   **Notifications**: Firebase FCM, Twilio SMS, SMTP
--   **Auth**: JWT with bcrypt
--   **Observability**: Prometheus + Grafana
--   **Deployment**: Docker + Docker Compose
--   **Testing**: Go test framework
+-   **Auth**: JWT with bcrypt + refresh tokens
+-   **Observability**: Prometheus + Grafana + Structured Logging (Zap)
+-   **API Gateway**: Kong with rate limiting & mTLS
+-   **Service Mesh**: Istio
+-   **Deployment**: Docker + Kubernetes + Istio
+-   **Testing**: Go test framework with comprehensive unit & integration tests
+-   **Resilience**: Circuit breakers, rate limiting, retry logic
 
 ---
 
@@ -139,7 +142,7 @@ A complete, production-ready ride-hailing platform backend built with Go, featur
 -   Role-based access control (RBAC)
 -   Password hashing with bcrypt
 
-**Endpoints**: 4 (register, login, refresh, health)
+**Endpoints**: 5 (register, login, refresh, profile GET/PUT)
 
 ### 2. Rides Service (Port 8082)
 
@@ -148,10 +151,12 @@ A complete, production-ready ride-hailing platform backend built with Go, featur
 -   Ride lifecycle (requested → accepted → in_progress → completed)
 -   Ride cancellation with reasons
 -   Rating and feedback system (1-5 stars)
+-   Scheduled rides support
+-   Dynamic surge pricing
 -   Advanced filtering (status, date range)
 -   Receipt generation
 
-**Endpoints**: 8 (create, get, accept, start, complete, cancel, rate, history)
+**Endpoints**: 10+ (create, get, accept, start, complete, cancel, rate, history, surge-info, schedule)
 
 ### 3. Geo Service (Port 8083)
 
@@ -603,6 +608,25 @@ Pre-configured dashboards:
 
 ## Testing
 
+The platform has comprehensive test coverage across all services:
+
+**Unit Tests:**
+-   Auth service (JWT validation, RBAC, password hashing)
+-   Geo service (Redis GeoSpatial, distance calculations)
+-   Notifications service (FCM, Twilio, SMTP mocking)
+-   Real-time service (WebSocket hub, message routing)
+-   Fraud service (risk scoring, alert generation)
+-   ML ETA service (prediction accuracy, feature weights)
+-   Analytics service (aggregation queries, metrics)
+-   Promos service (discount calculations, referral logic)
+
+**Integration Tests:**
+-   Complete ride flow (request → match → pickup → complete → payment)
+-   Authentication flow (register → login → refresh token)
+-   Payment processing with Stripe webhooks
+-   Promo code application and validation
+-   Admin operations (user management, driver approval)
+
 ### Run Tests
 
 ```bash
@@ -616,41 +640,63 @@ go test -cover ./...
 go test ./internal/auth/... -v
 go test ./internal/rides/... -v
 go test ./internal/payments/... -v
+
+# Run integration tests
+go test ./test/integration/... -v
 ```
 
-### Integration Testing
+### Test Infrastructure
 
-See [IMPLEMENTATION_NOTES.md](IMPLEMENTATION_NOTES.md) for complete end-to-end testing flow.
+-   Docker Compose test environment ([docker-compose.test.yml](docker-compose.test.yml))
+-   Test helpers and utilities ([test/helpers/](test/helpers/))
+-   Mock implementations ([test/mocks/](test/mocks/))
+-   Integration test suite ([test/integration/](test/integration/))
 
 ---
 
 ## Documentation
 
--   **[ROADMAP.md](ROADMAP.md)** - Development roadmap and feature planning
--   **[db/migrations/](db/migrations/)** - Database schema migrations
+-   **[TODO.md](TODO.md)** - Development roadmap and improvement plan
+-   **[docs/API.md](docs/API.md)** - Complete API documentation for all services
+-   **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** - Deployment guides (Docker, K8s, Cloud)
+-   **[docs/rides/swagger.yaml](docs/rides/swagger.yaml)** - Swagger/OpenAPI spec for Rides service
+-   **[db/migrations/](db/migrations/)** - Database schema migrations (9 migrations)
 
 ---
 
 ## Production Deployment
 
+### Production-Ready Features ✅
+
+-   ✅ Kong API Gateway configured with rate limiting
+-   ✅ Istio service mesh with mTLS
+-   ✅ Circuit breakers for external dependencies
+-   ✅ Rate limiting (Redis-backed token bucket)
+-   ✅ Comprehensive logging with correlation IDs
+-   ✅ Prometheus metrics on all services
+-   ✅ Health check endpoints (liveness + readiness)
+-   ✅ Database connection pooling + read replicas
+-   ✅ Kubernetes manifests with HPA
+-   ✅ Docker Compose for local/staging
+
 ### Before Going Live
 
--   [ ] Rotate all API keys and secrets
+-   [ ] Rotate all API keys and secrets (use secrets management)
 -   [ ] Change JWT_SECRET to strong random value
 -   [ ] Use production Stripe API keys
 -   [ ] Set up Firebase production project
 -   [ ] Configure production SMTP credentials
 -   [ ] Enable HTTPS/TLS on all services
--   [ ] Set up API Gateway (Kong/Nginx)
--   [ ] Configure rate limiting
--   [ ] Set up CORS properly
--   [ ] Enable database backups
--   [ ] Set up log aggregation
--   [ ] Configure error alerting
--   [ ] Load testing (100+ concurrent rides)
--   [ ] Security audit
+-   [ ] Set up CORS properly for production domains
+-   [ ] Enable database backups (automated)
+-   [ ] Set up log aggregation (ELK/Loki)
+-   [ ] Configure error alerting (Sentry/PagerDuty)
+-   [ ] Load testing (target: 1000+ concurrent rides)
+-   [ ] Security audit & penetration testing
 -   [ ] Configure fraud detection rules
 -   [ ] Test scheduled ride dispatch
+-   [ ] Set up Grafana dashboards
+-   [ ] Configure alerting rules (Prometheus)
 
 ---
 
@@ -670,7 +716,8 @@ ride-hailing/
 │   ├── promos/            # Promos service
 │   ├── scheduler/         # Scheduler service
 │   ├── analytics/         # Analytics service
-│   └── fraud/             # Fraud service
+│   ├── fraud/             # Fraud service
+│   └── ml_eta/            # ML ETA service
 ├── internal/              # Private application code
 │   ├── auth/             # Auth business logic
 │   ├── rides/            # Rides business logic
@@ -682,17 +729,32 @@ ride-hailing/
 │   ├── admin/            # Admin business logic
 │   ├── promos/           # Promos business logic
 │   ├── analytics/        # Analytics business logic
-│   └── fraud/            # Fraud business logic
+│   ├── fraud/            # Fraud business logic
+│   ├── scheduler/        # Scheduler business logic
+│   └── ml_eta/           # ML ETA business logic
 ├── pkg/                   # Public shared libraries
 │   ├── common/           # Common utilities
 │   ├── middleware/       # HTTP middleware
 │   ├── models/           # Data models
 │   ├── redis/            # Redis client
-│   └── websocket/        # WebSocket utilities
-├── db/migrations/         # Database migrations
+│   ├── websocket/        # WebSocket utilities
+│   ├── resilience/       # Circuit breakers, retries
+│   ├── cache/            # Caching utilities
+│   └── validation/       # Input validation
+├── third_party/           # Third-party packages
+│   └── gobreaker/        # Custom circuit breaker
+├── test/                  # Test infrastructure
+│   ├── integration/      # Integration tests
+│   ├── helpers/          # Test utilities
+│   └── mocks/            # Mock implementations
+├── db/migrations/         # Database migrations (9 migrations)
+├── k8s/                   # Kubernetes manifests
+├── istio/                 # Istio service mesh config
+├── monitoring/            # Prometheus & Grafana config
+├── docs/                  # Documentation
 ├── docker-compose.yml     # Docker Compose config
 ├── go.mod                 # Go dependencies
-├── ROADMAP.md            # Development roadmap
+├── TODO.md               # Development roadmap
 └── README.md             # This file
 ```
 
@@ -740,4 +802,4 @@ Built with:
 
 **Version**: 3.0.0 (Phase 3 Complete)
 **Status**: Enterprise Ready 🚀
-**Last Updated**: 2025-11-06
+**Last Updated**: 2025-11-08
