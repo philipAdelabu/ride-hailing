@@ -25,19 +25,7 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
-// RequestRide godoc
-// @Summary      Request a new ride
-// @Description  Creates a ride request using pickup and dropoff details. Applies surge pricing and promos automatically.
-// @Tags         Rides
-// @Security     BearerAuth
-// @Accept       json
-// @Produce      json
-// @Param        request  body      models.RideRequest  true  "Ride request payload"
-// @Success      201      {object} common.Response
-// @Failure      400      {object} common.Response
-// @Failure      401      {object} common.Response
-// @Failure      500      {object} common.Response
-// @Router       /rides [post]
+// RequestRide handles incoming rider requests to create a new ride.
 func (h *Handler) RequestRide(c *gin.Context) {
 	userID, err := middleware.GetUserID(c)
 	if err != nil {
@@ -64,19 +52,7 @@ func (h *Handler) RequestRide(c *gin.Context) {
 	common.CreatedResponse(c, ride)
 }
 
-// GetRide godoc
-// @Summary      Get ride details
-// @Description  Retrieves a single ride by its identifier.
-// @Tags         Rides
-// @Security     BearerAuth
-// @Produce      json
-// @Param        id   path      string  true  "Ride ID"
-// @Success      200  {object} common.Response
-// @Failure      400  {object} common.Response
-// @Failure      401  {object} common.Response
-// @Failure      404  {object} common.Response
-// @Failure      500  {object} common.Response
-// @Router       /rides/{id} [get]
+// GetRide returns ride details for the given identifier.
 func (h *Handler) GetRide(c *gin.Context) {
 	rideID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -97,19 +73,7 @@ func (h *Handler) GetRide(c *gin.Context) {
 	common.SuccessResponse(c, ride)
 }
 
-// AcceptRide godoc
-// @Summary      Accept a ride request
-// @Description  Allows an authenticated driver to accept a pending ride request.
-// @Tags         Driver Rides
-// @Security     BearerAuth
-// @Produce      json
-// @Param        id   path      string  true  "Ride ID"
-// @Success      200  {object} common.Response
-// @Failure      400  {object} common.Response
-// @Failure      401  {object} common.Response
-// @Failure      404  {object} common.Response
-// @Failure      500  {object} common.Response
-// @Router       /driver/rides/{id}/accept [post]
+// AcceptRide lets an authenticated driver take ownership of a pending ride.
 func (h *Handler) AcceptRide(c *gin.Context) {
 	driverID, err := middleware.GetUserID(c)
 	if err != nil {
@@ -136,19 +100,7 @@ func (h *Handler) AcceptRide(c *gin.Context) {
 	common.SuccessResponse(c, ride)
 }
 
-// StartRide godoc
-// @Summary      Start an accepted ride
-// @Description  Marks an accepted ride as in progress. Available only to the assigned driver.
-// @Tags         Driver Rides
-// @Security     BearerAuth
-// @Produce      json
-// @Param        id   path      string  true  "Ride ID"
-// @Success      200  {object} common.Response
-// @Failure      400  {object} common.Response
-// @Failure      401  {object} common.Response
-// @Failure      404  {object} common.Response
-// @Failure      500  {object} common.Response
-// @Router       /driver/rides/{id}/start [post]
+// StartRide marks the accepted ride as in progress for the assigned driver.
 func (h *Handler) StartRide(c *gin.Context) {
 	driverID, err := middleware.GetUserID(c)
 	if err != nil {
@@ -175,21 +127,7 @@ func (h *Handler) StartRide(c *gin.Context) {
 	common.SuccessResponse(c, ride)
 }
 
-// CompleteRide godoc
-// @Summary      Complete a ride
-// @Description  Marks an in-progress ride as completed and records the actual distance travelled.
-// @Tags         Driver Rides
-// @Security     BearerAuth
-// @Accept       json
-// @Produce      json
-// @Param        id      path      string  true  "Ride ID"
-// @Param        request body      struct{ActualDistance float64 `json:"actual_distance" binding:"required"`} true  "Ride completion payload"
-// @Success      200     {object} common.Response
-// @Failure      400     {object} common.Response
-// @Failure      401     {object} common.Response
-// @Failure      404     {object} common.Response
-// @Failure      500     {object} common.Response
-// @Router       /driver/rides/{id}/complete [post]
+// CompleteRide finalizes an in-progress ride and records actual distance.
 func (h *Handler) CompleteRide(c *gin.Context) {
 	driverID, err := middleware.GetUserID(c)
 	if err != nil {
@@ -225,21 +163,7 @@ func (h *Handler) CompleteRide(c *gin.Context) {
 	common.SuccessResponse(c, ride)
 }
 
-// CancelRide godoc
-// @Summary      Cancel a ride request
-// @Description  Allows a rider or driver to cancel a ride with an optional reason.
-// @Tags         Rides
-// @Security     BearerAuth
-// @Accept       json
-// @Produce      json
-// @Param        id      path      string  true  "Ride ID"
-// @Param        request body      struct{Reason string `json:"reason"`} false "Cancellation reason"
-// @Success      200     {object} common.Response
-// @Failure      400     {object} common.Response
-// @Failure      401     {object} common.Response
-// @Failure      404     {object} common.Response
-// @Failure      500     {object} common.Response
-// @Router       /rides/{id}/cancel [post]
+// CancelRide allows riders or drivers to cancel a ride with an optional reason.
 func (h *Handler) CancelRide(c *gin.Context) {
 	userID, err := middleware.GetUserID(c)
 	if err != nil {
@@ -275,21 +199,7 @@ func (h *Handler) CancelRide(c *gin.Context) {
 	common.SuccessResponse(c, ride)
 }
 
-// RateRide godoc
-// @Summary      Rate a completed ride
-// @Description  Submits a rating and feedback for a completed ride.
-// @Tags         Rides
-// @Security     BearerAuth
-// @Accept       json
-// @Produce      json
-// @Param        id      path      string                     true  "Ride ID"
-// @Param        request body      models.RideRatingRequest  true  "Ride rating payload"
-// @Success      200     {object} common.Response
-// @Failure      400     {object} common.Response
-// @Failure      401     {object} common.Response
-// @Failure      404     {object} common.Response
-// @Failure      500     {object} common.Response
-// @Router       /rides/{id}/rate [post]
+// RateRide records rider feedback for a completed trip.
 func (h *Handler) RateRide(c *gin.Context) {
 	riderID, err := middleware.GetUserID(c)
 	if err != nil {
@@ -321,20 +231,7 @@ func (h *Handler) RateRide(c *gin.Context) {
 	common.SuccessResponse(c, gin.H{"message": "ride rated successfully"})
 }
 
-// GetMyRides godoc
-// @Summary      List rides for the authenticated user
-// @Description  Returns paginated rides for the current rider or driver depending on their role.
-// @Tags         Rides
-// @Security     BearerAuth
-// @Produce      json
-// @Param        page      query     int    false  "Page number"
-// @Param        per_page  query     int    false  "Items per page (max 100)"
-// @Success      200       {object} common.Response
-// @Failure      400       {object} common.Response
-// @Failure      401       {object} common.Response
-// @Failure      403       {object} common.Response
-// @Failure      500       {object} common.Response
-// @Router       /rides [get]
+// GetMyRides returns paginated rides for the authenticated rider or driver.
 func (h *Handler) GetMyRides(c *gin.Context) {
 	userID, err := middleware.GetUserID(c)
 	if err != nil {
@@ -381,16 +278,7 @@ func (h *Handler) GetMyRides(c *gin.Context) {
 	common.SuccessResponse(c, rides)
 }
 
-// GetAvailableRides godoc
-// @Summary      List available ride requests
-// @Description  Returns ride requests that can be accepted by drivers.
-// @Tags         Driver Rides
-// @Security     BearerAuth
-// @Produce      json
-// @Success      200  {object} common.Response
-// @Failure      401  {object} common.Response
-// @Failure      500  {object} common.Response
-// @Router       /driver/rides/available [get]
+// GetAvailableRides lists ride requests that can be accepted by drivers.
 func (h *Handler) GetAvailableRides(c *gin.Context) {
 	rides, err := h.service.GetAvailableRides(c.Request.Context())
 	if err != nil {
@@ -580,19 +468,7 @@ func (h *Handler) UpdateUserProfile(c *gin.Context) {
 	})
 }
 
-// GetSurgeInfo godoc
-// @Summary      Retrieve surge pricing info
-// @Description  Provides current surge multiplier details for a latitude and longitude.
-// @Tags         Rides
-// @Security     BearerAuth
-// @Produce      json
-// @Param        lat  query     number  true  "Latitude"
-// @Param        lon  query     number  true  "Longitude"
-// @Success      200  {object} common.Response
-// @Failure      400  {object} common.Response
-// @Failure      401  {object} common.Response
-// @Failure      500  {object} common.Response
-// @Router       /rides/surge-info [get]
+// GetSurgeInfo surfaces surge pricing details for the supplied coordinates.
 func (h *Handler) GetSurgeInfo(c *gin.Context) {
 	latStr := c.Query("lat")
 	lonStr := c.Query("lon")

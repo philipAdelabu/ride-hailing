@@ -5,12 +5,12 @@
 This document outlines improvements for the ride-hailing backend. The codebase has strong architectural foundations with 13 microservices and enterprise features. **All 3 development phases are complete** (MVP → Scale → Enterprise). The focus now is on hardening for production deployment.
 
 **Current Status**: Phase 3 Complete ✅
-- 13 microservices fully implemented
-- 90+ API endpoints
-- Comprehensive testing (unit + integration)
-- Circuit breakers & rate limiting implemented
-- Correlation ID logging enabled
-- Swagger documentation for Rides service
+
+-   13 microservices fully implemented
+-   90+ API endpoints
+-   Comprehensive testing (unit + integration)
+-   Circuit breakers & rate limiting implemented
+-   Correlation ID logging enabled
 
 ---
 
@@ -162,46 +162,6 @@ Essential for debugging distributed systems.
 
 ---
 
-### 1.4 OpenAPI/Swagger Specifications
-
-**Impact:** MEDIUM | **Effort:** MEDIUM | **Timeline:** 1 week
-
-**Status:** ✅ **PARTIALLY DONE** - Rides service has Swagger spec
-
--   [x] **Rides Service Swagger**
-
-    -   [x] Manual OpenAPI spec in `docs/rides/swagger.yaml`
-    -   [x] Document all endpoints with examples
-    -   [x] Include request/response schemas
-    -   [x] Add authentication requirements
-    -   [x] Document error responses
-    -   [x] Swagger UI endpoint at `/swagger`
-    -   [x] Version API endpoints (`/api/v1`)
-
--   [ ] **Remaining Services**
-
-    -   [ ] Create Swagger specs for Auth, Payments, Geo, etc.
-    -   [ ] Consider using `swaggo/swag` for annotation-based generation
-    -   [ ] Auto-generate on code changes
-
--   [ ] **API Versioning**
-    -   [x] URL-based versioning (`/api/v1/...`)
-    -   [ ] Add version negotiation
-    -   [ ] Deprecation policy
-
-**Files Created:**
-
--   ✅ `docs/rides/swagger.yaml`
-
-**Files to Create:**
-
--   `docs/auth/swagger.yaml`
--   `docs/payments/swagger.yaml`
--   `docs/geo/swagger.yaml`
--   (and other services)
-
----
-
 ## Priority 2: Security Hardening (Do Next)
 
 ### 2.1 Application-Level Rate Limiting ✅ COMPLETE
@@ -211,18 +171,16 @@ Essential for debugging distributed systems.
 **Status:** ✅ **DONE**
 
 -   [x] **Implement Rate Limiter**
-
-    -   [x] Redis-backed token bucket algorithm
-    -   [x] Per-user rate limits (authenticated)
-    -   [x] Per-IP rate limits (anonymous)
-    -   [x] Per-endpoint configuration
-    -   [x] Burst allowance
-    -   [x] Rate limit headers (X-RateLimit-\*)
-
+-   [x] Redis-backed token bucket algorithm
+-   [x] Per-user rate limits (authenticated)
+-   [x] Per-IP rate limits (anonymous)
+-   [x] Per-endpoint configuration
+-   [x] Burst allowance
+-   [x] Rate limit headers (X-RateLimit-\*)
 -   [x] **Add Rate Limit Middleware**
-    -   [x] Configurable limits per service
-    -   [x] Return 429 Too Many Requests
-    -   [x] Include retry-after header
+-   [x] Configurable limits per service
+-   [x] Return 429 Too Many Requests
+-   [x] Include retry-after header
 
 **Implemented in Rides Service:**
 
@@ -997,7 +955,7 @@ Ensure scalability.
 
 | Phase                         | Duration  | Key Deliverables                        |
 | ----------------------------- | --------- | --------------------------------------- |
-| **Priority 1: Critical**      | 3-4 weeks | Tests, validation, tracing, OpenAPI     |
+| **Priority 1: Critical**      | 3-4 weeks | Tests, validation, tracing              |
 | **Priority 2: Security**      | 1 week    | Rate limiting, sanitization, secrets    |
 | **Priority 3: Resilience**    | 1 week    | Circuit breakers, retries, timeouts     |
 | **Priority 4: Observability** | 1 week    | Distributed tracing, dashboards, alerts |
@@ -1010,7 +968,7 @@ Ensure scalability.
 
 **Recommended Next Month Focus:**
 
--   Weeks 1-2: Expand circuit breakers to all external services + Swagger specs for remaining services
+-   Weeks 1-2: Expand circuit breakers to all external services + tighten cross-service contracts
 -   Week 3: Secrets management (Vault/AWS Secrets Manager) + JWT rotation
 -   Week 4: Distributed tracing (OpenTelemetry/Jaeger) + Grafana dashboards
 
@@ -1141,8 +1099,7 @@ The backend has evolved from good foundations to enterprise-ready status:
 1. **Secrets Management** - Integrate Vault or cloud secrets manager
 2. **Distributed Tracing** - Add OpenTelemetry/Jaeger for end-to-end tracing
 3. **Grafana Dashboards** - Create comprehensive monitoring dashboards
-4. **Swagger for All Services** - Expand API documentation beyond Rides
-5. **Load Testing** - Validate system under 1000+ concurrent rides
+4. **Load Testing** - Validate system under 1000+ concurrent rides
 
 **RECOMMENDATION:**
 

@@ -429,7 +429,7 @@ All phases complete! Focus areas for stabilization:
 
 2. **Documentation** ⏳
 
-    - API documentation (Swagger/OpenAPI)
+    - API documentation
     - Service integration guides
     - Fraud detection configuration
     - Scheduled ride setup guide
@@ -517,7 +517,7 @@ make load-test
 1. **Testing**: Add comprehensive unit & integration tests
 2. **Error Handling**: Standardize error responses
 3. **Logging**: Add request tracing with correlation IDs
-4. **Documentation**: Add OpenAPI/Swagger specs
+4. **Documentation**: Add reference docs for every service
 5. **Security**: Add rate limiting, IP whitelisting
 6. **Performance**: Database query optimization
 

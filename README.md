@@ -730,7 +730,6 @@ go test ./test/integration/... -v
 -   **[TODO.md](TODO.md)** - Development roadmap and improvement plan
 -   **[docs/API.md](docs/API.md)** - Complete API documentation for all services
 -   **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** - Deployment guides (Docker, K8s, Cloud)
--   **[docs/rides/swagger.yaml](docs/rides/swagger.yaml)** - Swagger/OpenAPI spec for Rides service
 -   **[db/migrations/](db/migrations/)** - Database schema migrations (9 migrations)
 
 ---

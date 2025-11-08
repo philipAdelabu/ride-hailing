@@ -46,14 +46,6 @@ func (h *Handler) RegisterRoutes(router *gin.Engine, jwtSecret string) {
 }
 
 // GetPendingAlerts retrieves all pending fraud alerts
-// @Summary Get pending fraud alerts
-// @Tags Fraud
-// @Accept json
-// @Produce json
-// @Param page query int false "Page number" default(1)
-// @Param per_page query int false "Items per page" default(20)
-// @Success 200 {array} FraudAlert
-// @Router /api/v1/fraud/alerts [get]
 func (h *Handler) GetPendingAlerts(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "20"))
@@ -72,13 +64,6 @@ func (h *Handler) GetPendingAlerts(c *gin.Context) {
 }
 
 // GetAlert retrieves a specific fraud alert
-// @Summary Get fraud alert by ID
-// @Tags Fraud
-// @Accept json
-// @Produce json
-// @Param id path string true "Alert ID"
-// @Success 200 {object} FraudAlert
-// @Router /api/v1/fraud/alerts/{id} [get]
 func (h *Handler) GetAlert(c *gin.Context) {
 	alertID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -106,13 +91,6 @@ type CreateAlertRequest struct {
 }
 
 // CreateAlert creates a new fraud alert
-// @Summary Create fraud alert
-// @Tags Fraud
-// @Accept json
-// @Produce json
-// @Param alert body CreateAlertRequest true "Alert details"
-// @Success 201 {object} FraudAlert
-// @Router /api/v1/fraud/alerts [post]
 func (h *Handler) CreateAlert(c *gin.Context) {
 	var req CreateAlertRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -143,14 +121,6 @@ type InvestigateAlertRequest struct {
 }
 
 // InvestigateAlert marks an alert as under investigation
-// @Summary Investigate fraud alert
-// @Tags Fraud
-// @Accept json
-// @Produce json
-// @Param id path string true "Alert ID"
-// @Param request body InvestigateAlertRequest true "Investigation notes"
-// @Success 200 {object} map[string]string
-// @Router /api/v1/fraud/alerts/{id}/investigate [put]
 func (h *Handler) InvestigateAlert(c *gin.Context) {
 	alertID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -188,14 +158,6 @@ type ResolveAlertRequest struct {
 }
 
 // ResolveAlert resolves a fraud alert
-// @Summary Resolve fraud alert
-// @Tags Fraud
-// @Accept json
-// @Produce json
-// @Param id path string true "Alert ID"
-// @Param request body ResolveAlertRequest true "Resolution details"
-// @Success 200 {object} map[string]string
-// @Router /api/v1/fraud/alerts/{id}/resolve [put]
 func (h *Handler) ResolveAlert(c *gin.Context) {
 	alertID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -226,15 +188,6 @@ func (h *Handler) ResolveAlert(c *gin.Context) {
 }
 
 // GetUserAlerts retrieves all fraud alerts for a user
-// @Summary Get user fraud alerts
-// @Tags Fraud
-// @Accept json
-// @Produce json
-// @Param id path string true "User ID"
-// @Param page query int false "Page number" default(1)
-// @Param per_page query int false "Items per page" default(20)
-// @Success 200 {array} FraudAlert
-// @Router /api/v1/fraud/users/{id}/alerts [get]
 func (h *Handler) GetUserAlerts(c *gin.Context) {
 	userID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -259,13 +212,6 @@ func (h *Handler) GetUserAlerts(c *gin.Context) {
 }
 
 // GetUserRiskProfile retrieves a user's risk profile
-// @Summary Get user risk profile
-// @Tags Fraud
-// @Accept json
-// @Produce json
-// @Param id path string true "User ID"
-// @Success 200 {object} UserRiskProfile
-// @Router /api/v1/fraud/users/{id}/risk-profile [get]
 func (h *Handler) GetUserRiskProfile(c *gin.Context) {
 	userID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -283,13 +229,6 @@ func (h *Handler) GetUserRiskProfile(c *gin.Context) {
 }
 
 // AnalyzeUser performs comprehensive fraud analysis on a user
-// @Summary Analyze user for fraud
-// @Tags Fraud
-// @Accept json
-// @Produce json
-// @Param id path string true "User ID"
-// @Success 200 {object} UserRiskProfile
-// @Router /api/v1/fraud/users/{id}/analyze [post]
 func (h *Handler) AnalyzeUser(c *gin.Context) {
 	userID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -312,14 +251,6 @@ type SuspendUserRequest struct {
 }
 
 // SuspendUser suspends a user account due to fraud
-// @Summary Suspend user account
-// @Tags Fraud
-// @Accept json
-// @Produce json
-// @Param id path string true "User ID"
-// @Param request body SuspendUserRequest true "Suspension reason"
-// @Success 200 {object} map[string]string
-// @Router /api/v1/fraud/users/{id}/suspend [post]
 func (h *Handler) SuspendUser(c *gin.Context) {
 	userID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -355,14 +286,6 @@ type ReinstateUserRequest struct {
 }
 
 // ReinstateUser reinstates a suspended user account
-// @Summary Reinstate user account
-// @Tags Fraud
-// @Accept json
-// @Produce json
-// @Param id path string true "User ID"
-// @Param request body ReinstateUserRequest true "Reinstatement reason"
-// @Success 200 {object} map[string]string
-// @Router /api/v1/fraud/users/{id}/reinstate [post]
 func (h *Handler) ReinstateUser(c *gin.Context) {
 	userID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -393,13 +316,6 @@ func (h *Handler) ReinstateUser(c *gin.Context) {
 }
 
 // DetectPaymentFraud analyzes payment patterns and creates alerts if needed
-// @Summary Detect payment fraud
-// @Tags Fraud
-// @Accept json
-// @Produce json
-// @Param user_id path string true "User ID"
-// @Success 200 {object} map[string]string
-// @Router /api/v1/fraud/detect/payment/{user_id} [post]
 func (h *Handler) DetectPaymentFraud(c *gin.Context) {
 	userID, err := uuid.Parse(c.Param("user_id"))
 	if err != nil {
@@ -416,13 +332,6 @@ func (h *Handler) DetectPaymentFraud(c *gin.Context) {
 }
 
 // DetectRideFraud analyzes ride patterns and creates alerts if needed
-// @Summary Detect ride fraud
-// @Tags Fraud
-// @Accept json
-// @Produce json
-// @Param user_id path string true "User ID"
-// @Success 200 {object} map[string]string
-// @Router /api/v1/fraud/detect/ride/{user_id} [post]
 func (h *Handler) DetectRideFraud(c *gin.Context) {
 	userID, err := uuid.Parse(c.Param("user_id"))
 	if err != nil {
