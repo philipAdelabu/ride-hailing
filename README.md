@@ -83,7 +83,7 @@ A complete, production-ready ride-hailing platform backend built with Go, featur
 ## Architecture
 
 ```mermaid
-%%{init: { "flowchart": { "nodeSpacing": 60, "rankSpacing": 120, "padding": 12 } }}%%
+%%{init: { "flowchart": { "nodeSpacing": 100, "rankSpacing": 260, "padding": 15 } }}%%
 flowchart TB
 
     %% Client Layer
