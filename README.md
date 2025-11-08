@@ -92,69 +92,110 @@ flowchart TB
         AdminPanel[Admin Panel]
     end
 
-    %% Core Services
+    %% Gateway Layer
+    Kong[Kong API Gateway\n:8000 / :8443]
+
+    %% Core Domain Services
     Auth[Auth Service :8081]
     Rides[Rides Service :8082]
     Geo[Geo Service :8083]
     Payments[Payments Service :8084]
     Notifs[Notifications Service :8085]
 
-    %% Secondary Services
-    Realtime[Realtime Service :8086]
+    %% Secondary & System Services
+    Realtime[Realtime / WebSocket :8086]
     MobileSvc[Mobile API :8087]
     AdminSvc[Admin API :8088]
+    Promos[Promos & Referrals :8089]
+    Scheduler[Scheduler Workers :8090]
+    Analytics[Analytics / BI :8091]
+    Fraud[Fraud Detection :8092]
+    ML[ML ETA Prediction :8093]
 
-    %% Databases
-    Postgres[(PostgreSQL Database)]
-    Redis[(Redis Cluster\nCache + Geo + WebSocket)]
+    %% Data Stores
+    Postgres[(PostgreSQL\nPersistent Storage)]
+    Redis[(Redis Cluster\nCache + Geo + Pub/Sub + WS State)]
 
-    %% Connections
-    Clients --> Auth
-    Clients --> Rides
-    Clients --> Geo
-    Clients --> Payments
-    Clients --> Notifs
+    %% Observability
+    Prometheus[(Prometheus\nMetrics Scraper)]
+    Grafana[(Grafana\nDashboards & Monitoring UI)]
 
-    Auth --> MobileSvc
-    Rides --> MobileSvc
-    Geo --> MobileSvc
-    Payments --> AdminSvc
-    Notifs --> AdminSvc
+    %% Client Access
+    Clients --> Kong
 
-    MobileSvc --> Realtime
-    AdminSvc --> Realtime
+    %% Routing from Gateway
+    Kong --> Auth
+    Kong --> Rides
+    Kong --> Geo
+    Kong --> Payments
+    Kong --> Notifs
+    Kong --> MobileSvc
+    Kong --> Realtime
 
+    %% Admin internal access
+    AdminPanel --> AdminSvc
+
+    %% Service -> Database
     Auth --> Postgres
     Rides --> Postgres
-    Geo --> Postgres
     Payments --> Postgres
     Notifs --> Postgres
+    MobileSvc --> Postgres
+    AdminSvc --> Postgres
+    Promos --> Postgres
+    Scheduler --> Postgres
+    Analytics --> Postgres
+    Fraud --> Postgres
+    ML --> Postgres
 
-    Postgres --> Redis
-    Redis --> Realtime
+    %% Service -> Redis
+    Geo --> Redis
+    Realtime --> Redis
+    ML --> Redis
+
+    %% Observability (non-blocking)
+    Prometheus --> Auth
+    Prometheus --> Rides
+    Prometheus --> Geo
+    Prometheus --> Payments
+    Prometheus --> Notifs
+    Prometheus --> Realtime
+    Prometheus --> MobileSvc
+    Prometheus --> AdminSvc
+    Prometheus --> Promos
+    Prometheus --> Scheduler
+    Prometheus --> Analytics
+    Prometheus --> Fraud
+    Prometheus --> ML
+
+    %% Dashboards visualize metrics
+    Grafana --> Prometheus
 ```
 
 ---
 
 ## Services
 
-| Service          | Port     | Purpose                                | Status            |
-| ---------------- | -------- | -------------------------------------- | ----------------- |
-| Auth             | 8081     | User authentication & JWT              | ✅ Production     |
-| Rides            | 8082     | Ride lifecycle management + scheduling | ✅ Production     |
-| Geo              | 8083     | Location tracking + driver matching    | ✅ Production     |
-| Payments         | 8084     | Stripe integration + wallets           | ✅ Production     |
-| Notifications    | 8085     | Multi-channel notifications            | ✅ Production     |
-| Real-time        | 8086     | WebSocket + chat                       | ✅ Production     |
-| Mobile           | 8087     | Mobile-optimized APIs                  | ✅ Production     |
-| Admin            | 8088     | Admin dashboard backend                | ✅ Production     |
-| Promos           | 8089     | Promo codes & referrals                | ✅ Production     |
-| Scheduler        | 8090     | Automated ride scheduling              | ✅ Production     |
-| Analytics        | 8091     | Business intelligence                  | ✅ Production     |
-| Fraud            | 8092     | Fraud detection                        | ✅ Production     |
-| ML ETA           | 8093     | ML-based ETA prediction                | ✅ Production     |
-| **Kong Gateway** | **8000** | **API Gateway**                        | ✅ **Enterprise** |
-| **Konga Admin**  | **1337** | **Kong UI**                            | ✅ **Enterprise** |
+| Service              | Port        | Purpose                                         | Status          |
+| -------------------- | ----------- | ----------------------------------------------- | --------------- |
+| **Auth**             | 8081        | User authentication, JWT issuance, roles        | ✅ Production   |
+| **Rides**            | 8082        | Ride lifecycle, trip state machine, scheduling  | ✅ Production   |
+| **Geo**              | 8083        | Driver locations, geospatial matching, ETA      | ✅ Production   |
+| **Payments**         | 8084        | Payments, wallets, Stripe/Tink integration      | ✅ Production   |
+| **Notifications**    | 8085        | Push, SMS, email, multi-channel alerts          | ✅ Production   |
+| **Realtime**         | 8086        | WebSocket events (rides, driver tracking)       | ✅ Production   |
+| **Mobile API**       | 8087        | Mobile-optimized backend gateway                | ✅ Production   |
+| **Admin API**        | 8088        | Admin dashboard backend                         | ✅ Production   |
+| **Promos**           | 8089        | Promo codes, referral program engine            | ✅ Production   |
+| **Scheduler**        | 8090        | Async background jobs (cron workers)            | ✅ Production   |
+| **Analytics**        | 8091        | BI, metrics aggregation, reporting              | ✅ Production   |
+| **Fraud**            | 8092        | Fraud detection rules + heuristic scoring       | ✅ Production   |
+| **ML ETA**           | 8093        | ML-based ETA prediction + model inference       | ✅ Production   |
+| **Kong Gateway**     | 8000 / 8443 | API Gateway (Traffic Control, JWT, Rate Limits) | ✅ Production   |
+| **Kong Admin API**   | 8001 / 8444 | Internal Admin API (secured; restricted)        | ⚠ Internal Only |
+| **Kong Manager GUI** | 8002        | Web UI for Gateway configuration                | 🔐 Protected    |
+| **PostgreSQL**       | 5432        | Main persistent relational database             | ✅ Production   |
+| **Redis**            | 6379        | Caching, Pub/Sub, Geo, Realtime session states  | ✅ Production   |
 
 ### 1. Auth Service (Port 8081)
 
