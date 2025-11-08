@@ -93,7 +93,8 @@ flowchart TB
     end
 
     %% Gateway Layer
-    Kong[Kong API Gateway\n:8000 / :8443]
+    Kong[Kong API Gateway
+    :8000 / :8443]
 
     %% Core Domain Services
     Auth[Auth Service :8081]
@@ -113,12 +114,16 @@ flowchart TB
     ML[ML ETA Prediction :8093]
 
     %% Data Stores
-    Postgres[(PostgreSQL\nPersistent Storage)]
-    Redis[(Redis Cluster\nCache + Geo + Pub/Sub + WS State)]
+    Postgres[(PostgreSQL
+    Persistent Storage)]
+    Redis[(Redis Cluster
+    Cache + Geo + Pub/Sub + WS State)]
 
     %% Observability
-    Prometheus[(Prometheus\nMetrics Scraper)]
-    Grafana[(Grafana\nDashboards & Monitoring UI)]
+    Prometheus[(Prometheus
+    Metrics Scraper)]
+    Grafana[(Grafana
+    Dashboards & Monitoring UI)]
 
     %% Client Access
     Clients --> Kong
