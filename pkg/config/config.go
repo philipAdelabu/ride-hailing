@@ -81,6 +81,10 @@ type JWTConfig struct {
 	RotationHours  int
 	GraceHours     int
 	RefreshMinutes int
+	VaultAddress   string
+	VaultToken     string
+	VaultPath      string
+	VaultNamespace string
 }
 
 // PubSubConfig holds Google Pub/Sub configuration
@@ -156,6 +160,10 @@ func Load(serviceName string) (*Config, error) {
 			RotationHours:  getEnvAsInt("JWT_ROTATION_HOURS", 24*30),
 			GraceHours:     getEnvAsInt("JWT_ROTATION_GRACE_HOURS", 24*30),
 			RefreshMinutes: getEnvAsInt("JWT_KEY_REFRESH_MINUTES", 5),
+			VaultAddress:   getEnv("JWT_KEYS_VAULT_ADDR", ""),
+			VaultToken:     getEnv("JWT_KEYS_VAULT_TOKEN", ""),
+			VaultPath:      getEnv("JWT_KEYS_VAULT_PATH", ""),
+			VaultNamespace: getEnv("JWT_KEYS_VAULT_NAMESPACE", ""),
 		},
 		PubSub: PubSubConfig{
 			ProjectID: getEnv("PUBSUB_PROJECT_ID", ""),
