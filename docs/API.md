@@ -1,1375 +1,793 @@
-# API Documentation
+# Ride Hailing Platform API
 
-## Overview
+Comprehensive reference for every HTTP surface exposed by the ride-hailing platform microservices. Each section below reflects the current code in `main` and is grouped by service so you can map handlers in `internal/<service>` to the contract documented here.
 
-This document provides detailed API documentation for the Ride Hailing Platform backend services.
+> **Documentation strategy**
+> This file stays the canonical index so new contributors can see the entire surface at a glance. If/when individual sections start to grow beyond what is manageable, we can graduate them into `docs/api/<service>.md` but keep this file as the table of contents.
 
-Base URLs:
+## Quick Navigation
 
--   Auth Service: `http://localhost:8081`
--   Rides Service: `http://localhost:8082`
--   Geo Service: `http://localhost:8083`
--   Payments Service: `http://localhost:8084`
--   Notifications Service: `http://localhost:8085`
--   Real-time Service: `http://localhost:8086`
--   Mobile Service: `http://localhost:8087`
--   Admin Service: `http://localhost:8088`
--   Promos Service: `http://localhost:8089`
--   Scheduler Service: `http://localhost:8090`
--   Analytics Service: `http://localhost:8091`
--   Fraud Service: `http://localhost:8092`
--   ML ETA Service: `http://localhost:8093`
+- [Service matrix](#service-matrix)
+- [Conventions](#conventions)
+- [Auth Service (:8081)](#auth-service-8081)
+- [Rides Service (:8082)](#rides-service-8082)
+- [Mobile API (:8087)](#mobile-api-8087)
+- [Geo Service (:8083)](#geo-service-8083)
+- [Payments Service (:8084)](#payments-service-8084)
+- [Promos Service (:8089)](#promos-service-8089)
+- [Notifications Service (:8085)](#notifications-service-8085)
+- [Real-time Service (:8086)](#real-time-service-8086)
+- [Admin Service (:8088)](#admin-service-8088)
+- [Analytics Service (:8091)](#analytics-service-8091)
+- [Fraud Service (:8092)](#fraud-service-8092)
+- [ML ETA Service (:8093)](#ml-eta-service-8093)
+- [Scheduler Service (:8090)](#scheduler-service-8090)
+- [Health, metrics & observability](#health-metrics--observability)
+## Service Matrix
 
-All API requests and responses use JSON format. All endpoints use `/api/v1/` prefix.
+| Service | Port | Base path (local) | Notes |
+| --- | --- | --- | --- |
+| Auth | 8081 | `http://localhost:8081/api/v1/auth` | Registration, login, profile management, JWT minting |
+| Rides | 8082 | `http://localhost:8082/api/v1` | Ride lifecycle for riders & drivers, surge lookup, rate limiting enabled |
+| Geo | 8083 | `http://localhost:8083/api/v1/geo` | Driver location updates + distance/ETA helpers |
+| Payments | 8084 | `http://localhost:8084/api/v1` | Wallets, ride payments, refunds, Stripe webhook |
+| Notifications | 8085 | `http://localhost:8085/api/v1` | Push/SMS/email notifications + ride lifecycle events |
+| Real-time | 8086 | `http://localhost:8086/api/v1` | WebSocket gateway, chat history, driver tracking |
+| Mobile API | 8087 | `http://localhost:8087/api/v1` | Mobile-friendly aggregates: ride history, receipts, favorites, profile |
+| Admin | 8088 | `http://localhost:8088/api/v1/admin` | Admin dashboard, user/driver governance, ride stats |
+| Promos | 8089 | `http://localhost:8089/api/v1` | Ride types, fare calc, promo/referral workflows |
+| Scheduler | 8090 | `http://localhost:8090` | Background worker; only exposes `/healthz` and `/metrics` |
+| Analytics | 8091 | `http://localhost:8091/api/v1/analytics` | Admin-only BI endpoints |
+| Fraud | 8092 | `http://localhost:8092/api/v1/fraud` | Admin-only fraud alerts & risk operations |
+| ML ETA | 8093 | `http://localhost:8093/api/v1/eta` | Public ETA prediction + admin ML controls |
 
-## Authentication
+When fronted by Kong or Istio, these ports collapse behind the gateway but the path structure (`/api/v1/...`) remains identical.
+## Conventions
 
-Most endpoints require authentication using JWT tokens. Include the token in the Authorization header:
+### Authentication & Roles
 
-```
-Authorization: Bearer <your_jwt_token>
-```
+- All protected endpoints expect `Authorization: Bearer <jwt>` using the token issued by the Auth service. Tokens encode the `user_id` and `role` claims consumed by the shared Gin middleware.
+- Roles defined in `pkg/models/user.go`:
+  - `rider`: Standard consumer accounts.
+  - `driver`: Supply-side accounts.
+  - `admin`: Back-office or service accounts. Every admin endpoint below requires this role.
+- Service-to-service calls (e.g., rides → notifications) also go through the same middleware. Use a service account seeded as `admin` when invoking internal-only endpoints.
 
-## Common Response Format
+### Response Envelope
 
-### Success Response
+Every handler uses the helpers in `pkg/common/response.go`, so responses are wrapped consistently:
 
 ```json
 {
   "success": true,
-  "data": { ... }
+  "data": { ... },
+  "meta": {
+    "limit": 20,
+    "offset": 0,
+    "total": 42
+  }
 }
 ```
 
-### Error Response
+Errors adopt the same envelope:
 
 ```json
 {
-	"success": false,
-	"error": {
-		"code": 400,
-		"message": "Error description"
-	}
+  "success": false,
+  "error": {
+    "code": 401,
+    "message": "unauthorized"
+  }
 }
 ```
 
-## Auth Service API
+When an `AppError` is returned you will receive the HTTP status code it specifies (e.g., 400, 404, 409, etc.).
 
-### POST /api/v1/auth/register
+### Pagination & Filtering
 
-Register a new user (rider or driver).
+Two pagination styles exist:
 
-**Request Body:**
+| Pattern | Query params | Used by |
+| --- | --- | --- |
+| Page-based | `page` (default 1), `per_page` (default 10, max 100) | `GET /api/v1/rides`, `GET /api/v1/fraud/alerts` |
+| Offset-based | `limit` (default 20, max 100 unless stated), `offset` (default 0) | Wallet transactions, notifications, ride history, analytics listings, etc. |
+
+Date filters follow `YYYY-MM-DD`. Unless otherwise noted, the backend interprets them as UTC and expands `end_date` to the end of the day.
+
+### Rate Limiting
+
+The rides service has Redis-backed token buckets enabled by default:
+
+- Authenticated users: 120 requests/min with a 40-request burst.
+- Anonymous requests (only applicable to public endpoints): 60 requests/min with a 20-request burst.
+
+Responses include the standard headers emitted by `pkg/middleware/rate_limit.go`:
+
+- `X-RateLimit-Limit`
+- `X-RateLimit-Remaining`
+- `X-RateLimit-Reset`
+- `X-RateLimit-Resource` (the logical endpoint key)
+
+### IDs, Numbers & Times
+
+- Identifiers are UUIDv4 strings. When a payload accepts an ID it expects the canonical string form (e.g., `a3d2...`).
+- Monetary values are floating point numbers in your configured currency (USD by default).
+- Timestamps are RFC 3339 strings (`2025-01-01T12:00:00Z`) in UTC.
+## Service Reference
+### Auth Service (:8081)
+
+Handles user onboarding, authentication and profile edits. Routes are defined in `internal/auth/handler.go`.
+
+- **Base URL:** `http://localhost:8081/api/v1/auth`
+
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| POST | `/register` | None | Create a rider or driver account. Mirrors `models.RegisterRequest`. |
+| POST | `/login` | None | Exchanges credentials for a JWT + user payload. |
+| GET | `/profile` | Bearer | Returns the current user (`models.User`). |
+| PUT | `/profile` | Bearer | Updates `first_name`, `last_name`, `phone_number`. |
+
+#### Example: POST /api/v1/auth/register
 
 ```json
 {
-	"email": "user@example.com",
-	"password": "password123",
-	"phone_number": "+1234567890",
-	"first_name": "John",
-	"last_name": "Doe",
-	"role": "rider"
+  "email": "rider@example.com",
+  "password": "Sup3rSecure!",
+  "phone_number": "+15551230000",
+  "first_name": "Riley",
+  "last_name": "Chen",
+  "role": "rider"
 }
 ```
 
-**Response:** `201 Created`
+Success → `201 Created` with the stored `models.User` (password hash omitted).
+
+#### Example: POST /api/v1/auth/login
 
 ```json
 {
-	"success": true,
-	"data": {
-		"id": "uuid",
-		"email": "user@example.com",
-		"phone_number": "+1234567890",
-		"first_name": "John",
-		"last_name": "Doe",
-		"role": "rider",
-		"is_active": true,
-		"is_verified": false,
-		"created_at": "2025-01-01T00:00:00Z",
-		"updated_at": "2025-01-01T00:00:00Z"
-	}
+  "email": "rider@example.com",
+  "password": "Sup3rSecure!"
 }
 ```
 
-### POST /api/v1/auth/login
-
-Authenticate and receive a JWT token.
-
-**Request Body:**
+Response:
 
 ```json
 {
-	"email": "user@example.com",
-	"password": "password123"
+  "success": true,
+  "data": {
+    "user": {
+      "id": "5a4e...",
+      "email": "rider@example.com",
+      "first_name": "Riley",
+      "last_name": "Chen",
+      "role": "rider"
+    },
+    "token": "eyJhbGciOi..."
+  }
 }
 ```
 
-**Response:** `200 OK`
+#### Example: PUT /api/v1/auth/profile
 
 ```json
 {
-	"success": true,
-	"data": {
-		"user": {
-			"id": "uuid",
-			"email": "user@example.com",
-			"first_name": "John",
-			"last_name": "Doe",
-			"role": "rider"
-		},
-		"token": "eyJhbGciOiJIUzI1NiIs..."
-	}
+  "first_name": "Riley",
+  "last_name": "Chen",
+  "phone_number": "+15559870000"
 }
 ```
 
-### GET /api/v1/auth/profile
+Validates presence of all three fields. On success the updated user object is returned.
+### Rides Service (:8082)
 
-Get current user profile. Requires authentication.
+`internal/rides/handler.go` exposes the complete ride lifecycle and enforces role-based access. All endpoints sit under `http://localhost:8082/api/v1` and require a valid JWT. Rate limiting is active on every route registered through `handler.RegisterRoutes`.
 
-**Headers:**
+**Ride status values:** `requested`, `accepted`, `in_progress`, `completed`, `cancelled` (see `pkg/models/ride.go`).
 
-```
-Authorization: Bearer <token>
-```
+#### Rider endpoints
 
-**Response:** `200 OK`
+| Method | Path | Description |
+| --- | --- | --- |
+| POST | `/rides` | Create a ride using `models.RideRequest`. Optional `ride_type_id`, `promo_code`, `scheduled_at`. |
+| GET | `/rides/:id` | Fetch one of your rides (rider or assigned driver). |
+| GET | `/rides` | Paginated list (`page`, `per_page`) of rides for the authenticated rider/driver. |
+| GET | `/rides/surge-info?lat=..&lon=..` | Returns current surge multiplier for the provided coordinates. |
+| POST | `/rides/:id/cancel` | Cancels a ride. Accepts optional `reason` body. Riders can always cancel; drivers can cancel assigned rides. |
+| POST | `/rides/:id/rate` | Submit a rating for a completed ride. Body matches `models.RideRatingRequest`. |
+
+#### Driver endpoints
+
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/driver/rides/available` | List open ride requests that can be accepted. |
+| POST | `/driver/rides/:id/accept` | Claim a requested ride. Fails if someone else already accepted. |
+| POST | `/driver/rides/:id/start` | Move an accepted ride into `in_progress`. |
+| POST | `/driver/rides/:id/complete` | Finalize the ride. Body: `{ "actual_distance": <km> }`. Computes fare adjustments and final status. |
+
+#### Example: POST /api/v1/rides
 
 ```json
 {
-	"success": true,
-	"data": {
-		"id": "uuid",
-		"email": "user@example.com",
-		"phone_number": "+1234567890",
-		"first_name": "John",
-		"last_name": "Doe",
-		"role": "rider",
-		"is_active": true,
-		"created_at": "2025-01-01T00:00:00Z"
-	}
+  "pickup_latitude": 40.758,
+  "pickup_longitude": -73.9855,
+  "pickup_address": "W 45th St, New York, NY",
+  "dropoff_latitude": 40.7128,
+  "dropoff_longitude": -74.006,
+  "dropoff_address": "Financial District, NY",
+  "ride_type_id": "2d6f...",
+  "promo_code": "WELCOME20",
+  "scheduled_at": null,
+  "is_scheduled": false
 }
 ```
 
-### PUT /api/v1/auth/profile
-
-Update user profile. Requires authentication.
-
-**Headers:**
-
-```
-Authorization: Bearer <token>
-```
-
-**Request Body:**
+Response (trimmed):
 
 ```json
 {
-	"first_name": "John",
-	"last_name": "Smith",
-	"phone_number": "+1234567890"
+  "success": true,
+  "data": {
+    "id": "c2e8...",
+    "status": "requested",
+    "estimated_distance": 8.3,
+    "estimated_duration": 24,
+    "estimated_fare": 23.5,
+    "surge_multiplier": 1.15,
+    "requested_at": "2025-01-09T15:04:05Z"
+  }
 }
 ```
 
-**Response:** `200 OK`
-
-## Rides Service API
-
-### POST /api/v1/rides
-
-Create a new ride request. Requires rider authentication.
-
-**Headers:**
-
-```
-Authorization: Bearer <token>
-```
-
-**Request Body:**
+#### Example: POST /api/v1/rides/:id/rate
 
 ```json
 {
-	"pickup_latitude": 40.7128,
-	"pickup_longitude": -74.006,
-	"pickup_address": "New York, NY",
-	"dropoff_latitude": 40.7589,
-	"dropoff_longitude": -73.9851,
-	"dropoff_address": "Times Square, NY"
+  "rating": 5,
+  "feedback": "Great driver, clean car"
 }
 ```
 
-**Response:** `201 Created`
+#### Example: POST /api/v1/driver/rides/:id/complete
 
 ```json
 {
-	"success": true,
-	"data": {
-		"id": "uuid",
-		"rider_id": "uuid",
-		"status": "requested",
-		"pickup_latitude": 40.7128,
-		"pickup_longitude": -74.006,
-		"pickup_address": "New York, NY",
-		"dropoff_latitude": 40.7589,
-		"dropoff_longitude": -73.9851,
-		"dropoff_address": "Times Square, NY",
-		"estimated_distance": 5.2,
-		"estimated_duration": 18,
-		"estimated_fare": 12.5,
-		"surge_multiplier": 1.0,
-		"requested_at": "2025-01-01T00:00:00Z"
-	}
+  "actual_distance": 9.1
 }
 ```
 
-### GET /api/v1/rides/:id
+Returns the updated ride, including `final_fare`, `actual_duration` and `completed_at` if the state transition succeeds.
 
-Get ride details by ID.
+#### Surge info response
 
-**Response:** `200 OK`
-
-### GET /api/v1/rides
-
-Get user's ride history. Supports pagination.
-
-**Query Parameters:**
-
--   `page` (default: 1)
--   `per_page` (default: 10, max: 100)
-
-**Response:** `200 OK`
+`GET /api/v1/rides/surge-info?lat=40.75&lon=-73.98`
 
 ```json
 {
-	"success": true,
-	"data": [
-		{
-			"id": "uuid",
-			"status": "completed",
-			"pickup_address": "New York, NY",
-			"dropoff_address": "Times Square, NY",
-			"final_fare": 13.2,
-			"completed_at": "2025-01-01T00:30:00Z"
-		}
-	]
+  "success": true,
+  "data": {
+    "surge_multiplier": 1.3,
+    "is_surge_active": true,
+    "message": "Time-based surge pricing active"
+  }
 }
 ```
+### Mobile API (:8087)
 
-### GET /api/v1/driver/rides/available
+A convenience façade that reuses the rides and favorites handlers for mobile clients. Every route requires a JWT and lives under `http://localhost:8087/api/v1`.
 
-Get available ride requests for drivers.
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/rides/history` | Offset-based history for the authenticated rider/driver. Query params: `status`, `start_date`, `end_date`, `limit` (default 20), `offset`. |
+| GET | `/rides/:id/receipt` | Returns a receipt for completed rides owned by the caller. Includes fare breakdown & payment method. |
+| POST | `/rides/:id/rate` | Same payload as the rides service; exposed here for mobile clients. |
+| GET | `/profile` | Fetches rider/driver profile information via `service.GetUserProfile`. |
+| PUT | `/profile` | Updates `first_name`, `last_name`, `phone_number`. |
+| POST | `/favorites` | Create a favorite location. Body: `{ "name", "address", "latitude", "longitude" }`. |
+| GET | `/favorites` | List favorite locations for the caller. |
+| GET | `/favorites/:id` | Retrieve one favorite if it belongs to the caller. |
+| PUT | `/favorites/:id` | Update a favorite location. Same schema as create. |
+| DELETE | `/favorites/:id` | Delete a favorite location owned by the caller. |
 
-**Headers:**
+#### Example: GET /api/v1/rides/history
 
 ```
-Authorization: Bearer <driver_token>
+curl -H "Authorization: Bearer <token>" \
+  "http://localhost:8087/api/v1/rides/history?limit=10&offset=0&status=completed&start_date=2025-01-01&end_date=2025-01-31"
 ```
 
-**Response:** `200 OK`
-
-### POST /api/v1/driver/rides/:id/accept
-
-Accept a ride request. Requires driver authentication.
-
-**Response:** `200 OK`
-
-### POST /api/v1/driver/rides/:id/start
-
-Start an accepted ride. Requires driver authentication.
-
-**Response:** `200 OK`
-
-### POST /api/v1/driver/rides/:id/complete
-
-Complete an in-progress ride. Requires driver authentication.
-
-**Request Body:**
+Response:
 
 ```json
 {
-	"actual_distance": 5.4
+  "rides": [
+    {
+      "id": "c2e8...",
+      "status": "completed",
+      "pickup_address": "Midtown",
+      "dropoff_address": "FiDi",
+      "final_fare": 24.15,
+      "completed_at": "2025-01-05T18:12:00Z"
+    }
+  ],
+  "total": 42,
+  "limit": 10,
+  "offset": 0
 }
 ```
 
-**Response:** `200 OK`
-
-### POST /api/v1/rides/:id/cancel
-
-Cancel a ride. Can be called by rider or driver.
-
-**Request Body:**
+#### Example: GET /api/v1/rides/:id/receipt
 
 ```json
 {
-	"reason": "Change of plans"
+  "success": true,
+  "data": {
+    "ride_id": "c2e8...",
+    "pickup_address": "Midtown",
+    "dropoff_address": "FiDi",
+    "distance": 8.9,
+    "duration": 22,
+    "base_fare": 19.5,
+    "surge_multiplier": 1.2,
+    "final_fare": 23.4,
+    "payment_method": "wallet"
+  }
 }
 ```
 
-**Response:** `200 OK`
-
-### POST /api/v1/rides/:id/rate
-
-Rate a completed ride. Requires rider authentication.
-
-**Request Body:**
+#### Example: POST /api/v1/favorites
 
 ```json
 {
-	"rating": 5,
-	"feedback": "Great driver!"
+  "name": "Home",
+  "address": "123 Main St, Brooklyn, NY",
+  "latitude": 40.6782,
+  "longitude": -73.9442
 }
 ```
 
-**Response:** `200 OK`
+The response is the stored `FavoriteLocation` struct with `id`, timestamps, and the caller's `user_id`.
+### Geo Service (:8083)
 
-### GET /api/v1/rides/surge-info
+Tracks driver coordinates in Redis and provides helper utilities.
 
-Retrieve the current surge pricing information for a latitude/longitude pair. Requires authentication (rider or driver).
+- **Base URL:** `http://localhost:8083/api/v1/geo`
+- **Auth:** All routes require a Bearer token. Driver updates additionally require the `driver` role.
 
-**Query Parameters:**
+| Method | Path | Description |
+| --- | --- | --- |
+| POST | `/location` | Drivers send `{ "latitude": <float>, "longitude": <float> }` to update their last known position. |
+| GET | `/drivers/:id/location` | Look up a driver's last stored location by UUID. Returns `{ "latitude", "longitude", "updated_at" }`. |
+| POST | `/distance` | Utility endpoint that accepts `{ "from_latitude", "from_longitude", "to_latitude", "to_longitude" }` and responds with `distance_km` + `eta_minutes`. |
 
--   `lat` (required) – Pickup latitude
--   `lon` (required) – Pickup longitude
-
-**Response:** `200 OK`
+#### Example: POST /api/v1/geo/distance
 
 ```json
 {
-	"success": true,
-	"data": {
-		"surge_multiplier": 1.4,
-		"is_surge_active": true,
-		"message": "Increased demand - Fares are slightly higher",
-		"factors": {
-			"demand_ratio": 1.8,
-			"demand_surge": 1.8,
-			"time_multiplier": 1.2,
-			"day_multiplier": 1.0,
-			"zone_multiplier": 1.1,
-			"weather_factor": 1.0
-		}
-	}
+  "from_latitude": 40.758,
+  "from_longitude": -73.9855,
+  "to_latitude": 40.7128,
+  "to_longitude": -74.006
 }
 ```
 
-## Mobile Service API
-
-The mobile API consolidates rider-facing functionality such as ride history, favorites, and profile management. All endpoints require the `Authorization: Bearer <token>` header.
-
-### GET /api/v1/rides/history
-
-Retrieve ride history with rich filtering options.
-
-**Query Parameters:**
-
--   `status` – Optional ride status filter (`completed`, `cancelled`, etc.)
--   `start_date` – Optional ISO date (`YYYY-MM-DD`)
--   `end_date` – Optional ISO date (`YYYY-MM-DD`)
--   `limit` – Number of records to return (default 20)
--   `offset` – Pagination offset (default 0)
-
-**Response:** `200 OK`
+Response:
 
 ```json
 {
-	"rides": [
-		{
-			"id": "uuid",
-			"status": "completed",
-			"pickup_address": "New York, NY",
-			"dropoff_address": "Times Square, NY",
-			"final_fare": 18.75,
-			"completed_at": "2025-01-01T00:30:00Z"
-		}
-	],
-	"total": 42,
-	"limit": 20,
-	"offset": 0
+  "success": true,
+  "data": {
+    "distance_km": 8.3,
+    "eta_minutes": 22
+  }
 }
 ```
+### Payments Service (:8084)
 
-### GET /api/v1/rides/:id/receipt
+Wallet management, ride charge capture, and refund flows. Implemented in `internal/payments/handler.go`.
 
-Generate a detailed receipt for a completed ride (rider or driver).
+- **Base URL:** `http://localhost:8084/api/v1`
+- **Auth:** All routes require JWT except the Stripe webhook.
 
-**Response:** `200 OK`
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/wallet` | Returns the caller's wallet (`models.Wallet`). Creates one on demand if needed. |
+| POST | `/wallet/topup` | Body `{ "amount": <float>, "stripe_payment_method": "pm_xxx" }`. Charges Stripe when the key is configured, otherwise simulates success. |
+| GET | `/wallet/transactions` | Query `limit`/`offset`. Returns an array of `models.WalletTransaction` + `meta`. |
+| POST | `/payments/process` | Charges a ride. Request: `{ "ride_id": "uuid", "amount": 23.5, "payment_method": "wallet|stripe" }`. |
+| GET | `/payments/:id` | Returns the payment if the caller is the rider or driver on the record. |
+| POST | `/payments/:id/refund` | Admins and riders can request refunds. Body `{ "reason": "Driver never showed" }`. |
+| POST | `/webhooks/stripe` | Unauthenticated endpoint for Stripe events. Payload must include `type` and `data.object.id`. |
+
+#### Example: POST /api/v1/payments/process
 
 ```json
 {
-	"success": true,
-	"data": {
-		"ride_id": "uuid",
-		"date": "2025-01-01T00:30:00Z",
-		"pickup_address": "New York, NY",
-		"dropoff_address": "Times Square, NY",
-		"distance": 5.4,
-		"duration": 19,
-		"base_fare": 12.5,
-		"surge_multiplier": 1.3,
-		"final_fare": 16.25,
-		"payment_method": "wallet",
-		"rider_id": "uuid",
-		"driver_id": "uuid"
-	}
+  "ride_id": "c2e8eb07-...",
+  "amount": 23.50,
+  "payment_method": "wallet"
 }
 ```
 
-### Favorites Endpoints
+On success the response contains the stored `models.Payment` with commission and driver earnings calculated.
 
-#### POST /api/v1/favorites
-
-Create a favorite location for the authenticated user.
-
-**Request Body:**
+#### Example: POST /api/v1/payments/:id/refund
 
 ```json
 {
-	"name": "Home",
-	"address": "123 Main St, Springfield",
-	"latitude": 40.7128,
-	"longitude": -74.006
+  "reason": "Driver cancelled mid ride"
 }
 ```
 
-**Response:** `201 Created`
+Admins can refund any payment; riders can only refund their own. Refunds set the payment status to `refunded` and trigger Stripe refund logic when available.
+
+#### Stripe webhook shape
 
 ```json
 {
-	"id": "uuid",
-	"user_id": "uuid",
-	"name": "Home",
-	"address": "123 Main St, Springfield",
-	"latitude": 40.7128,
-	"longitude": -74.006,
-	"created_at": "2025-01-01T00:00:00Z",
-	"updated_at": "2025-01-01T00:00:00Z"
+  "type": "payment_intent.succeeded",
+  "data": {
+    "object": {
+      "id": "pi_123",
+      "metadata": {
+        "ride_id": "c2e8..."
+      }
+    }
+  }
 }
 ```
 
-#### GET /api/v1/favorites
+The handler currently verifies the payload format only; signature verification should be added before production use.
+### Promos Service (:8089)
 
-List all favorite locations for the authenticated user.
+Promo codes, referral bonuses, ride types, and fare estimation helpers.
 
-**Response:** `200 OK`
+- **Base URL:** `http://localhost:8089/api/v1`
+
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| GET | `/ride-types` | None | Lists configured ride types (Economy, Premium, XL, etc.). |
+| POST | `/ride-types/calculate-fare` | None | Body `{ "ride_type_id", "distance", "duration", "surge_multiplier" }`. Returns `fare`. |
+| POST | `/promo-codes/validate` | Bearer | Validates `code` for the caller and ride amount. `{ "code": "WELCOME20", "ride_amount": 25 }`. |
+| GET | `/referrals/my-code` | Bearer | Generates/returns the caller's referral code. |
+| POST | `/referrals/apply` | Bearer | Body `{ "referral_code": "RILEY25" }`. Applies referral bonuses. |
+| POST | `/admin/promo-codes` | Admin | Creates a promo code. Payload mirrors `internal/promos.PromoCode`. |
+
+#### Example: POST /api/v1/promo-codes/validate
 
 ```json
 {
-	"favorites": [
-		{
-			"id": "uuid",
-			"name": "Home",
-			"address": "123 Main St, Springfield",
-			"latitude": 40.7128,
-			"longitude": -74.006
-		}
-	]
+  "code": "WELCOME20",
+  "ride_amount": 30.0
 }
 ```
 
-#### GET /api/v1/favorites/:id
-
-Fetch a single favorite location by ID. Returns `404` if it does not belong to the user.
-
-#### PUT /api/v1/favorites/:id
-
-Update a favorite location. Request body matches the create payload. Returns the updated favorite on success.
-
-#### DELETE /api/v1/favorites/:id
-
-Delete a favorite location. Returns:
+Response:
 
 ```json
 {
-	"message": "Favorite location deleted"
+  "success": true,
+  "data": {
+    "valid": true,
+    "message": "Promo applied",
+    "discount_amount": 6.0,
+    "final_amount": 24.0
+  }
 }
 ```
 
-### Profile Endpoints
-
-#### GET /api/v1/profile
-
-Retrieve the authenticated user's profile information.
-
-**Response:** `200 OK`
+#### Example: POST /api/v1/ride-types/calculate-fare
 
 ```json
 {
-	"success": true,
-	"data": {
-		"id": "uuid",
-		"email": "user@example.com",
-		"first_name": "John",
-		"last_name": "Doe",
-		"phone_number": "+1234567890",
-		"role": "rider"
-	}
+  "ride_type_id": "2d6f...",
+  "distance": 12.3,
+  "duration": 28,
+  "surge_multiplier": 1.2
 }
 ```
 
-#### PUT /api/v1/profile
+Response contains the calculated fare and echoes the request metadata.
 
-Update the authenticated user's profile.
-
-**Request Body:**
+#### Example: POST /api/v1/admin/promo-codes
 
 ```json
 {
-	"first_name": "John",
-	"last_name": "Smith",
-	"phone_number": "+1234567890"
+  "code": "SUMMER25",
+  "description": "25% off up to $10",
+  "discount_type": "percentage",
+  "discount_value": 0.25,
+  "max_discount_amount": 10,
+  "min_ride_amount": 12,
+  "uses_per_user": 1,
+  "valid_from": "2025-06-01T00:00:00Z",
+  "valid_until": "2025-08-31T23:59:59Z"
 }
 ```
 
-**Response:** `200 OK`
+The handler injects `created_by` based on the authenticated admin and persists the promo code.
+### Notifications Service (:8085)
+
+Multi-channel messaging (Firebase push, Twilio SMS, SMTP email) plus ride lifecycle notifications.
+
+- **Base URL:** `http://localhost:8085/api/v1`
+- **Auth:** Every route uses the shared JWT middleware; ride lifecycle + admin endpoints should be called by trusted services using admin tokens.
+
+#### User-facing endpoints
+
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/notifications` | List notifications for the caller. Query `limit`/`offset`. Envelope includes `meta`. |
+| GET | `/notifications/unread/count` | Returns `{ "count": <int> }` with the unread total. |
+| POST | `/notifications/:id/read` | Marks a notification as read. No body required. |
+| POST | `/notifications/send` | Send a single notification. Body below. |
+| POST | `/notifications/schedule` | Schedule a notification for the future. Requires `scheduled_at` RFC3339. |
+
+`SendNotification` / `ScheduleNotification` payload:
 
 ```json
 {
-	"success": true,
-	"data": {
-		"message": "Profile updated successfully"
-	}
+  "user_id": "5a4e...",
+  "type": "ride_completed",
+  "channel": "push",
+  "title": "Your ride is done",
+  "body": "Thanks for riding with us!",
+  "data": {
+    "ride_id": "c2e8..."
+  },
+  "scheduled_at": "2025-01-09T18:00:00Z" // only for schedule
 }
 ```
 
-## Geo Service API
+#### Ride lifecycle hooks
 
-### POST /api/v1/geo/location
+| Method | Path | Description |
+| --- | --- | --- |
+| POST | `/notifications/ride/requested` |
+| POST | `/notifications/ride/accepted` |
+| POST | `/notifications/ride/started` |
+| POST | `/notifications/ride/completed` |
+| POST | `/notifications/ride/cancelled` |
 
-Update driver's current location. Requires driver authentication.
-
-**Headers:**
-
-```
-Authorization: Bearer <driver_token>
-```
-
-**Request Body:**
+These endpoints accept variants of `RideNotificationRequest`:
 
 ```json
 {
-	"latitude": 40.7128,
-	"longitude": -74.006
+  "user_id": "5a4e...",
+  "ride_id": "c2e8...",
+  "data": {
+    "pickup": "Midtown",
+    "driver_name": "Sofia"
+  }
 }
 ```
 
-**Response:** `200 OK`
+`/ride/cancelled` additionally requires `cancelled_by` ("driver" or "rider"). Use service credentials so the middleware allows the call.
 
-### GET /api/v1/geo/drivers/:id/location
+#### Admin bulk broadcast
 
-Get a driver's current location.
+| Method | Path | Description |
+| --- | --- | --- |
+| POST | `/admin/notifications/bulk` | Admin-only. Body `{ "user_ids": ["..."], "type": "promo", "channel": "email", "title": "...", "body": "...", "data": {}}`. Returns how many notifications were queued. |
+### Real-time Service (:8086)
 
-**Response:** `200 OK`
+Provides WebSocket connectivity plus helper REST endpoints for chat history and broadcasting updates. See `internal/realtime/handler.go`.
+
+- **Base URL:** `http://localhost:8086/api/v1`
+
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| GET | `/ws` | Bearer | Upgrades to a WebSocket connection. JWT determines the user ID + role tracked inside the hub. |
+| GET | `/rides/:ride_id/chat` | Bearer | Returns `{ "ride_id", "messages": [...] }` for rides the caller belongs to. |
+| GET | `/drivers/:driver_id/location` | Bearer | Fetches the latest driver coordinates stored in Redis. |
+| GET | `/stats` | Admin | Connection counts, hub stats. |
+| POST | `/internal/broadcast/ride` | Network-restricted | Body `{ "ride_id": "...", "data": { ... } }`, pushes an event to everyone watching the ride. |
+| POST | `/internal/broadcast/user` | Network-restricted | Body `{ "user_id": "...", "type": "notification", "data": { ... } }`. |
+
+#### WebSocket handshake example
+
+```js
+const socket = new WebSocket("ws://localhost:8086/api/v1/ws", {
+  headers: { Authorization: `Bearer ${token}` }
+});
+```
+
+After connecting, the client receives events broadcast by other services (ride status, chat messages, etc.) and can send structured JSON payloads per the `pkg/websocket` client contract.
+
+> **Security note:** The `/internal/broadcast/*` routes do not attach middleware today. Deploy them behind mTLS/network ACLs or add auth middleware before exposing them in production.
+### Admin Service (:8088)
+
+Back-office operations accessible only to admin accounts. Routes live under `http://localhost:8088/api/v1/admin` and every request passes through both `AuthMiddleware` and `RequireAdmin()`.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/dashboard` | Returns aggregated `DashboardStats` (user totals + ride revenue snapshots). |
+| GET | `/users` | Paginated users list. Query `limit` (default 20, max 100) & `offset`. |
+| GET | `/users/:id` | Fetch one user. |
+| POST | `/users/:id/suspend` | Suspends the account (no body needed). |
+| POST | `/users/:id/activate` | Re-activates an account. |
+| GET | `/drivers/pending` | Drivers awaiting manual approval. |
+| POST | `/drivers/:id/approve` | Marks the driver as approved. |
+| POST | `/drivers/:id/reject` | Rejects the pending driver. |
+| GET | `/rides/recent?limit=50` | Latest rides (default 50, cap 100). Helpful for monitoring. |
+| GET | `/rides/stats?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD` | Returns `RideStats` (total, completed, cancelled, revenue, avg fare). |
+
+Sample `GET /api/v1/admin/dashboard` response:
 
 ```json
 {
-	"success": true,
-	"data": {
-		"driver_id": "uuid",
-		"latitude": 40.7128,
-		"longitude": -74.006,
-		"timestamp": "2025-01-01T00:00:00Z"
-	}
+  "success": true,
+  "data": {
+    "users": {
+      "total_users": 120000,
+      "total_riders": 95000,
+      "total_drivers": 25000,
+      "active_users": 38000
+    },
+    "rides": {
+      "total_rides": 210000,
+      "completed_rides": 180000,
+      "cancelled_rides": 15000,
+      "total_revenue": 4200000,
+      "avg_fare": 23.3
+    },
+    "today_rides": {
+      "total_rides": 3200,
+      "completed_rides": 2950,
+      "cancelled_rides": 180,
+      "total_revenue": 72000,
+      "avg_fare": 22.5
+    }
+  }
 }
 ```
+### Analytics Service (:8091)
 
-### POST /api/v1/geo/distance
+Business intelligence endpoints for admins. Middleware enforces both JWT + admin role.
 
-Calculate distance and ETA between two points.
+- **Base URL:** `http://localhost:8091/api/v1/analytics`
+- **Date handling:** `start_date`/`end_date` default to the last 30 days when omitted. Pass `YYYY-MM-DD`.
 
-**Request Body:**
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/dashboard` | Lightweight snapshot (active rides, revenue today, active users, etc.). |
+| GET | `/revenue` | Query `start_date`, `end_date`. Returns `RevenueMetrics`. |
+| GET | `/promo-codes` | Promo performance per code. Same date params. |
+| GET | `/ride-types` | Usage mix across ride types. |
+| GET | `/referrals` | Referral funnel metrics, conversion rate and bonus spend. |
+| GET | `/top-drivers?limit=10` | Top performing drivers within the window (limit 1-100). |
+| GET | `/heat-map?grid_size=0.01` | Geographic demand data suitable for heat maps. `grid_size` is in degrees (~0.01 ≈ 1 km). |
+| GET | `/financial-report` | Profit & loss style report for the period. |
+| GET | `/demand-zones?min_rides=20` | Highlights zones exceeding the provided ride count. |
+
+Example revenue response:
 
 ```json
 {
-	"from_latitude": 40.7128,
-	"from_longitude": -74.006,
-	"to_latitude": 40.7589,
-	"to_longitude": -73.9851
+  "success": true,
+  "data": {
+    "period": "2025-01-01/2025-01-31",
+    "total_revenue": 4200000,
+    "total_rides": 185000,
+    "avg_fare_per_ride": 22.7,
+    "total_discounts": 380000,
+    "platform_earnings": 950000,
+    "driver_earnings": 3250000
+  }
 }
 ```
+### Fraud Service (:8092)
 
-**Response:** `200 OK`
+Admin-only APIs for fraud detection, triage, and enforcement. All routes require the admin role and live under `http://localhost:8092/api/v1/fraud`.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/alerts` | Paginated (`page`, `per_page`) list of pending alerts. |
+| GET | `/alerts/:id` | Fetch a single alert. |
+| POST | `/alerts` | Manually create an alert. See payload below. |
+| PUT | `/alerts/:id/investigate` | Body `{ "notes": "Investigating payment anomalies" }`. Sets status to `investigating` and logs admin ID. |
+| PUT | `/alerts/:id/resolve` | Body `{ "confirmed": true, "notes": "Chargebacks confirmed", "action_taken": "suspended" }`. |
+| GET | `/users/:id/alerts` | Alerts for one user (`page`, `per_page`). |
+| GET | `/users/:id/risk-profile` | Returns `UserRiskProfile`. |
+| POST | `/users/:id/analyze` | Runs the full analysis pipeline and returns the latest profile snapshot. |
+| POST | `/users/:id/suspend` | Body `{ "reason": "Confirmed payment fraud" }`. Suspends via the fraud service. |
+| POST | `/users/:id/reinstate` | Body `{ "reason": "False positive" }`. Reinstates account. |
+| POST | `/detect/payment/:user_id` | Triggers automated payment fraud checks. No body. |
+| POST | `/detect/ride/:user_id` | Triggers ride pattern checks. No body. |
+
+`POST /alerts` payload (matches `CreateAlertRequest`):
 
 ```json
 {
-	"success": true,
-	"data": {
-		"distance_km": 5.2,
-		"eta_minutes": 18
-	}
+  "user_id": "5a4e...",
+  "alert_type": "payment_fraud",
+  "alert_level": "high",
+  "description": "Multiple failed cards followed by success",
+  "details": {
+    "failed_attempts": 5,
+    "last_payment_id": "pay_123"
+  },
+  "risk_score": 87.5
 }
 ```
 
-## Health Check Endpoints
+Alert types: `payment_fraud`, `account_fraud`, `location_fraud`, `ride_fraud`, `rating_manipulation`, `promo_abuse`. Alert levels: `low`, `medium`, `high`, `critical`.
+### ML ETA Service (:8093)
 
-All services expose the following endpoints:
+Machine-learning driven ETA predictions plus model management endpoints.
 
-### GET /healthz
+- **Base URL:** `http://localhost:8093/api/v1/eta`
+- **Auth:** `POST /predict` and `/predict/batch` are public. Everything else requires JWT; admin-only routes additionally enforce `RequireAdmin()`.
 
-Check service health status.
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| POST | `/predict` | None | Body matches `ETAPredictionRequest` (coords, traffic level, weather, driver_id, ride_type_id). |
+| POST | `/predict/batch` | None | `{ "routes": [ ETAPredictionRequest, ... ] }` (max 100). |
+| POST | `/train` | Admin | Starts asynchronous model retraining. Returns `202 Accepted`. |
+| GET | `/model/stats` | Admin | Summary (version, training samples, accuracy, last_trained_at). |
+| GET | `/model/accuracy?days=30` | Admin | Aggregated accuracy metrics for the requested window (1-365 days). |
+| POST | `/model/tune` | Admin | Adjust hyper-parameters. Accepts any subset of the weights (`distance_weight`, `traffic_weight`, etc.) as floats 0-1. |
+| GET | `/analytics/predictions?limit=50&offset=0` | Bearer | Historical prediction rows. |
+| GET | `/analytics/accuracy?days=30` | Bearer | Accuracy trend data. |
+| GET | `/analytics/features` | Bearer | Feature importance (distance vs traffic vs weather, etc.). |
 
-**Response:** `200 OK`
+#### Example: POST /api/v1/eta/predict
 
 ```json
 {
-	"status": "healthy",
-	"service": "auth-service",
-	"version": "1.0.0"
+  "pickup_lat": 40.758,
+  "pickup_lng": -73.9855,
+  "dropoff_lat": 40.7128,
+  "dropoff_lng": -74.006,
+  "traffic_level": "high",
+  "weather": "rain",
+  "driver_id": "5a4e...",
+  "ride_type_id": 1
 }
 ```
 
-### GET /version
-
-Get service version information.
-
-**Response:** `200 OK`
+Response:
 
 ```json
 {
-	"service": "auth-service",
-	"version": "1.0.0"
+  "success": true,
+  "data": {
+    "estimated_minutes": 22.4,
+    "estimated_seconds": 1344,
+    "distance_km": 8.3,
+    "confidence": 0.82,
+    "model_version": "v1.0-ml",
+    "predicted_arrival_time": "2025-01-09T15:34:00Z",
+    "factors": {
+      "base_eta": 19.6,
+      "traffic": 1.3,
+      "time_of_day": 1.1,
+      "weather": 1.15,
+      "historical_eta": 21.8
+    }
+  }
 }
 ```
+### Scheduler Service (:8090)
 
-### GET /metrics
+The scheduler is a background worker that picks up scheduled rides and time-based tasks (see `internal/scheduler/worker.go`). It does **not** expose application APIs—only the standard diagnostics endpoints:
 
-Prometheus metrics endpoint.
+- `GET /healthz`
+- `GET /version`
+- `GET /metrics`
 
-## Error Codes
+If you need to enqueue new scheduled rides or notifications, call the relevant ride/notification services; the scheduler polls the database and notifications service URL configured through `NOTIFICATIONS_SERVICE_URL`.
+### Health, metrics & observability
 
--   `400` - Bad Request: Invalid input data
--   `401` - Unauthorized: Missing or invalid authentication
--   `403` - Forbidden: Insufficient permissions
--   `404` - Not Found: Resource not found
--   `409` - Conflict: Resource already exists
--   `500` - Internal Server Error: Server-side error
+Every HTTP service (including scheduler) exposes the same trio of operational endpoints:
 
-## Payments Service API
+| Path | Description |
+| --- | --- |
+| `GET /healthz` | Returns `{ "service": "<name>", "status": "healthy" }` via `pkg/common.HealthCheck`. Use for readiness/liveness probes. |
+| `GET /version` | Where defined, returns the service name + semantic version string declared in `cmd/<service>/main.go`. |
+| `GET /metrics` | Prometheus scrape endpoint (Gin wraps `promhttp.Handler`). |
 
-### POST /api/v1/payments/process
+All Gin routers also install middleware for structured logging (`pkg/logger` + `middleware.RequestLogger`), correlation IDs, CORS, security headers, and request sanitisation.
 
-Process a payment for a completed ride. Requires authentication.
-
-**Request Body:**
-
-```json
-{
-	"ride_id": "uuid",
-	"amount": 25.5,
-	"payment_method": "wallet",
-	"stripe_payment_method_id": "pm_card_visa"
-}
-```
-
-**Response:** `200 OK`
-
-### POST /api/v1/wallet/topup
-
-Add funds to user's wallet. Requires authentication.
-
-**Request Body:**
-
-```json
-{
-	"amount": 50.0,
-	"stripe_payment_method": "pm_card_visa"
-}
-```
-
-**Response:** `200 OK`
-
-### GET /api/v1/wallet
-
-Get current wallet balance. Requires authentication.
-
-**Response:** `200 OK`
-
-```json
-{
-	"success": true,
-	"data": {
-		"user_id": "uuid",
-		"balance": 42.5,
-		"currency": "USD"
-	}
-}
-```
-
-### GET /api/v1/wallet/transactions
-
-Get wallet transaction history. Requires authentication.
-
-**Response:** `200 OK`
-
-### POST /api/v1/payments/refund
-
-Process a refund for a cancelled ride. Requires authentication.
-
-**Request Body:**
-
-```json
-{
-	"ride_id": "uuid",
-	"reason": "Ride cancelled by driver"
-}
-```
-
-**Response:** `200 OK`
-
-### POST /api/v1/payments/webhook
-
-Stripe webhook endpoint for payment events. Internal use.
-
----
-
-## Notifications Service API
-
-### GET /api/v1/notifications
-
-List user's notifications. Requires authentication.
-
-**Query Parameters:**
-
--   `limit` (default: 20)
--   `offset` (default: 0)
-
-**Response:** `200 OK`
-
-### GET /api/v1/notifications/unread
-
-Get count of unread notifications. Requires authentication.
-
-**Response:** `200 OK`
-
-```json
-{
-	"count": 5
-}
-```
-
-### PUT /api/v1/notifications/:id/read
-
-Mark a notification as read. Requires authentication.
-
-**Response:** `200 OK`
-
-### POST /api/v1/notifications/send
-
-Send a notification (admin only).
-
-**Request Body:**
-
-```json
-{
-	"user_id": "uuid",
-	"title": "Promo Alert",
-	"message": "50% off your next ride!",
-	"channels": ["push", "sms", "email"]
-}
-```
-
-**Response:** `200 OK`
-
-### POST /api/v1/notifications/schedule
-
-Schedule a notification for later delivery (admin only).
-
-**Request Body:**
-
-```json
-{
-	"user_id": "uuid",
-	"title": "Reminder",
-	"message": "Your scheduled ride is in 30 minutes",
-	"scheduled_at": "2025-01-01T10:00:00Z",
-	"channels": ["push"]
-}
-```
-
-**Response:** `200 OK`
-
-### POST /api/v1/notifications/bulk
-
-Send bulk notifications (admin only).
-
-**Request Body:**
-
-```json
-{
-	"user_ids": ["uuid1", "uuid2"],
-	"title": "System Maintenance",
-	"message": "Platform will be down for 1 hour",
-	"channels": ["push", "email"]
-}
-```
-
-**Response:** `200 OK`
-
----
-
-## Real-time Service API
-
-### GET /ws?token=<jwt_token>
-
-Establish WebSocket connection for real-time updates.
-
-**Message Types:**
-
--   `join_ride` - Join a ride room
--   `location_update` - Real-time location updates
--   `ride_status` - Ride status changes
--   `chat_message` - Send/receive chat messages
--   `typing` - Typing indicators
-
-**Example Message:**
-
-```json
-{
-	"type": "chat_message",
-	"payload": {
-		"ride_id": "uuid",
-		"message": "I'm 5 minutes away"
-	}
-}
-```
-
-### POST /api/v1/broadcast
-
-Internal endpoint for broadcasting messages to WebSocket clients.
-
----
-
-## Admin Service API
-
-All endpoints require admin authentication.
-
-### GET /api/v1/admin/dashboard
-
-Get dashboard overview with aggregated statistics.
-
-**Response:** `200 OK`
-
-```json
-{
-	"total_users": 1250,
-	"total_drivers": 340,
-	"total_rides": 8932,
-	"active_rides": 42,
-	"revenue_today": 4532.5,
-	"revenue_total": 284120.75
-}
-```
-
-### GET /api/v1/admin/users
-
-List all users with filtering and pagination.
-
-**Query Parameters:**
-
--   `role` - Filter by role (rider, driver, admin)
--   `status` - Filter by status (active, suspended)
--   `page` (default: 1)
--   `per_page` (default: 20)
-
-**Response:** `200 OK`
-
-### GET /api/v1/admin/users/:id
-
-Get detailed user information.
-
-**Response:** `200 OK`
-
-### PUT /api/v1/admin/users/:id/suspend
-
-Suspend a user account.
-
-**Response:** `200 OK`
-
-### PUT /api/v1/admin/users/:id/activate
-
-Activate a suspended user account.
-
-**Response:** `200 OK`
-
-### GET /api/v1/admin/drivers/pending
-
-Get drivers pending approval.
-
-**Response:** `200 OK`
-
-### PUT /api/v1/admin/drivers/:id/approve
-
-Approve a driver application.
-
-**Response:** `200 OK`
-
-### GET /api/v1/admin/rides
-
-Get rides with filtering options.
-
-**Query Parameters:**
-
--   `status` - Filter by status
--   `start_date` - Filter by date range
--   `end_date` - Filter by date range
--   `page` (default: 1)
--   `per_page` (default: 20)
-
-**Response:** `200 OK`
-
-### GET /api/v1/admin/stats
-
-Get detailed analytics and statistics.
-
-**Query Parameters:**
-
--   `start_date` - Date range start
--   `end_date` - Date range end
--   `metric` - Specific metric to retrieve
-
-**Response:** `200 OK`
-
----
-
-## Promos Service API
-
-### POST /api/v1/promos
-
-Create a new promo code (admin only).
-
-**Request Body:**
-
-```json
-{
-	"code": "SUMMER50",
-	"discount_type": "percentage",
-	"discount_value": 50,
-	"max_uses": 1000,
-	"expires_at": "2025-12-31T23:59:59Z"
-}
-```
-
-**Response:** `201 Created`
-
-### GET /api/v1/promos
-
-List all promo codes (admin only).
-
-**Response:** `200 OK`
-
-### POST /api/v1/promos/apply
-
-Apply a promo code to a ride. Requires authentication.
-
-**Request Body:**
-
-```json
-{
-	"code": "SUMMER50",
-	"ride_id": "uuid"
-}
-```
-
-**Response:** `200 OK`
-
-```json
-{
-	"success": true,
-	"data": {
-		"discount_amount": 12.5,
-		"final_amount": 12.5
-	}
-}
-```
-
-### POST /api/v1/promos/validate
-
-Validate a promo code without applying it.
-
-**Request Body:**
-
-```json
-{
-	"code": "SUMMER50"
-}
-```
-
-**Response:** `200 OK`
-
-### GET /api/v1/referral/code
-
-Get user's referral code. Requires authentication.
-
-**Response:** `200 OK`
-
-```json
-{
-	"code": "REF-ABC123",
-	"uses": 5,
-	"bonus_earned": 25.0
-}
-```
-
-### POST /api/v1/referral/apply
-
-Apply a referral code. Requires authentication.
-
-**Request Body:**
-
-```json
-{
-	"referral_code": "REF-ABC123"
-}
-```
-
-**Response:** `200 OK`
-
-### GET /api/v1/ride-types
-
-Get available ride types.
-
-**Response:** `200 OK`
-
-```json
-{
-	"ride_types": [
-		{
-			"id": "uuid",
-			"name": "Economy",
-			"base_fare": 5.0,
-			"per_km_rate": 1.5,
-			"per_minute_rate": 0.25
-		},
-		{
-			"id": "uuid",
-			"name": "Premium",
-			"base_fare": 10.0,
-			"per_km_rate": 2.5,
-			"per_minute_rate": 0.5
-		}
-	]
-}
-```
-
----
-
-## Scheduler Service API
-
-### POST /api/v1/scheduled-rides
-
-Schedule a ride for future pickup. Requires authentication.
-
-**Request Body:**
-
-```json
-{
-	"pickup_latitude": 40.7128,
-	"pickup_longitude": -74.006,
-	"pickup_address": "New York, NY",
-	"dropoff_latitude": 40.7589,
-	"dropoff_longitude": -73.9851,
-	"dropoff_address": "Times Square, NY",
-	"scheduled_at": "2025-01-02T14:30:00Z"
-}
-```
-
-**Response:** `201 Created`
-
-### GET /api/v1/scheduled-rides
-
-List user's scheduled rides. Requires authentication.
-
-**Response:** `200 OK`
-
-### GET /api/v1/scheduled-rides/:id
-
-Get scheduled ride details. Requires authentication.
-
-**Response:** `200 OK`
-
-### PUT /api/v1/scheduled-rides/:id
-
-Update a scheduled ride. Requires authentication.
-
-**Response:** `200 OK`
-
-### DELETE /api/v1/scheduled-rides/:id
-
-Cancel a scheduled ride. Requires authentication.
-
-**Response:** `200 OK`
-
----
-
-## Analytics Service API
-
-All endpoints require admin authentication.
-
-### GET /api/v1/analytics/overview
-
-Get high-level business metrics and KPIs.
-
-**Query Parameters:**
-
--   `start_date` - Date range start (ISO format)
--   `end_date` - Date range end (ISO format)
-
-**Response:** `200 OK`
-
-```json
-{
-	"total_rides": 8932,
-	"completed_rides": 8124,
-	"cancelled_rides": 808,
-	"total_revenue": 284120.75,
-	"average_fare": 31.8,
-	"completion_rate": 91.0
-}
-```
-
-### GET /api/v1/analytics/revenue
-
-Get revenue analytics and trends.
-
-**Query Parameters:**
-
--   `start_date` - Date range start
--   `end_date` - Date range end
--   `group_by` - Grouping (day, week, month)
-
-**Response:** `200 OK`
-
-### GET /api/v1/analytics/drivers
-
-Get driver performance analytics.
-
-**Response:** `200 OK`
-
-### GET /api/v1/analytics/rides
-
-Get ride analytics and patterns.
-
-**Response:** `200 OK`
-
-### GET /api/v1/analytics/demand
-
-Get demand heat maps and patterns.
-
-**Query Parameters:**
-
--   `latitude` - Center latitude
--   `longitude` - Center longitude
--   `radius` - Radius in km
-
-**Response:** `200 OK`
-
-### POST /api/v1/analytics/export
-
-Export analytics data to CSV/JSON.
-
-**Request Body:**
-
-```json
-{
-	"report_type": "revenue",
-	"start_date": "2025-01-01",
-	"end_date": "2025-01-31",
-	"format": "csv"
-}
-```
-
-**Response:** `200 OK`
-
----
-
-## Fraud Service API
-
-All endpoints require authentication (admin for reports).
-
-### POST /api/v1/fraud/check-ride
-
-Check a ride for suspicious activity.
-
-**Request Body:**
-
-```json
-{
-	"ride_id": "uuid"
-}
-```
-
-**Response:** `200 OK`
-
-```json
-{
-	"risk_score": 0.25,
-	"is_suspicious": false,
-	"flags": []
-}
-```
-
-### POST /api/v1/fraud/check-payment
-
-Check a payment for fraud indicators.
-
-**Request Body:**
-
-```json
-{
-	"payment_id": "uuid",
-	"amount": 125.5,
-	"user_id": "uuid"
-}
-```
-
-**Response:** `200 OK`
-
-### POST /api/v1/fraud/check-user
-
-Check user account for suspicious patterns.
-
-**Request Body:**
-
-```json
-{
-	"user_id": "uuid"
-}
-```
-
-**Response:** `200 OK`
-
-### GET /api/v1/fraud/reports
-
-Get fraud detection reports (admin only).
-
-**Query Parameters:**
-
--   `start_date` - Date range start
--   `end_date` - Date range end
--   `risk_level` - Filter by risk level (low, medium, high)
-
-**Response:** `200 OK`
-
----
-
-## ML ETA Service API
-
-### POST /api/v1/eta/predict
-
-Predict ETA for a route using machine learning.
-
-**Request Body:**
-
-```json
-{
-	"pickup_latitude": 40.7128,
-	"pickup_longitude": -74.006,
-	"dropoff_latitude": 40.7589,
-	"dropoff_longitude": -73.9851,
-	"distance_km": 5.2,
-	"time_of_day": 14,
-	"day_of_week": 2
-}
-```
-
-**Response:** `200 OK`
-
-```json
-{
-	"predicted_eta_minutes": 18,
-	"confidence_score": 0.87,
-	"factors": {
-		"distance_impact": 0.65,
-		"time_impact": 0.2,
-		"traffic_impact": 0.15
-	}
-}
-```
-
-### POST /api/v1/eta/predict/batch
-
-Batch ETA prediction for multiple routes.
-
-**Request Body:**
-
-```json
-{
-	"routes": [
-		{
-			"pickup_latitude": 40.7128,
-			"pickup_longitude": -74.006,
-			"dropoff_latitude": 40.7589,
-			"dropoff_longitude": -73.9851
-		}
-	]
-}
-```
-
-**Response:** `200 OK`
-
-### POST /api/v1/eta/train
-
-Trigger model retraining (admin only).
-
-**Response:** `200 OK`
-
-### GET /api/v1/eta/model/stats
-
-Get ML model statistics.
-
-**Response:** `200 OK`
-
-```json
-{
-	"model_version": "v1.2",
-	"training_samples": 45230,
-	"accuracy": 0.872,
-	"last_trained_at": "2025-01-08T00:00:00Z"
-}
-```
-
-### GET /api/v1/eta/accuracy
-
-Get model accuracy metrics.
-
-**Response:** `200 OK`
-
-### POST /api/v1/eta/tune
-
-Fine-tune model hyperparameters (admin only).
-
-**Response:** `200 OK`
-
-### GET /api/v1/eta/analytics
-
-Get prediction analytics and insights (admin only).
-
-**Response:** `200 OK`
-
----
-
-## Rate Limiting
-
-Rate limiting is implemented using Redis-backed token bucket algorithm:
-
--   **Default**: 120 requests per minute per user
--   **Burst**: 40 additional requests
--   **Anonymous**: 60 requests per minute per IP
-
-Rate limit headers are included in responses:
-
--   `X-RateLimit-Limit` - Maximum requests per window
--   `X-RateLimit-Remaining` - Remaining requests
--   `X-RateLimit-Reset` - Time until rate limit resets
-
-**429 Too Many Requests** response when limit exceeded.
-
-## Pagination
-
-List endpoints support pagination with query parameters:
-
--   `page`: Page number (default: 1)
--   `per_page`: Items per page (default: 10, max: 100)
-
-## Versioning
-
-API version is included in the URL path: `/api/v1/...`
+If you deploy behind Kong or Istio, surface only the `/api/v1/...` routes externally and keep `/metrics` on the internal mesh/Grafana scrape path.
