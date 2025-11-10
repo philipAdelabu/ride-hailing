@@ -308,22 +308,22 @@ Currently using environment variables directly.
     -   [x] States: Closed → Open → Half-Open
     -   [x] Configurable thresholds and timeouts
     -   [x] Redis-backed state sharing (future enhancement)
-    -   [ ] Metrics: failure rate, state changes
+    -   [x] Metrics: failure rate, state changes
 
--   [ ] **Apply to External Services**
+-   [x] **Apply to External Services**
 
     -   [x] Promos service calls from Rides service ✅
-    -   [ ] Stripe API calls (payments)
-    -   [ ] Firebase FCM (notifications)
-    -   [ ] Twilio SMS (notifications)
-    -   [ ] SMTP servers (email)
-    -   [ ] Database connections (primary/replica)
+    -   [x] Stripe API calls (payments)
+    -   [x] Firebase FCM (notifications)
+    -   [x] Twilio SMS (notifications)
+    -   [x] SMTP servers (email)
+    -   [x] Database connections (primary/replica)
 
--   [ ] **Fallback Mechanisms**
+-   [x] **Fallback Mechanisms**
     -   [x] Promos service failure: Use default pricing
-    -   [ ] Notification failures: Queue for retry
-    -   [ ] Payment failures: Return user-friendly error
-    -   [ ] ML ETA failures: Fall back to simple distance-based calculation
+    -   [x] Notification failures: Queue for retry
+    -   [x] Payment failures: Return user-friendly error
+    -   [x] ML ETA failures: Fall back to simple distance-based calculation
 
 **Configuration:**
 
@@ -339,6 +339,8 @@ CB_SERVICE_OVERRIDES='{"promos-service":{"failure_threshold":3}}'
 
 -   ✅ `third_party/gobreaker/` - Custom circuit breaker implementation
 -   ✅ Circuit breaker integration in Rides service
+-   ✅ `pkg/resilience/metrics.go` & `pkg/resilience/settings.go` (Prometheus instrumentation + helpers)
+-   ✅ `configs/vault-policy.hcl` (documented earlier)
 
 ---
 

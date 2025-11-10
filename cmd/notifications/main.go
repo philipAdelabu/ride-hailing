@@ -18,6 +18,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/logger"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
+	"github.com/richxcame/ride-hailing/pkg/resilience"
 	"go.uber.org/zap"
 )
 
@@ -56,6 +57,12 @@ func main() {
 	log.Info("Connected to database")
 
 	// Initialize notification clients
+	var firebaseBreaker, twilioBreaker, smtpBreaker *resilience.CircuitBreaker
+	if cfg.Resilience.CircuitBreaker.Enabled {
+		firebaseBreaker = buildBreaker(serviceName+"-firebase", cfg.Resilience.CircuitBreaker.SettingsFor("firebase-fcm"))
+		twilioBreaker = buildBreaker(serviceName+"-twilio", cfg.Resilience.CircuitBreaker.SettingsFor("twilio-sms"))
+		smtpBreaker = buildBreaker(serviceName+"-smtp", cfg.Resilience.CircuitBreaker.SettingsFor("smtp-email"))
+	}
 
 	// Firebase Client
 	var firebaseClient *notifications.FirebaseClient
@@ -111,6 +118,7 @@ func main() {
 	// Initialize notification service
 	notificationRepo := notifications.NewRepository(db)
 	notificationService := notifications.NewServiceWithClients(notificationRepo, firebaseClient, twilioClient, emailClient)
+	notificationService.SetCircuitBreakers(firebaseBreaker, twilioBreaker, smtpBreaker)
 	notificationHandler := notifications.NewHandler(notificationService)
 
 	// Start background worker for processing scheduled notifications
@@ -190,4 +198,11 @@ func main() {
 	}
 
 	log.Info("Server stopped")
+}
+
+func buildBreaker(name string, cbCfg config.CircuitBreakerSettings) *resilience.CircuitBreaker {
+	return resilience.NewCircuitBreaker(
+		resilience.BuildSettings(name, cbCfg.IntervalSeconds, cbCfg.TimeoutSeconds, cbCfg.FailureThreshold, cbCfg.SuccessThreshold),
+		nil,
+	)
 }

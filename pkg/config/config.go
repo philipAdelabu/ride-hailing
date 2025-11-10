@@ -41,14 +41,25 @@ type ServerConfig struct {
 
 // DatabaseConfig holds database configuration
 type DatabaseConfig struct {
-	Host     string
-	Port     string
-	User     string
-	Password string
-	DBName   string
-	SSLMode  string
-	MaxConns int
-	MinConns int
+	Host        string
+	Port        string
+	User        string
+	Password    string
+	DBName      string
+	SSLMode     string
+	MaxConns    int
+	MinConns    int
+	ServiceName string
+	Breaker     DatabaseBreakerConfig
+}
+
+// DatabaseBreakerConfig guards database connectivity when upstream issues occur.
+type DatabaseBreakerConfig struct {
+	Enabled          bool
+	FailureThreshold int
+	SuccessThreshold int
+	TimeoutSeconds   int
+	IntervalSeconds  int
 }
 
 // RedisConfig holds Redis configuration
@@ -194,14 +205,22 @@ func Load(serviceName string) (*Config, error) {
 			CORSOrigins:  getEnv("CORS_ORIGINS", "http://localhost:3000"),
 		},
 		Database: DatabaseConfig{
-			Host:     getEnv("DB_HOST", "localhost"),
-			Port:     getEnv("DB_PORT", "5432"),
-			User:     getEnv("DB_USER", "postgres"),
-			Password: getEnv("DB_PASSWORD", "postgres"),
-			DBName:   getEnv("DB_NAME", "ridehailing"),
-			SSLMode:  getEnv("DB_SSLMODE", "disable"),
-			MaxConns: getEnvAsInt("DB_MAX_CONNS", 25),
-			MinConns: getEnvAsInt("DB_MIN_CONNS", 5),
+			Host:        getEnv("DB_HOST", "localhost"),
+			Port:        getEnv("DB_PORT", "5432"),
+			User:        getEnv("DB_USER", "postgres"),
+			Password:    getEnv("DB_PASSWORD", "postgres"),
+			DBName:      getEnv("DB_NAME", "ridehailing"),
+			SSLMode:     getEnv("DB_SSLMODE", "disable"),
+			MaxConns:    getEnvAsInt("DB_MAX_CONNS", 25),
+			MinConns:    getEnvAsInt("DB_MIN_CONNS", 5),
+			ServiceName: serviceName,
+			Breaker: DatabaseBreakerConfig{
+				Enabled:          getEnvAsBool("DB_BREAKER_ENABLED", false),
+				FailureThreshold: getEnvAsInt("DB_BREAKER_FAILURE_THRESHOLD", 5),
+				SuccessThreshold: getEnvAsInt("DB_BREAKER_SUCCESS_THRESHOLD", 1),
+				TimeoutSeconds:   getEnvAsInt("DB_BREAKER_TIMEOUT_SECONDS", 30),
+				IntervalSeconds:  getEnvAsInt("DB_BREAKER_INTERVAL_SECONDS", 60),
+			},
 		},
 		Redis: RedisConfig{
 			Host:     getEnv("REDIS_HOST", "localhost"),

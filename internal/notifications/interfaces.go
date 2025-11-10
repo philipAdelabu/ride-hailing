@@ -2,6 +2,7 @@ package notifications
 
 import (
 	"context"
+	"time"
 
 	"firebase.google.com/go/v4/messaging"
 	"github.com/google/uuid"
@@ -19,6 +20,7 @@ type RepositoryInterface interface {
 	MarkNotificationAsRead(ctx context.Context, notificationID uuid.UUID) error
 	GetUnreadNotificationCount(ctx context.Context, userID uuid.UUID) (int, error)
 	GetPendingNotifications(ctx context.Context, limit int) ([]*models.Notification, error)
+	ScheduleNotificationRetry(ctx context.Context, id uuid.UUID, retryAt time.Time, errorMsg string) error
 }
 
 // FirebaseClientInterface defines the interface for Firebase push notifications

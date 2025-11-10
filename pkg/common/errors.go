@@ -107,3 +107,11 @@ func NewValidationError(message string) *AppError {
 		Err:     ErrValidation,
 	}
 }
+
+func NewServiceUnavailableError(message string) *AppError {
+	return &AppError{
+		Code:    http.StatusServiceUnavailable,
+		Message: message,
+		Err:     errors.New("service unavailable"),
+	}
+}

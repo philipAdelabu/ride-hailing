@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/richxcame/ride-hailing/pkg/config"
+	"github.com/richxcame/ride-hailing/pkg/resilience"
 )
 
 // DBPool holds both primary and replica connection pools
@@ -97,17 +99,54 @@ func NewPostgresPool(cfg *config.DatabaseConfig) (*pgxpool.Pool, error) {
 		return err
 	}
 
-	pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create connection pool: %w", err)
+	createPool := func(ctx context.Context) (*pgxpool.Pool, error) {
+		pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
+		if err != nil {
+			return nil, fmt.Errorf("unable to create connection pool: %w", err)
+		}
+
+		if err := pool.Ping(ctx); err != nil {
+			pool.Close()
+			return nil, fmt.Errorf("unable to ping database: %w", err)
+		}
+
+		return pool, nil
 	}
 
-	// Test the connection
-	if err := pool.Ping(context.Background()); err != nil {
-		return nil, fmt.Errorf("unable to ping database: %w", err)
+	if cfg.Breaker.Enabled {
+		name := fmt.Sprintf("%s-db-primary", sanitizeBreakerName(cfg.ServiceName))
+		if name == "-db-primary" {
+			name = "database-primary"
+		}
+
+		interval := time.Duration(cfg.Breaker.IntervalSeconds) * time.Second
+		if interval <= 0 {
+			interval = time.Minute
+		}
+
+		timeout := time.Duration(cfg.Breaker.TimeoutSeconds) * time.Second
+		if timeout <= 0 {
+			timeout = 30 * time.Second
+		}
+
+		breaker := resilience.NewCircuitBreaker(resilience.Settings{
+			Name:             name,
+			Interval:         interval,
+			Timeout:          timeout,
+			FailureThreshold: uint32(max(cfg.Breaker.FailureThreshold, 1)),
+			SuccessThreshold: uint32(max(cfg.Breaker.SuccessThreshold, 1)),
+		}, nil)
+
+		result, err := breaker.Execute(context.Background(), func(ctx context.Context) (interface{}, error) {
+			return createPool(ctx)
+		})
+		if err != nil {
+			return nil, err
+		}
+		return result.(*pgxpool.Pool), nil
 	}
 
-	return pool, nil
+	return createPool(context.Background())
 }
 
 // NewDBPool creates a DBPool with primary and optional read replicas
@@ -246,4 +285,19 @@ func Close(pool *pgxpool.Pool) {
 	if pool != nil {
 		pool.Close()
 	}
+}
+
+func sanitizeBreakerName(name string) string {
+	trimmed := strings.TrimSpace(strings.ToLower(name))
+	if trimmed == "" {
+		return ""
+	}
+	return strings.ReplaceAll(trimmed, " ", "-")
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

@@ -30,14 +30,6 @@ func NewService(repo RepositoryInterface, stripeClient StripeClientInterface) *S
 	}
 }
 
-// NewServiceWithStripeKey creates a service with a Stripe API key (for production use)
-func NewServiceWithStripeKey(repo *Repository, stripeAPIKey string) *Service {
-	return &Service{
-		repo:         repo,
-		stripeClient: NewStripeClient(stripeAPIKey),
-	}
-}
-
 // ProcessRidePayment processes payment for a completed ride
 func (s *Service) ProcessRidePayment(ctx context.Context, rideID, riderID, driverID uuid.UUID, amount float64, paymentMethod string) (*models.Payment, error) {
 	payment := &models.Payment{
@@ -105,7 +97,7 @@ func (s *Service) processStripePayment(ctx context.Context, payment *models.Paym
 
 	if err != nil {
 		logger.Get().Error("Failed to create Stripe payment intent", zap.Error(err))
-		return nil, common.NewInternalError("failed to create payment", err)
+		return nil, wrapStripeError(err, "failed to create payment")
 	}
 
 	payment.StripePaymentID = &pi.ID
@@ -159,7 +151,7 @@ func (s *Service) TopUpWallet(ctx context.Context, userID uuid.UUID, amount floa
 
 	if err != nil {
 		logger.Get().Error("Failed to create top-up payment intent", zap.Error(err))
-		return nil, common.NewInternalError("failed to process top-up", err)
+		return nil, wrapStripeError(err, "failed to process top-up")
 	}
 
 	// Note: In a real implementation, you would wait for the webhook
@@ -406,4 +398,16 @@ func (s *Service) HandleStripeWebhook(ctx context.Context, eventType string, pay
 	}
 
 	return nil
+}
+
+func wrapStripeError(err error, fallbackMessage string) error {
+	if err == nil {
+		return nil
+	}
+
+	if appErr, ok := err.(*common.AppError); ok {
+		return appErr
+	}
+
+	return common.NewInternalError(fallbackMessage, err)
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/common"
 	"github.com/richxcame/ride-hailing/pkg/config"
 	"github.com/richxcame/ride-hailing/pkg/database"
+	"github.com/richxcame/ride-hailing/pkg/httpclient"
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/logger"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
@@ -63,6 +64,8 @@ func main() {
 		redisClient   *redisclient.Client
 		limiter       *ratelimit.Limiter
 		promosBreaker *resilience.CircuitBreaker
+		mlEtaClient   *httpclient.Client
+		mlEtaBreaker  *resilience.CircuitBreaker
 	)
 
 	if cfg.RateLimit.Enabled {
@@ -110,8 +113,24 @@ func main() {
 		)
 	}
 
+	mlEtaURL := os.Getenv("ML_ETA_SERVICE_URL")
+	if mlEtaURL != "" {
+		mlEtaClient = httpclient.NewClient(mlEtaURL, 5*time.Second)
+		if cfg.Resilience.CircuitBreaker.Enabled {
+			cbCfg := cfg.Resilience.CircuitBreaker.SettingsFor("ml-eta-service")
+			mlEtaBreaker = resilience.NewCircuitBreaker(
+				resilience.BuildSettings("ml-eta-service", cbCfg.IntervalSeconds, cbCfg.TimeoutSeconds, cbCfg.FailureThreshold, cbCfg.SuccessThreshold),
+				nil,
+			)
+		}
+		logger.Info("ML ETA service URL configured", zap.String("url", mlEtaURL))
+	}
+
 	repo := rides.NewRepository(db)
 	service := rides.NewService(repo, promosServiceURL, promosBreaker)
+	if mlEtaClient != nil {
+		service.EnableMLPredictions(mlEtaClient, mlEtaBreaker)
+	}
 
 	// Initialize dynamic surge pricing calculator
 	surgeCalculator := pricing.NewSurgeCalculator(db)
