@@ -51,7 +51,7 @@ docker-compose.override.yml
 *.sqlite3
 
 # Secrets
-secrets/
+# secrets
 credentials.json
 serviceAccount.json
 config/jwt_keys.json
