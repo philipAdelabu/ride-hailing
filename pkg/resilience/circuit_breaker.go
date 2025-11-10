@@ -29,10 +29,13 @@ type Settings struct {
 type CircuitBreaker struct {
 	breaker  *gobreaker.CircuitBreaker
 	fallback FallbackFunc
+	name     string
 }
 
 // NewCircuitBreaker constructs a breaker with logging and optional fallback behaviour.
 func NewCircuitBreaker(settings Settings, fallback FallbackFunc) *CircuitBreaker {
+	name := nextBreakerName(settings.Name)
+
 	readyToTrip := func(counts gobreaker.Counts) bool {
 		threshold := settings.FailureThreshold
 		if threshold == 0 {
@@ -42,7 +45,7 @@ func NewCircuitBreaker(settings Settings, fallback FallbackFunc) *CircuitBreaker
 	}
 
 	breakerSettings := gobreaker.Settings{
-		Name:        settings.Name,
+		Name:        name,
 		Timeout:     settings.Timeout,
 		Interval:    settings.Interval,
 		ReadyToTrip: readyToTrip,
@@ -52,6 +55,7 @@ func NewCircuitBreaker(settings Settings, fallback FallbackFunc) *CircuitBreaker
 				zap.String("from", from.String()),
 				zap.String("to", to.String()),
 			)
+			recordBreakerStateChange(name, from, to)
 		},
 	}
 
@@ -59,10 +63,14 @@ func NewCircuitBreaker(settings Settings, fallback FallbackFunc) *CircuitBreaker
 		breakerSettings.MaxRequests = settings.SuccessThreshold
 	}
 
-	return &CircuitBreaker{
+	cb := &CircuitBreaker{
 		breaker:  gobreaker.NewCircuitBreaker(breakerSettings),
 		fallback: fallback,
+		name:     name,
 	}
+
+	recordBreakerState(name, gobreaker.StateClosed)
+	return cb
 }
 
 // Execute runs the supplied operation through the breaker.
@@ -75,6 +83,8 @@ func (c *CircuitBreaker) Execute(ctx context.Context, operation Operation) (inte
 		return operation(ctx)
 	}
 
+	recordBreakerRequest(c.name)
+
 	result, err := c.breaker.Execute(func() (interface{}, error) {
 		return operation(ctx)
 	})
@@ -83,12 +93,14 @@ func (c *CircuitBreaker) Execute(ctx context.Context, operation Operation) (inte
 	}
 
 	if errors.Is(err, gobreaker.ErrOpenState) || errors.Is(err, gobreaker.ErrTooManyRequests) {
+		recordBreakerFallback(c.name)
 		if c.fallback != nil {
 			return c.fallback(ctx, err)
 		}
 		return nil, ErrCircuitOpen
 	}
 
+	recordBreakerFailure(c.name)
 	return nil, err
 }
 

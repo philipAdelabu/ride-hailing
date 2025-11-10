@@ -2,6 +2,7 @@ package mocks
 
 import (
 	"context"
+	"time"
 
 	"firebase.google.com/go/v4/messaging"
 	"github.com/google/uuid"
@@ -66,6 +67,11 @@ func (m *MockNotificationsRepository) GetPendingNotifications(ctx context.Contex
 		return nil, args.Error(1)
 	}
 	return args.Get(0).([]*models.Notification), args.Error(1)
+}
+
+func (m *MockNotificationsRepository) ScheduleNotificationRetry(ctx context.Context, id uuid.UUID, retryAt time.Time, errorMsg string) error {
+	args := m.Called(ctx, id, retryAt, errorMsg)
+	return args.Error(0)
 }
 
 // MockFirebaseClient is a mock implementation of notifications.FirebaseClientInterface

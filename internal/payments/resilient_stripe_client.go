@@ -2,8 +2,9 @@ package payments
 
 import (
 	"context"
-	"fmt"
+	"time"
 
+	"github.com/richxcame/ride-hailing/pkg/common"
 	"github.com/richxcame/ride-hailing/pkg/logger"
 	"github.com/richxcame/ride-hailing/pkg/resilience"
 	"github.com/stripe/stripe-go/v83"
@@ -18,22 +19,23 @@ type ResilientStripeClient struct {
 }
 
 // NewResilientStripeClient creates a new resilient Stripe client
-func NewResilientStripeClient(apiKey string) *ResilientStripeClient {
-	// Create circuit breaker for Stripe API
-	breakerSettings := resilience.Settings{
-		Name:             "stripe-api",
-		Interval:         60000000000,  // 60 seconds
-		Timeout:          30000000000,  // 30 seconds before half-open
-		FailureThreshold: 5,            // Open after 5 consecutive failures
-		SuccessThreshold: 2,            // Close after 2 successes in half-open
-	}
+func NewResilientStripeClient(apiKey string, breaker *resilience.CircuitBreaker) *ResilientStripeClient {
+	if breaker == nil {
+		breakerSettings := resilience.Settings{
+			Name:             "stripe-api",
+			Interval:         60 * time.Second,
+			Timeout:          30 * time.Second,
+			FailureThreshold: 5,
+			SuccessThreshold: 2,
+		}
 
-	breaker := resilience.NewCircuitBreaker(breakerSettings, func(ctx context.Context, err error) (interface{}, error) {
-		logger.Get().Error("Stripe circuit breaker open, payment operation failed",
-			zap.Error(err),
-		)
-		return nil, fmt.Errorf("payment service temporarily unavailable: %w", err)
-	})
+		breaker = resilience.NewCircuitBreaker(breakerSettings, func(ctx context.Context, err error) (interface{}, error) {
+			logger.Get().Error("Stripe circuit breaker open, payment operation failed",
+				zap.Error(err),
+			)
+			return nil, common.NewServiceUnavailableError("payments are temporarily unavailable, please try again")
+		})
+	}
 
 	// Configure retry with exponential backoff
 	retryConfig := resilience.DefaultRetryConfig()
@@ -50,16 +52,17 @@ func NewResilientStripeClient(apiKey string) *ResilientStripeClient {
 }
 
 // NewResilientStripeClientWithClient creates a resilient wrapper around an existing client (for testing)
-func NewResilientStripeClientWithClient(client StripeClientInterface) *ResilientStripeClient {
-	breakerSettings := resilience.Settings{
-		Name:             "stripe-api-test",
-		Interval:         60000000000,
-		Timeout:          30000000000,
-		FailureThreshold: 5,
-		SuccessThreshold: 2,
+func NewResilientStripeClientWithClient(client StripeClientInterface, breaker *resilience.CircuitBreaker) *ResilientStripeClient {
+	if breaker == nil {
+		breakerSettings := resilience.Settings{
+			Name:             "stripe-api-test",
+			Interval:         60 * time.Second,
+			Timeout:          30 * time.Second,
+			FailureThreshold: 5,
+			SuccessThreshold: 2,
+		}
+		breaker = resilience.NewCircuitBreaker(breakerSettings, resilience.NoopFallback)
 	}
-
-	breaker := resilience.NewCircuitBreaker(breakerSettings, resilience.NoopFallback)
 	retryConfig := resilience.DefaultRetryConfig()
 	retryConfig.RetryableChecker = isStripeRetryable
 

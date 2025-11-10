@@ -2,6 +2,7 @@ package notifications
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -10,13 +11,21 @@ import (
 	"github.com/google/uuid"
 	"github.com/richxcame/ride-hailing/pkg/logger"
 	"github.com/richxcame/ride-hailing/pkg/models"
+	"github.com/richxcame/ride-hailing/pkg/resilience"
 )
 
+const notificationRetryDelay = 2 * time.Minute
+
+var ErrNotificationQueued = errors.New("notification queued for retry")
+
 type Service struct {
-	repo           RepositoryInterface
-	firebaseClient FirebaseClientInterface
-	twilioClient   TwilioClientInterface
-	emailClient    EmailClientInterface
+	repo            RepositoryInterface
+	firebaseClient  FirebaseClientInterface
+	twilioClient    TwilioClientInterface
+	emailClient     EmailClientInterface
+	firebaseBreaker *resilience.CircuitBreaker
+	twilioBreaker   *resilience.CircuitBreaker
+	emailBreaker    *resilience.CircuitBreaker
 }
 
 func NewService(repo RepositoryInterface, firebaseClient FirebaseClientInterface, twilioClient TwilioClientInterface, emailClient EmailClientInterface) *Service {
@@ -36,6 +45,13 @@ func NewServiceWithClients(repo *Repository, firebaseClient *FirebaseClient, twi
 		twilioClient:   twilioClient,
 		emailClient:    emailClient,
 	}
+}
+
+// SetCircuitBreakers wires circuit breakers for downstream providers.
+func (s *Service) SetCircuitBreakers(firebaseBreaker, twilioBreaker, emailBreaker *resilience.CircuitBreaker) {
+	s.firebaseBreaker = firebaseBreaker
+	s.twilioBreaker = twilioBreaker
+	s.emailBreaker = emailBreaker
 }
 
 // SendNotification sends a notification through the specified channel
@@ -79,20 +95,28 @@ func (s *Service) processNotification(ctx context.Context, notification *models.
 	}
 
 	if err != nil {
+		if errors.Is(err, ErrNotificationQueued) {
+			logger.Get().Warn("Notification queued for retry",
+				zap.String("notification_id", notification.ID.String()),
+				zap.String("channel", notification.Channel))
+			return
+		}
+
 		logger.Get().Error("Failed to send notification",
 			zap.String("notification_id", notification.ID.String()),
 			zap.String("channel", notification.Channel),
 			zap.Error(err))
 
 		errMsg := err.Error()
-		s.repo.UpdateNotificationStatus(ctx, notification.ID, "failed", &errMsg)
-	} else {
-		s.repo.UpdateNotificationStatus(ctx, notification.ID, "sent", nil)
-		logger.Get().Info("Notification sent successfully",
-			zap.String("notification_id", notification.ID.String()),
-			zap.String("channel", notification.Channel),
-			zap.String("user_id", notification.UserID.String()))
+		_ = s.repo.UpdateNotificationStatus(ctx, notification.ID, "failed", &errMsg)
+		return
 	}
+
+	_ = s.repo.UpdateNotificationStatus(ctx, notification.ID, "sent", nil)
+	logger.Get().Info("Notification sent successfully",
+		zap.String("notification_id", notification.ID.String()),
+		zap.String("channel", notification.Channel),
+		zap.String("user_id", notification.UserID.String()))
 }
 
 // sendPushNotification sends a push notification via Firebase
@@ -117,16 +141,16 @@ func (s *Service) sendPushNotification(ctx context.Context, notification *models
 		dataStr[key] = fmt.Sprintf("%v", value)
 	}
 
-	// Send to multiple devices
-	_, err = s.firebaseClient.SendMulticastNotification(
-		ctx,
-		tokens,
-		notification.Title,
-		notification.Body,
-		dataStr,
-	)
-
-	return err
+	return s.executeWithBreaker(ctx, s.firebaseBreaker, notification, "push", func() error {
+		_, err = s.firebaseClient.SendMulticastNotification(
+			ctx,
+			tokens,
+			notification.Title,
+			notification.Body,
+			dataStr,
+		)
+		return err
+	})
 }
 
 // sendSMSNotification sends an SMS notification via Twilio
@@ -144,9 +168,10 @@ func (s *Service) sendSMSNotification(ctx context.Context, notification *models.
 	// Format message
 	message := fmt.Sprintf("%s: %s", notification.Title, notification.Body)
 
-	// Send SMS
-	_, err = s.twilioClient.SendSMS(phoneNumber, message)
-	return err
+	return s.executeWithBreaker(ctx, s.twilioBreaker, notification, "sms", func() error {
+		_, err = s.twilioClient.SendSMS(phoneNumber, message)
+		return err
+	})
 }
 
 // sendEmailNotification sends an email notification
@@ -161,21 +186,22 @@ func (s *Service) sendEmailNotification(ctx context.Context, notification *model
 		return err
 	}
 
-	// Send email based on notification type
-	switch notification.Type {
-	case "ride_confirmed":
-		if data, ok := notification.Data["details"].(map[string]interface{}); ok {
-			return s.emailClient.SendRideConfirmationEmail(email, "User", data)
+	return s.executeWithBreaker(ctx, s.emailBreaker, notification, "email", func() error {
+		switch notification.Type {
+		case "ride_confirmed":
+			if data, ok := notification.Data["details"].(map[string]interface{}); ok {
+				return s.emailClient.SendRideConfirmationEmail(email, "User", data)
+			}
+			return s.emailClient.SendHTMLEmail(email, notification.Title, notification.Body)
+		case "ride_receipt":
+			if data, ok := notification.Data["receipt"].(map[string]interface{}); ok {
+				return s.emailClient.SendReceiptEmail(email, "User", data)
+			}
+			return s.emailClient.SendHTMLEmail(email, notification.Title, notification.Body)
+		default:
+			return s.emailClient.SendEmail(email, notification.Title, notification.Body)
 		}
-		return s.emailClient.SendHTMLEmail(email, notification.Title, notification.Body)
-	case "ride_receipt":
-		if data, ok := notification.Data["receipt"].(map[string]interface{}); ok {
-			return s.emailClient.SendReceiptEmail(email, "User", data)
-		}
-		return s.emailClient.SendHTMLEmail(email, notification.Title, notification.Body)
-	default:
-		return s.emailClient.SendEmail(email, notification.Title, notification.Body)
-	}
+	})
 }
 
 // NotifyRideRequested notifies driver about a new ride request
@@ -374,4 +400,42 @@ func (s *Service) SendBulkNotification(ctx context.Context, userIDs []uuid.UUID,
 
 	logger.Get().Info("Sent bulk notifications", zap.Int("count", len(userIDs)))
 	return nil
+}
+
+func (s *Service) executeWithBreaker(ctx context.Context, breaker *resilience.CircuitBreaker, notification *models.Notification, channel string, operation func() error) error {
+	if breaker == nil {
+		return operation()
+	}
+
+	_, err := breaker.Execute(ctx, func(ctx context.Context) (interface{}, error) {
+		return nil, operation()
+	})
+	if err == nil {
+		return nil
+	}
+
+	if errors.Is(err, resilience.ErrCircuitOpen) {
+		s.scheduleNotificationRetry(ctx, notification, channel, err)
+		return ErrNotificationQueued
+	}
+
+	return err
+}
+
+func (s *Service) scheduleNotificationRetry(ctx context.Context, notification *models.Notification, channel string, reason error) {
+	retryAt := time.Now().Add(notificationRetryDelay)
+	message := fmt.Sprintf("%s channel unavailable: %v", channel, reason)
+
+	if err := s.repo.ScheduleNotificationRetry(ctx, notification.ID, retryAt, message); err != nil {
+		logger.Get().Error("Failed to schedule notification retry",
+			zap.String("notification_id", notification.ID.String()),
+			zap.String("channel", channel),
+			zap.Error(err))
+		return
+	}
+
+	logger.Get().Info("Notification scheduled for retry",
+		zap.String("notification_id", notification.ID.String()),
+		zap.String("channel", channel),
+		zap.Time("retry_at", retryAt))
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/logger"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
+	"github.com/richxcame/ride-hailing/pkg/resilience"
 	"go.uber.org/zap"
 )
 
@@ -62,9 +63,19 @@ func main() {
 		stripeAPIKey = "sk_test_dummy" // Dummy key for development
 	}
 
+	var stripeBreaker *resilience.CircuitBreaker
+	if cfg.Resilience.CircuitBreaker.Enabled {
+		cbCfg := cfg.Resilience.CircuitBreaker.SettingsFor("stripe-api")
+		stripeBreaker = resilience.NewCircuitBreaker(
+			resilience.BuildSettings(fmt.Sprintf("%s-stripe", serviceName), cbCfg.IntervalSeconds, cbCfg.TimeoutSeconds, cbCfg.FailureThreshold, cbCfg.SuccessThreshold),
+			nil,
+		)
+	}
+
 	// Initialize payment service
 	paymentRepo := payments.NewRepository(db)
-	paymentService := payments.NewServiceWithStripeKey(paymentRepo, stripeAPIKey)
+	stripeClient := payments.NewResilientStripeClient(stripeAPIKey, stripeBreaker)
+	paymentService := payments.NewService(paymentRepo, stripeClient)
 	paymentHandler := payments.NewHandler(paymentService)
 
 	jwtProvider, err := jwtkeys.NewManagerFromConfig(rootCtx, cfg.JWT, true)

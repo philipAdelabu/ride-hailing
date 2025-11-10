@@ -27,6 +27,8 @@ type Service struct {
 	promosClient    *httpclient.Client
 	promosBreaker   *resilience.CircuitBreaker
 	surgeCalculator SurgeCalculator
+	mlEtaClient     *httpclient.Client
+	mlEtaBreaker    *resilience.CircuitBreaker
 }
 
 // SurgeCalculator defines the interface for surge pricing calculation
@@ -50,6 +52,12 @@ func (s *Service) SetSurgeCalculator(calculator SurgeCalculator) {
 	s.surgeCalculator = calculator
 }
 
+// EnableMLPredictions wires an optional ML ETA client with breaker protection.
+func (s *Service) EnableMLPredictions(client *httpclient.Client, breaker *resilience.CircuitBreaker) {
+	s.mlEtaClient = client
+	s.mlEtaBreaker = breaker
+}
+
 // RequestRide creates a new ride request
 func (s *Service) RequestRide(ctx context.Context, riderID uuid.UUID, req *models.RideRequest) (*models.Ride, error) {
 	// Calculate estimated values
@@ -59,6 +67,9 @@ func (s *Service) RequestRide(ctx context.Context, riderID uuid.UUID, req *model
 	)
 
 	duration := estimateDuration(distance)
+	if mlDuration, ok := s.predictETAFromML(ctx, req); ok && mlDuration > 0 {
+		duration = int(math.Round(mlDuration))
+	}
 
 	// Use dynamic surge pricing if available, otherwise fall back to time-based
 	var surgeMultiplier float64
@@ -419,6 +430,76 @@ func (s *Service) validatePromoCode(ctx context.Context, code string, riderID uu
 	}
 
 	return &validation, nil
+}
+
+type mlEtaPredictRequest struct {
+	PickupLat    float64 `json:"pickup_lat"`
+	PickupLng    float64 `json:"pickup_lng"`
+	DropoffLat   float64 `json:"dropoff_lat"`
+	DropoffLng   float64 `json:"dropoff_lng"`
+	TrafficLevel string  `json:"traffic_level"`
+	Weather      string  `json:"weather"`
+	DriverID     string  `json:"driver_id"`
+	RideTypeID   int     `json:"ride_type_id"`
+}
+
+type mlEtaPredictResponse struct {
+	EstimatedMinutes float64 `json:"estimated_minutes"`
+	EstimatedSeconds int     `json:"estimated_seconds"`
+}
+
+func (s *Service) predictETAFromML(ctx context.Context, req *models.RideRequest) (float64, bool) {
+	if s.mlEtaClient == nil {
+		return 0, false
+	}
+
+	payload := mlEtaPredictRequest{
+		PickupLat:    req.PickupLatitude,
+		PickupLng:    req.PickupLongitude,
+		DropoffLat:   req.DropoffLatitude,
+		DropoffLng:   req.DropoffLongitude,
+		TrafficLevel: "medium",
+		Weather:      "clear",
+		DriverID:     "",
+	}
+	if req.RideTypeID != nil {
+		payload.RideTypeID = 1
+	}
+
+	call := func(ctx context.Context) (interface{}, error) {
+		body, err := s.mlEtaClient.Post(ctx, "/api/v1/eta/predict", payload, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		var resp mlEtaPredictResponse
+		if err := json.Unmarshal(body, &resp); err != nil {
+			return nil, err
+		}
+		return &resp, nil
+	}
+
+	var (
+		result interface{}
+		err    error
+	)
+
+	if s.mlEtaBreaker != nil {
+		result, err = s.mlEtaBreaker.Execute(ctx, call)
+	} else {
+		result, err = call(ctx)
+	}
+
+	if err != nil {
+		return 0, false
+	}
+
+	resp, ok := result.(*mlEtaPredictResponse)
+	if !ok || resp == nil || resp.EstimatedMinutes <= 0 {
+		return 0, false
+	}
+
+	return resp.EstimatedMinutes, true
 }
 
 // RideTypeFareResponse represents the response from ride type fare calculation

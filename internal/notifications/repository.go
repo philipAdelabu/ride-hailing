@@ -181,7 +181,7 @@ func (r *Repository) GetPendingNotifications(ctx context.Context, limit int) ([]
 		SELECT id, user_id, type, channel, title, body, data, status,
 			scheduled_at, sent_at, read_at, error_message, created_at, updated_at
 		FROM notifications
-		WHERE status = 'pending' AND (scheduled_at IS NULL OR scheduled_at <= NOW())
+		WHERE status IN ('pending','queued') AND (scheduled_at IS NULL OR scheduled_at <= NOW())
 		ORDER BY created_at ASC
 		LIMIT $1`
 
@@ -217,6 +217,23 @@ func (r *Repository) GetPendingNotifications(ctx context.Context, limit int) ([]
 	}
 
 	return notifications, nil
+}
+
+// ScheduleNotificationRetry marks a notification for retry with a future scheduled time.
+func (r *Repository) ScheduleNotificationRetry(ctx context.Context, id uuid.UUID, retryAt time.Time, errorMessage string) error {
+	query := `
+		UPDATE notifications
+		SET status = 'queued',
+		    scheduled_at = $1,
+		    error_message = $2,
+		    updated_at = NOW()
+		WHERE id = $3`
+
+	if _, err := r.db.Exec(ctx, query, retryAt, errorMessage, id); err != nil {
+		return common.NewInternalError("failed to schedule notification retry", err)
+	}
+
+	return nil
 }
 
 // GetUserDeviceTokens retrieves FCM device tokens for a user

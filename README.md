@@ -451,6 +451,11 @@ DB_PORT=5432
 DB_USER=postgres
 DB_PASSWORD=postgres
 DB_NAME=ride_hailing
+DB_BREAKER_ENABLED=true
+DB_BREAKER_FAILURE_THRESHOLD=5
+DB_BREAKER_SUCCESS_THRESHOLD=1
+DB_BREAKER_TIMEOUT_SECONDS=30
+DB_BREAKER_INTERVAL_SECONDS=60
 JWT_SECRET=your-secret-key-change-in-production
 
 REDIS_HOST=redis
@@ -506,6 +511,16 @@ CB_INTERVAL_SECONDS=60
 CB_SERVICE_OVERRIDES='{"promos-service":{"failure_threshold":3,"timeout_seconds":15}}'
 ```
 
+Available override keys:
+
+- `promos-service` (promotions pricing HTTP client)
+- `stripe-api` (payments service calls to Stripe)
+- `firebase-fcm`, `twilio-sms`, `smtp-email` (notifications service channels)
+- `ml-eta-service` (rides service -> ML ETA integration)
+- `database-primary` / `database-replica` (pool creation throttling)
+
+Each breaker surfaces Prometheus metrics (`circuit_breaker_state`, `circuit_breaker_requests_total`, `circuit_breaker_failures_total`, `circuit_breaker_fallbacks_total`) so dashboards can track failure rates and state transitions.
+
 ### Payments Service (Port 8084)
 
 ```bash
@@ -531,6 +546,14 @@ SMTP_PASSWORD=your-app-password
 SMTP_FROM_EMAIL=noreply@ridehailing.com
 SMTP_FROM_NAME=RideHailing
 ```
+
+### ML ETA Integration
+
+```bash
+ML_ETA_SERVICE_URL=http://ml-eta-service:8080
+```
+
+When configured, the rides service fetches machine-learning powered ETAs via `/api/v1/eta/predict` and automatically falls back to distance-based calculations whenever the circuit breaker opens or the ML service is unavailable.
 
 ### Secrets Management
 
