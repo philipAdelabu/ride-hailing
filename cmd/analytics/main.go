@@ -125,8 +125,34 @@ func main() {
 	// Add Sentry error handler (should be near the end of middleware chain)
 	router.Use(middleware.ErrorHandler())
 
-	// Public endpoints
+	// Health check endpoints
 	router.GET("/healthz", handler.HealthCheck)
+	router.GET("/health/live", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "alive", "service": serviceName, "version": version})
+	})
+
+	// Readiness probe with dependency checks
+	healthChecks := make(map[string]func() error)
+	healthChecks["database"] = func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		return db.Ping(ctx)
+	}
+
+	router.GET("/health/ready", func(c *gin.Context) {
+		allHealthy := true
+		for name, check := range healthChecks {
+			if err := check(); err != nil {
+				c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not ready", "service": serviceName, "failed_check": name, "error": err.Error()})
+				allHealthy = false
+				return
+			}
+		}
+		if allHealthy {
+			c.JSON(http.StatusOK, gin.H{"status": "ready", "service": serviceName, "version": version})
+		}
+	})
+
 	router.GET("/version", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"service": serviceName,

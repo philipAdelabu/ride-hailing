@@ -199,8 +199,19 @@ func main() {
 	// Add Sentry error handler (should be near the end of middleware chain)
 	router.Use(middleware.ErrorHandler())
 
-	// Health check
+	// Health check endpoints
 	router.GET("/healthz", common.HealthCheck(serviceName, version))
+	router.GET("/health/live", common.LivenessProbe(serviceName, version))
+
+	// Readiness probe with dependency checks
+	healthChecks := make(map[string]func() error)
+	healthChecks["database"] = func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		return db.Ping(ctx)
+	}
+
+	router.GET("/health/ready", common.ReadinessProbe(serviceName, version, healthChecks))
 
 	// Metrics endpoint
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))

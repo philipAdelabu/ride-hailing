@@ -450,6 +450,7 @@ func TestAPI_CreateRide_Returns404WhenNoDrivers(t *testing.T) {
 
 ## Related Documentation
 
+- [Health Checks Guide](./HEALTH_CHECKS.md) - Service health monitoring
 - [Observability Guide](./observability.md) - Logging, metrics, and tracing
 - [Sentry Integration Guide](./SENTRY_INTEGRATION_GUIDE.md) - Error tracking setup
 - [API Documentation](./API.md) - API error responses

@@ -147,8 +147,39 @@ func main() {
 	corsConfig.AllowCredentials = true
 	router.Use(cors.New(corsConfig))
 
-	// Health check and metrics (no auth required)
+	// Health check endpoints
 	router.GET("/healthz", handler.HealthCheck)
+	router.GET("/health/live", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "alive", "service": "realtime-service", "version": "1.0.0"})
+	})
+
+	// Readiness probe with dependency checks
+	healthChecks := make(map[string]func() error)
+	healthChecks["database"] = func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		return db.PingContext(ctx)
+	}
+	healthChecks["redis"] = func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		return redisClient.Client.Ping(ctx).Err()
+	}
+
+	router.GET("/health/ready", func(c *gin.Context) {
+		allHealthy := true
+		for name, check := range healthChecks {
+			if err := check(); err != nil {
+				c.JSON(503, gin.H{"status": "not ready", "service": "realtime-service", "failed_check": name, "error": err.Error()})
+				allHealthy = false
+				return
+			}
+		}
+		if allHealthy {
+			c.JSON(200, gin.H{"status": "ready", "service": "realtime-service", "version": "1.0.0"})
+		}
+	})
+
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	// API routes

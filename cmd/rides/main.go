@@ -206,7 +206,28 @@ func main() {
 	// Add Sentry error handler (should be near the end of middleware chain)
 	router.Use(middleware.ErrorHandler())
 
+	// Health check endpoints
 	router.GET("/healthz", common.HealthCheck(serviceName, version))
+	router.GET("/health/live", common.LivenessProbe(serviceName, version))
+
+	// Readiness probe with dependency checks
+	healthChecks := make(map[string]func() error)
+	healthChecks["database"] = func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		return db.Ping(ctx)
+	}
+
+	if redisClient != nil {
+		healthChecks["redis"] = func() error {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			return redisClient.Client.Ping(ctx).Err()
+		}
+	}
+
+	router.GET("/health/ready", common.ReadinessProbe(serviceName, version, healthChecks))
+
 	router.GET("/version", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"service": serviceName,

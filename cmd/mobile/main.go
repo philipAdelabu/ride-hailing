@@ -139,10 +139,36 @@ func main() {
 	// Add Sentry error handler (should be near the end of middleware chain)
 	router.Use(middleware.ErrorHandler())
 
-	// Health check and metrics (no auth required)
+	// Health check endpoints
 	router.GET("/healthz", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "healthy", "service": "mobile-api"})
+		c.JSON(200, gin.H{"status": "healthy", "service": "mobile-api", "version": "1.0.0"})
 	})
+	router.GET("/health/live", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "alive", "service": "mobile-api", "version": "1.0.0"})
+	})
+
+	// Readiness probe with dependency checks
+	healthChecks := make(map[string]func() error)
+	healthChecks["database"] = func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		return db.Ping(ctx)
+	}
+
+	router.GET("/health/ready", func(c *gin.Context) {
+		allHealthy := true
+		for name, check := range healthChecks {
+			if err := check(); err != nil {
+				c.JSON(503, gin.H{"status": "not ready", "service": "mobile-api", "failed_check": name, "error": err.Error()})
+				allHealthy = false
+				return
+			}
+		}
+		if allHealthy {
+			c.JSON(200, gin.H{"status": "ready", "service": "mobile-api", "version": "1.0.0"})
+		}
+	})
+
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	// API routes with authentication
