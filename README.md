@@ -388,12 +388,13 @@ make dev-check
 ```
 
 **Benefits:**
-- 🚀 Fast startup (~5 seconds vs 2-3 minutes)
-- 💾 Low memory (~500MB vs 4-6GB)
-- ⚡ Instant iteration (no Docker rebuild)
-- 🐛 Easy debugging (native Go debugger)
 
-**See [QUICKSTART.md](QUICKSTART.md) for detailed guide.**
+-   🚀 Fast startup (~5 seconds vs 2-3 minutes)
+-   💾 Low memory (~500MB vs 4-6GB)
+-   ⚡ Instant iteration (no Docker rebuild)
+-   🐛 Easy debugging (native Go debugger)
+
+**See [QUICKSTART.md](./docs/QUICKSTART.md) for detailed guide.**
 
 ### Running with Docker Compose
 
