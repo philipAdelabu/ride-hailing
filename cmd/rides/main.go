@@ -92,7 +92,7 @@ func main() {
 		}
 	}
 
-	db, err := database.NewPostgresPool(&cfg.Database)
+	db, err := database.NewPostgresPool(&cfg.Database, cfg.Timeout.DatabaseQueryTimeout)
 	if err != nil {
 		logger.Fatal("Failed to connect to database", zap.Error(err))
 	}
@@ -154,7 +154,7 @@ func main() {
 
 	mlEtaURL := os.Getenv("ML_ETA_SERVICE_URL")
 	if mlEtaURL != "" {
-		mlEtaClient = httpclient.NewClient(mlEtaURL, 5*time.Second)
+		mlEtaClient = httpclient.NewClient(mlEtaURL)
 		if cfg.Resilience.CircuitBreaker.Enabled {
 			cbCfg := cfg.Resilience.CircuitBreaker.SettingsFor("ml-eta-service")
 			mlEtaBreaker = resilience.NewCircuitBreaker(
@@ -192,6 +192,7 @@ func main() {
 	router.Use(middleware.RecoveryWithSentry()) // Custom recovery with Sentry
 	router.Use(middleware.SentryMiddleware())   // Sentry integration
 	router.Use(middleware.CorrelationID())
+	router.Use(middleware.RequestTimeout(&cfg.Timeout))
 	router.Use(middleware.RequestLogger(serviceName))
 	router.Use(middleware.CORS())
 	router.Use(middleware.SecurityHeaders())

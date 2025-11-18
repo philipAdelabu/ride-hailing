@@ -18,8 +18,8 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/logger"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
-	"github.com/richxcame/ride-hailing/pkg/tracing"
 	redisClient "github.com/richxcame/ride-hailing/pkg/redis"
+	"github.com/richxcame/ride-hailing/pkg/tracing"
 	"go.uber.org/zap"
 )
 
@@ -85,7 +85,6 @@ func main() {
 		}
 	}
 
-
 	redis, err := redisClient.NewRedisClient(&cfg.Redis)
 	if err != nil {
 		logger.Fatal("Failed to connect to Redis", zap.Error(err))
@@ -110,6 +109,7 @@ func main() {
 	router.Use(middleware.RecoveryWithSentry()) // Custom recovery with Sentry
 	router.Use(middleware.SentryMiddleware())   // Sentry integration
 	router.Use(middleware.CorrelationID())
+	router.Use(middleware.RequestTimeout(&cfg.Timeout))
 	router.Use(middleware.RequestLogger(serviceName))
 	router.Use(middleware.CORS())
 	router.Use(middleware.SecurityHeaders())

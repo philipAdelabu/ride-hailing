@@ -103,6 +103,7 @@ func main() {
 	router.Use(middleware.RecoveryWithSentry()) // Custom recovery with Sentry
 	router.Use(middleware.SentryMiddleware())   // Sentry integration
 	router.Use(middleware.CorrelationID())
+	router.Use(middleware.RequestTimeout(&cfg.Timeout))
 	router.Use(middleware.SecurityHeaders())
 	router.Use(middleware.SanitizeRequest())
 
