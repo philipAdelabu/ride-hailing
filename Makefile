@@ -241,6 +241,9 @@ db-seed: ## Seed database with sample data
 	@./scripts/seed.sh
 	@echo "$(GREEN)✓ Database seeded!$(NC)"
 
+db-seed-docker: ## Seed database running in Docker (use: make db-seed-docker SEED_TYPE=light|medium|heavy)
+	@./scripts/seed-docker.sh
+
 db-reset: migrate-down migrate-up db-seed ## Reset database (drop, migrate, seed)
 	@echo "$(GREEN)✓ Database reset complete!$(NC)"
 
