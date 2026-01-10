@@ -29,6 +29,10 @@ const (
 )
 
 func main() {
+	// Set default port for fraud service if not set
+	if os.Getenv("PORT") == "" {
+		os.Setenv("PORT", "8092")
+	}
 	cfg, err := config.Load(serviceName)
 	if err != nil {
 		panic(fmt.Sprintf("failed to load config: %v", err))

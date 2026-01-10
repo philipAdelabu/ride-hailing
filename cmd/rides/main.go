@@ -35,6 +35,10 @@ const (
 )
 
 func main() {
+	// Set default port for rides service if not set
+	if os.Getenv("PORT") == "" {
+		os.Setenv("PORT", "8082")
+	}
 	cfg, err := config.Load(serviceName)
 	if err != nil {
 		panic(fmt.Sprintf("failed to load config: %v", err))

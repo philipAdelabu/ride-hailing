@@ -38,7 +38,15 @@ setup: install-tools tidy ## Initial project setup
 	@echo "  3. Run 'make db-seed' to seed the database"
 	@echo "  4. Run 'make run-auth' (or any service) to start developing"
 
-dev: dev-infra migrate-up ## Start lightweight development environment (Postgres + Redis only)
+dev: dev-infra ## Start lightweight development environment (Postgres + Redis only)
+	@echo "$(YELLOW)Waiting for PostgreSQL to be ready...$(NC)"
+	@sleep 3
+	@until docker exec ridehailing-postgres-dev pg_isready -U postgres > /dev/null 2>&1; do \
+		echo "$(YELLOW)Waiting for PostgreSQL...$(NC)"; \
+		sleep 1; \
+	done
+	@echo "$(GREEN)✓ PostgreSQL is ready!$(NC)"
+	@$(MAKE) migrate-up
 	@echo "$(GREEN)✓ Development environment ready!$(NC)"
 	@echo "Run 'make run-<service>' to start a service"
 
@@ -167,6 +175,68 @@ run-fraud: ## Run fraud service
 run-analytics: ## Run analytics service
 	@echo "Starting analytics service..."
 	@go run ./cmd/analytics
+
+run-admin: ## Run admin service
+	@echo "Starting admin service..."
+	@go run ./cmd/admin
+
+run-promos: ## Run promos service
+	@echo "Starting promos service..."
+	@go run ./cmd/promos
+
+run-scheduler: ## Run scheduler service
+	@echo "Starting scheduler service..."
+	@go run ./cmd/scheduler
+
+run-ml-eta: ## Run ML ETA service
+	@echo "Starting ML ETA service..."
+	@go run ./cmd/ml-eta
+
+run-mobile: ## Run mobile service
+	@echo "Starting mobile service..."
+	@go run ./cmd/mobile
+
+run: run-all ## Alias for run-all
+
+run-all: ## Run all services in background (logs in ./logs/)
+	@./scripts/run-all-services.sh
+
+stop: stop-all ## Alias for stop-all
+
+stop-all: ## Stop all running services
+	@./scripts/stop-all-services.sh
+
+run-all-tmux: ## Run all services in tmux (better for development)
+	@echo "$(YELLOW)Starting all services in tmux...$(NC)"
+	@echo "$(YELLOW)Note: This will start all services in a tmux session.$(NC)"
+	@echo "$(YELLOW)Make sure tmux is installed: brew install tmux (macOS) or apt install tmux (Linux)$(NC)"
+	@echo ""
+	@if ! command -v tmux &> /dev/null; then \
+		echo "$(RED)Error: tmux is not installed. Install it or use 'make run-all' instead.$(NC)"; \
+		exit 1; \
+	fi
+	@tmux new-session -d -s ridehailing 'make run-auth' \; \
+		split-window -v 'make run-rides' \; \
+		split-window -v 'make run-geo' \; \
+		split-window -v 'make run-payments' \; \
+		select-layout tiled \; \
+		split-window -v 'make run-notifications' \; \
+		split-window -v 'make run-realtime' \; \
+		split-window -v 'make run-fraud' \; \
+		split-window -v 'make run-analytics' \; \
+		split-window -v 'make run-admin' \; \
+		select-layout tiled
+	@echo "$(GREEN)✓ All services started in tmux session 'ridehailing'$(NC)"
+	@echo ""
+	@echo "To view services:"
+	@echo "  tmux attach -t ridehailing"
+	@echo ""
+	@echo "To stop all services:"
+	@echo "  tmux kill-session -t ridehailing"
+	@echo ""
+	@echo "Tmux commands:"
+	@echo "  Ctrl+B then D - Detach from session"
+	@echo "  Ctrl+B then Arrow keys - Switch between panes"
 
 #==========================================
 # Docker

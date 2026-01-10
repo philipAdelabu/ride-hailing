@@ -15,11 +15,18 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/config"
 	"github.com/richxcame/ride-hailing/pkg/errors"
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
+	"github.com/richxcame/ride-hailing/pkg/logger"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	"github.com/richxcame/ride-hailing/pkg/tracing"
+	"go.uber.org/zap"
 )
 
 func main() {
+	// Set default port for admin service if not set
+	if os.Getenv("PORT") == "" {
+		os.Setenv("PORT", "8088")
+	}
+
 	// Load configuration
 	cfg, err := config.Load("admin")
 	if err != nil {
@@ -27,14 +34,21 @@ func main() {
 	}
 	defer cfg.Close()
 
+	// Initialize logger
+	environment := getEnv("ENVIRONMENT", "development")
+	if err := logger.Init(environment); err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+	defer logger.Sync()
+
+	logger.Info("Starting admin service",
+		zap.String("service", "admin-service"),
+		zap.String("version", "1.0.0"),
+		zap.String("environment", environment),
+	)
+
 	// Load environment variables
-	dbHost := getEnv("DB_HOST", "localhost")
-	dbPort := getEnv("DB_PORT", "5432")
-	dbUser := getEnv("DB_USER", "postgres")
-	dbPassword := getEnv("DB_PASSWORD", "postgres")
-	dbName := getEnv("DB_NAME", "ride_hailing")
 	jwtSecret := getEnv("JWT_SECRET", "your-secret-key")
-	port := getEnv("PORT", "8088")
 	rootCtx, cancelKeys := context.WithCancel(context.Background())
 	defer cancelKeys()
 
@@ -51,8 +65,8 @@ func main() {
 	jwtProvider.StartAutoRefresh(rootCtx, time.Duration(getEnvAsInt("JWT_KEY_REFRESH_MINUTES", 5))*time.Minute)
 
 	// Connect to PostgreSQL
-	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
-		dbUser, dbPassword, dbHost, dbPort, dbName)
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+		cfg.Database.User, cfg.Database.Password, cfg.Database.Host, cfg.Database.Port, cfg.Database.DBName, cfg.Database.SSLMode)
 
 	ctx := rootCtx
 	poolConfig, err := pgxpool.ParseConfig(dsn)
@@ -73,19 +87,19 @@ func main() {
 
 	// Test database connection
 	if err := db.Ping(ctx); err != nil {
-		log.Fatalf("Failed to ping database: %v", err)
+		logger.Fatal("Failed to ping database", zap.Error(err))
 	}
-	log.Println("Connected to PostgreSQL database")
+	logger.Info("Connected to PostgreSQL database")
 
 	// Initialize Sentry for error tracking
 	sentryConfig := errors.DefaultSentryConfig()
 	sentryConfig.ServerName = "admin-service"
 	sentryConfig.Release = "1.0.0"
 	if err := errors.InitSentry(sentryConfig); err != nil {
-		log.Printf("Warning: Failed to initialize Sentry, continuing without error tracking: %v", err)
+		logger.Warn("Failed to initialize Sentry, continuing without error tracking", zap.Error(err))
 	} else {
 		defer errors.Flush(2 * time.Second)
-		log.Println("Sentry error tracking initialized successfully")
+		logger.Info("Sentry error tracking initialized successfully")
 	}
 
 	// Initialize OpenTelemetry tracer
@@ -94,23 +108,23 @@ func main() {
 		tracerCfg := tracing.Config{
 			ServiceName:    os.Getenv("OTEL_SERVICE_NAME"),
 			ServiceVersion: os.Getenv("OTEL_SERVICE_VERSION"),
-			Environment:    getEnv("ENVIRONMENT", "development"),
+			Environment:    environment,
 			OTLPEndpoint:   os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
 			Enabled:        true,
 		}
 
-		tp, err := tracing.InitTracer(tracerCfg, nil)
+		tp, err := tracing.InitTracer(tracerCfg, logger.Get())
 		if err != nil {
-			log.Printf("Warning: Failed to initialize tracer: %v", err)
+			logger.Warn("Failed to initialize tracer, continuing without tracing", zap.Error(err))
 		} else {
 			defer func() {
 				shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
 				if err := tp.Shutdown(shutdownCtx); err != nil {
-					log.Printf("Warning: Failed to shutdown tracer: %v", err)
+					logger.Warn("Failed to shutdown tracer", zap.Error(err))
 				}
 			}()
-			log.Println("OpenTelemetry tracing initialized successfully")
+			logger.Info("OpenTelemetry tracing initialized successfully")
 		}
 	}
 
@@ -200,10 +214,10 @@ func main() {
 	}
 
 	// Start server
-	addr := ":" + port
-	log.Printf("Admin service starting on port %s", port)
+	addr := ":" + cfg.Server.Port
+	logger.Info("Admin service starting", zap.String("port", cfg.Server.Port))
 	if err := router.Run(addr); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+		logger.Fatal("Failed to start server", zap.Error(err))
 	}
 }
 

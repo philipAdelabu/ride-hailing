@@ -30,6 +30,10 @@ const (
 )
 
 func main() {
+	// Set default port for payments service if not set
+	if os.Getenv("PORT") == "" {
+		os.Setenv("PORT", "8084")
+	}
 	// Load configuration
 	cfg, err := config.Load(serviceName)
 	if err != nil {

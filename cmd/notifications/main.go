@@ -30,6 +30,10 @@ const (
 )
 
 func main() {
+	// Set default port for notifications service if not set
+	if os.Getenv("PORT") == "" {
+		os.Setenv("PORT", "8085")
+	}
 	// Load configuration
 	cfg, err := config.Load(serviceName)
 	if err != nil {

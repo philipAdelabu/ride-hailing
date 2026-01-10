@@ -13,17 +13,32 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/config"
 	"github.com/richxcame/ride-hailing/pkg/errors"
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
+	"github.com/richxcame/ride-hailing/pkg/logger"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	"github.com/richxcame/ride-hailing/pkg/tracing"
 )
 
 func main() {
+	// Set default port for promos service if not set
+	if os.Getenv("PORT") == "" {
+		os.Setenv("PORT", "8089")
+	}
 	// Load configuration
 	cfg, err := config.Load("promos")
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 	defer cfg.Close()
+
+	// Initialize logger
+	environment := os.Getenv("ENVIRONMENT")
+	if environment == "" {
+		environment = "development"
+	}
+	if err := logger.Init(environment); err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+	defer logger.Sync()
 
 	port := cfg.Server.Port
 
@@ -78,7 +93,7 @@ func main() {
 			Enabled:        true,
 		}
 
-		tp, err := tracing.InitTracer(tracerCfg, nil)
+		tp, err := tracing.InitTracer(tracerCfg, logger.Get())
 		if err != nil {
 			log.Printf("Warning: Failed to initialize tracer: %v", err)
 		} else {

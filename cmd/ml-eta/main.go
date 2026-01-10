@@ -23,6 +23,10 @@ import (
 const serviceName = "ml-eta"
 
 func main() {
+	// Set default port for ml-eta service if not set
+	if os.Getenv("PORT") == "" {
+		os.Setenv("PORT", "8093")
+	}
 	// Load configuration
 	cfg, err := config.Load("ml-eta")
 	if err != nil {
