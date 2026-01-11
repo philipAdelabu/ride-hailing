@@ -13,6 +13,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	"github.com/richxcame/ride-hailing/pkg/models"
+	"github.com/richxcame/ride-hailing/pkg/pagination"
 	"github.com/richxcame/ride-hailing/pkg/ratelimit"
 )
 
@@ -246,22 +247,15 @@ func (h *Handler) GetMyRides(c *gin.Context) {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "10"))
-
-	if page < 1 {
-		page = 1
-	}
-	if perPage < 1 || perPage > 100 {
-		perPage = 10
-	}
+	params := pagination.ParseParams(c)
 
 	var rides []*models.Ride
+	var total int64
 
 	if role == models.RoleRider {
-		rides, err = h.service.GetRiderRides(c.Request.Context(), userID, page, perPage)
+		rides, total, err = h.service.GetRiderRides(c.Request.Context(), userID, params.Limit, params.Offset)
 	} else if role == models.RoleDriver {
-		rides, err = h.service.GetDriverRides(c.Request.Context(), userID, page, perPage)
+		rides, total, err = h.service.GetDriverRides(c.Request.Context(), userID, params.Limit, params.Offset)
 	} else {
 		common.ErrorResponse(c, http.StatusForbidden, "invalid role")
 		return
@@ -276,7 +270,8 @@ func (h *Handler) GetMyRides(c *gin.Context) {
 		return
 	}
 
-	common.SuccessResponse(c, rides)
+	meta := pagination.BuildMeta(params.Limit, params.Offset, total)
+	common.SuccessResponseWithMeta(c, rides, meta)
 }
 
 // GetAvailableRides lists ride requests that can be accepted by drivers.

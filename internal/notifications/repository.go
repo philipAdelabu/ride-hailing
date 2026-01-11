@@ -159,6 +159,25 @@ func (r *Repository) GetUserNotifications(ctx context.Context, userID uuid.UUID,
 	return notifications, nil
 }
 
+// GetUserNotificationsWithTotal retrieves notifications for a user with total count
+func (r *Repository) GetUserNotificationsWithTotal(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*models.Notification, int64, error) {
+	// Get total count
+	var total int64
+	countQuery := `SELECT COUNT(*) FROM notifications WHERE user_id = $1`
+	err := r.db.QueryRow(ctx, countQuery, userID).Scan(&total)
+	if err != nil {
+		return nil, 0, common.NewInternalError("failed to count notifications", err)
+	}
+
+	// Get paginated notifications
+	notifications, err := r.GetUserNotifications(ctx, userID, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return notifications, total, nil
+}
+
 // GetUnreadNotificationCount gets count of unread notifications
 func (r *Repository) GetUnreadNotificationCount(ctx context.Context, userID uuid.UUID) (int, error) {
 	var count int

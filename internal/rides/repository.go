@@ -324,6 +324,44 @@ func (r *Repository) GetRidesByDriver(ctx context.Context, driverID uuid.UUID, l
 	return rides, nil
 }
 
+// GetRidesByRiderWithTotal retrieves rides for a specific rider with total count
+func (r *Repository) GetRidesByRiderWithTotal(ctx context.Context, riderID uuid.UUID, limit, offset int) ([]*models.Ride, int64, error) {
+	// Get total count
+	var total int64
+	countQuery := `SELECT COUNT(*) FROM rides WHERE rider_id = $1`
+	err := r.db.QueryRow(ctx, countQuery, riderID).Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count rides: %w", err)
+	}
+
+	// Get paginated rides
+	rides, err := r.GetRidesByRider(ctx, riderID, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return rides, total, nil
+}
+
+// GetRidesByDriverWithTotal retrieves rides for a specific driver with total count
+func (r *Repository) GetRidesByDriverWithTotal(ctx context.Context, driverID uuid.UUID, limit, offset int) ([]*models.Ride, int64, error) {
+	// Get total count
+	var total int64
+	countQuery := `SELECT COUNT(*) FROM rides WHERE driver_id = $1`
+	err := r.db.QueryRow(ctx, countQuery, driverID).Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count rides: %w", err)
+	}
+
+	// Get paginated rides
+	rides, err := r.GetRidesByDriver(ctx, driverID, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return rides, total, nil
+}
+
 // GetPendingRides retrieves all pending ride requests
 func (r *Repository) GetPendingRides(ctx context.Context) ([]*models.Ride, error) {
 	query := `

@@ -18,7 +18,9 @@ type FraudRepository interface {
 	CreateFraudAlert(ctx context.Context, alert *FraudAlert) error
 	GetFraudAlertByID(ctx context.Context, alertID uuid.UUID) (*FraudAlert, error)
 	GetAlertsByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*FraudAlert, error)
+	GetAlertsByUserWithTotal(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*FraudAlert, int64, error)
 	GetPendingAlerts(ctx context.Context, limit, offset int) ([]*FraudAlert, error)
+	GetPendingAlertsWithTotal(ctx context.Context, limit, offset int) ([]*FraudAlert, int64, error)
 	UpdateAlertStatus(ctx context.Context, alertID uuid.UUID, status FraudAlertStatus, investigatorID *uuid.UUID, notes, actionTaken string) error
 }
 
@@ -170,23 +172,21 @@ func (s *Service) GetAlert(ctx context.Context, alertID uuid.UUID) (*FraudAlert,
 }
 
 // GetUserAlerts retrieves all fraud alerts for a user
-func (s *Service) GetUserAlerts(ctx context.Context, userID uuid.UUID, page, perPage int) ([]*FraudAlert, error) {
-	offset := (page - 1) * perPage
-	alerts, err := s.repo.GetAlertsByUser(ctx, userID, perPage, offset)
+func (s *Service) GetUserAlerts(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*FraudAlert, int64, error) {
+	alerts, total, err := s.repo.GetAlertsByUserWithTotal(ctx, userID, limit, offset)
 	if err != nil {
-		return nil, common.NewInternalServerError("failed to get fraud alerts")
+		return nil, 0, common.NewInternalServerError("failed to get fraud alerts")
 	}
-	return alerts, nil
+	return alerts, total, nil
 }
 
 // GetPendingAlerts retrieves all pending fraud alerts
-func (s *Service) GetPendingAlerts(ctx context.Context, page, perPage int) ([]*FraudAlert, error) {
-	offset := (page - 1) * perPage
-	alerts, err := s.repo.GetPendingAlerts(ctx, perPage, offset)
+func (s *Service) GetPendingAlerts(ctx context.Context, limit, offset int) ([]*FraudAlert, int64, error) {
+	alerts, total, err := s.repo.GetPendingAlertsWithTotal(ctx, limit, offset)
 	if err != nil {
-		return nil, common.NewInternalServerError("failed to get pending alerts")
+		return nil, 0, common.NewInternalServerError("failed to get pending alerts")
 	}
-	return alerts, nil
+	return alerts, total, nil
 }
 
 // InvestigateAlert marks an alert as under investigation

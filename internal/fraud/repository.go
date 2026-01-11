@@ -261,6 +261,44 @@ func (r *Repository) GetPendingAlerts(ctx context.Context, limit, offset int) ([
 	return alerts, nil
 }
 
+// GetAlertsByUserWithTotal retrieves all fraud alerts for a user with total count
+func (r *Repository) GetAlertsByUserWithTotal(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*FraudAlert, int64, error) {
+	// Get total count
+	var total int64
+	countQuery := `SELECT COUNT(*) FROM fraud_alerts WHERE user_id = $1`
+	err := r.db.QueryRow(ctx, countQuery, userID).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Get paginated alerts
+	alerts, err := r.GetAlertsByUser(ctx, userID, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return alerts, total, nil
+}
+
+// GetPendingAlertsWithTotal retrieves all pending fraud alerts with total count
+func (r *Repository) GetPendingAlertsWithTotal(ctx context.Context, limit, offset int) ([]*FraudAlert, int64, error) {
+	// Get total count
+	var total int64
+	countQuery := `SELECT COUNT(*) FROM fraud_alerts WHERE status = 'pending'`
+	err := r.db.QueryRow(ctx, countQuery).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Get paginated alerts
+	alerts, err := r.GetPendingAlerts(ctx, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return alerts, total, nil
+}
+
 // UpdateAlertStatus updates the status of a fraud alert
 func (r *Repository) UpdateAlertStatus(ctx context.Context, alertID uuid.UUID, status FraudAlertStatus, investigatedBy *uuid.UUID, notes, actionTaken string) error {
 	query := `

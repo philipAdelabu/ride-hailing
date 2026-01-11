@@ -275,6 +275,25 @@ func (r *Repository) GetWalletTransactions(ctx context.Context, walletID uuid.UU
 	return transactions, nil
 }
 
+// GetWalletTransactionsWithTotal retrieves wallet transaction history with total count
+func (r *Repository) GetWalletTransactionsWithTotal(ctx context.Context, walletID uuid.UUID, limit, offset int) ([]*models.WalletTransaction, int64, error) {
+	// Get total count
+	var total int64
+	countQuery := `SELECT COUNT(*) FROM wallet_transactions WHERE wallet_id = $1`
+	err := r.db.QueryRow(ctx, countQuery, walletID).Scan(&total)
+	if err != nil {
+		return nil, 0, common.NewInternalError("failed to count wallet transactions", err)
+	}
+
+	// Get paginated transactions
+	transactions, err := r.GetWalletTransactions(ctx, walletID, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return transactions, total, nil
+}
+
 // ProcessPaymentWithWallet handles payment using wallet balance in a transaction
 func (r *Repository) ProcessPaymentWithWallet(ctx context.Context, payment *models.Payment, walletTx *models.WalletTransaction) error {
 	// Start database transaction

@@ -2,12 +2,13 @@ package fraud
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/richxcame/ride-hailing/pkg/common"
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
+	"github.com/richxcame/ride-hailing/pkg/pagination"
 )
 
 // Handler handles HTTP requests for fraud detection
@@ -48,20 +49,20 @@ func (h *Handler) RegisterRoutes(router *gin.Engine, jwtProvider jwtkeys.KeyProv
 
 // GetPendingAlerts retrieves all pending fraud alerts
 func (h *Handler) GetPendingAlerts(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "20"))
+	params := pagination.ParseParams(c)
 
-	alerts, err := h.service.GetPendingAlerts(c.Request.Context(), page, perPage)
+	alerts, total, err := h.service.GetPendingAlerts(c.Request.Context(), params.Limit, params.Offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		if appErr, ok := err.(*common.AppError); ok {
+			common.AppErrorResponse(c, appErr)
+			return
+		}
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get pending alerts")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"alerts":   alerts,
-		"page":     page,
-		"per_page": perPage,
-	})
+	meta := pagination.BuildMeta(params.Limit, params.Offset, total)
+	common.SuccessResponseWithMeta(c, alerts, meta)
 }
 
 // GetAlert retrieves a specific fraud alert
@@ -192,24 +193,24 @@ func (h *Handler) ResolveAlert(c *gin.Context) {
 func (h *Handler) GetUserAlerts(c *gin.Context) {
 	userID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid user ID")
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "20"))
+	params := pagination.ParseParams(c)
 
-	alerts, err := h.service.GetUserAlerts(c.Request.Context(), userID, page, perPage)
+	alerts, total, err := h.service.GetUserAlerts(c.Request.Context(), userID, params.Limit, params.Offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		if appErr, ok := err.(*common.AppError); ok {
+			common.AppErrorResponse(c, appErr)
+			return
+		}
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get user alerts")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"alerts":   alerts,
-		"page":     page,
-		"per_page": perPage,
-	})
+	meta := pagination.BuildMeta(params.Limit, params.Offset, total)
+	common.SuccessResponseWithMeta(c, alerts, meta)
 }
 
 // GetUserRiskProfile retrieves a user's risk profile

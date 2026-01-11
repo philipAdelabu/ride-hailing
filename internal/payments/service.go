@@ -363,13 +363,13 @@ func (s *Service) GetWallet(ctx context.Context, userID uuid.UUID) (*models.Wall
 }
 
 // GetWalletTransactions retrieves wallet transaction history
-func (s *Service) GetWalletTransactions(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*models.WalletTransaction, error) {
+func (s *Service) GetWalletTransactions(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*models.WalletTransaction, int64, error) {
 	wallet, err := s.repo.GetWalletByUserID(ctx, userID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	return s.repo.GetWalletTransactions(ctx, wallet.ID, limit, offset)
+	return s.repo.GetWalletTransactionsWithTotal(ctx, wallet.ID, limit, offset)
 }
 
 // HandleStripeWebhook handles Stripe webhook events

@@ -360,25 +360,23 @@ func (s *Service) RateRide(ctx context.Context, rideID, riderID uuid.UUID, req *
 }
 
 // GetRiderRides retrieves rides for a rider
-func (s *Service) GetRiderRides(ctx context.Context, riderID uuid.UUID, page, perPage int) ([]*models.Ride, error) {
-	offset := (page - 1) * perPage
-	rides, err := s.repo.GetRidesByRider(ctx, riderID, perPage, offset)
+func (s *Service) GetRiderRides(ctx context.Context, riderID uuid.UUID, limit, offset int) ([]*models.Ride, int64, error) {
+	rides, total, err := s.repo.GetRidesByRiderWithTotal(ctx, riderID, limit, offset)
 	if err != nil {
-		return nil, common.NewInternalServerError("failed to get rides")
+		return nil, 0, common.NewInternalServerError("failed to get rides")
 	}
 
-	return rides, nil
+	return rides, total, nil
 }
 
 // GetDriverRides retrieves rides for a driver
-func (s *Service) GetDriverRides(ctx context.Context, driverID uuid.UUID, page, perPage int) ([]*models.Ride, error) {
-	offset := (page - 1) * perPage
-	rides, err := s.repo.GetRidesByDriver(ctx, driverID, perPage, offset)
+func (s *Service) GetDriverRides(ctx context.Context, driverID uuid.UUID, limit, offset int) ([]*models.Ride, int64, error) {
+	rides, total, err := s.repo.GetRidesByDriverWithTotal(ctx, driverID, limit, offset)
 	if err != nil {
-		return nil, common.NewInternalServerError("failed to get rides")
+		return nil, 0, common.NewInternalServerError("failed to get rides")
 	}
 
-	return rides, nil
+	return rides, total, nil
 }
 
 // GetAvailableRides retrieves all available ride requests

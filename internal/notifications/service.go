@@ -336,8 +336,8 @@ func (s *Service) NotifyPaymentReceived(ctx context.Context, userID uuid.UUID, a
 }
 
 // GetUserNotifications retrieves user's notifications
-func (s *Service) GetUserNotifications(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*models.Notification, error) {
-	return s.repo.GetUserNotifications(ctx, userID, limit, offset)
+func (s *Service) GetUserNotifications(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*models.Notification, int64, error) {
+	return s.repo.GetUserNotificationsWithTotal(ctx, userID, limit, offset)
 }
 
 // MarkAsRead marks a notification as read
