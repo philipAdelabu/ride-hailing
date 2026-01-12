@@ -796,14 +796,15 @@ func TestService_GetUserNotifications_Success(t *testing.T) {
 		},
 	}
 
-	mockRepo.On("GetUserNotifications", ctx, userID, 10, 0).Return(expectedNotifications, nil)
+	mockRepo.On("GetUserNotificationsWithTotal", ctx, userID, 10, 0).Return(expectedNotifications, int64(1), nil)
 
 	// Act
-	notifications, err := service.GetUserNotifications(ctx, userID, 10, 0)
+	notifications, total, err := service.GetUserNotifications(ctx, userID, 10, 0)
 
 	// Assert
 	assert.NoError(t, err)
 	assert.Equal(t, expectedNotifications, notifications)
+	assert.Equal(t, int64(1), total)
 	mockRepo.AssertExpectations(t)
 }
 
@@ -818,14 +819,15 @@ func TestService_GetUserNotifications_Error(t *testing.T) {
 	ctx := context.Background()
 	userID := uuid.New()
 
-	mockRepo.On("GetUserNotifications", ctx, userID, 10, 0).Return(nil, errors.New("database error"))
+	mockRepo.On("GetUserNotificationsWithTotal", ctx, userID, 10, 0).Return(nil, int64(0), errors.New("database error"))
 
 	// Act
-	notifications, err := service.GetUserNotifications(ctx, userID, 10, 0)
+	notifications, total, err := service.GetUserNotifications(ctx, userID, 10, 0)
 
 	// Assert
 	assert.Error(t, err)
 	assert.Nil(t, notifications)
+	assert.Equal(t, int64(0), total)
 	mockRepo.AssertExpectations(t)
 }
 

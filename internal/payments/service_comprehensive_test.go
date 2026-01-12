@@ -432,14 +432,15 @@ func TestService_GetWalletTransactions_Success(t *testing.T) {
 	}
 
 	mockRepo.On("GetWalletByUserID", ctx, userID).Return(wallet, nil)
-	mockRepo.On("GetWalletTransactions", ctx, walletID, 10, 0).Return(transactions, nil)
+	mockRepo.On("GetWalletTransactionsWithTotal", ctx, walletID, 10, 0).Return(transactions, int64(2), nil)
 
 	// Act
-	result, err := service.GetWalletTransactions(ctx, userID, 10, 0)
+	result, total, err := service.GetWalletTransactions(ctx, userID, 10, 0)
 
 	// Assert
 	assert.NoError(t, err)
 	assert.Len(t, result, 2)
+	assert.Equal(t, int64(2), total)
 	mockRepo.AssertExpectations(t)
 }
 
@@ -1091,10 +1092,11 @@ func TestService_GetWalletTransactions_GetWalletError(t *testing.T) {
 
 	mockRepo.On("GetWalletByUserID", ctx, userID).Return(nil, errors.New("wallet not found"))
 
-	txs, err := service.GetWalletTransactions(ctx, userID, 10, 0)
+	txs, total, err := service.GetWalletTransactions(ctx, userID, 10, 0)
 
 	assert.Error(t, err)
 	assert.Nil(t, txs)
+	assert.Equal(t, int64(0), total)
 	assert.Contains(t, err.Error(), "wallet not found")
 	mockRepo.AssertExpectations(t)
 }

@@ -307,6 +307,76 @@ func (r *Repository) GetRecentRides(ctx context.Context, limit int) ([]*models.R
 	return rides, nil
 }
 
+// GetRecentRidesWithTotal retrieves recent rides for monitoring with total count
+func (r *Repository) GetRecentRidesWithTotal(ctx context.Context, limit, offset int) ([]*models.Ride, int64, error) {
+	// Get total count
+	var total int64
+	countQuery := `SELECT COUNT(*) FROM rides`
+	err := r.db.QueryRow(ctx, countQuery).Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count rides: %w", err)
+	}
+
+	// Get paginated rides
+	query := `
+		SELECT id, rider_id, driver_id, status, pickup_latitude, pickup_longitude,
+		       pickup_address, dropoff_latitude, dropoff_longitude, dropoff_address,
+		       estimated_distance, estimated_duration, estimated_fare, actual_distance,
+		       actual_duration, final_fare, surge_multiplier, requested_at, accepted_at,
+		       started_at, completed_at, cancelled_at, cancellation_reason, rating,
+		       feedback, created_at, updated_at
+		FROM rides
+		ORDER BY created_at DESC
+		LIMIT $1 OFFSET $2
+	`
+
+	rows, err := r.db.Query(ctx, query, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get recent rides: %w", err)
+	}
+	defer rows.Close()
+
+	var rides []*models.Ride
+	for rows.Next() {
+		ride := &models.Ride{}
+		err := rows.Scan(
+			&ride.ID,
+			&ride.RiderID,
+			&ride.DriverID,
+			&ride.Status,
+			&ride.PickupLatitude,
+			&ride.PickupLongitude,
+			&ride.PickupAddress,
+			&ride.DropoffLatitude,
+			&ride.DropoffLongitude,
+			&ride.DropoffAddress,
+			&ride.EstimatedDistance,
+			&ride.EstimatedDuration,
+			&ride.EstimatedFare,
+			&ride.ActualDistance,
+			&ride.ActualDuration,
+			&ride.FinalFare,
+			&ride.SurgeMultiplier,
+			&ride.RequestedAt,
+			&ride.AcceptedAt,
+			&ride.StartedAt,
+			&ride.CompletedAt,
+			&ride.CancelledAt,
+			&ride.CancellationReason,
+			&ride.Rating,
+			&ride.Feedback,
+			&ride.CreatedAt,
+			&ride.UpdatedAt,
+		)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to scan ride: %w", err)
+		}
+		rides = append(rides, ride)
+	}
+
+	return rides, total, nil
+}
+
 // RideStats represents ride statistics
 type RideStats struct {
 	TotalRides     int     `json:"total_rides"`

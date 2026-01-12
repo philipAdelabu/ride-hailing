@@ -56,10 +56,22 @@ func (m *mockFraudRepository) GetAlertsByUser(ctx context.Context, userID uuid.U
 	return alerts, args.Error(1)
 }
 
+func (m *mockFraudRepository) GetAlertsByUserWithTotal(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*FraudAlert, int64, error) {
+	args := m.Called(ctx, userID, limit, offset)
+	alerts, _ := args.Get(0).([]*FraudAlert)
+	return alerts, int64(args.Int(1)), args.Error(2)
+}
+
 func (m *mockFraudRepository) GetPendingAlerts(ctx context.Context, limit, offset int) ([]*FraudAlert, error) {
 	args := m.Called(ctx, limit, offset)
 	alerts, _ := args.Get(0).([]*FraudAlert)
 	return alerts, args.Error(1)
+}
+
+func (m *mockFraudRepository) GetPendingAlertsWithTotal(ctx context.Context, limit, offset int) ([]*FraudAlert, int64, error) {
+	args := m.Called(ctx, limit, offset)
+	alerts, _ := args.Get(0).([]*FraudAlert)
+	return alerts, int64(args.Int(1)), args.Error(2)
 }
 
 func (m *mockFraudRepository) UpdateAlertStatus(ctx context.Context, alertID uuid.UUID, status FraudAlertStatus, investigatorID *uuid.UUID, notes, actionTaken string) error {

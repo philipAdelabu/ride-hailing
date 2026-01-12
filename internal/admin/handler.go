@@ -2,7 +2,6 @@ package admin
 
 import (
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -203,9 +202,13 @@ func (h *Handler) GetRideStats(c *gin.Context) {
 
 // GetRecentRides retrieves recent rides for monitoring
 func (h *Handler) GetRecentRides(c *gin.Context) {
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	params := pagination.ParseParams(c)
+	// For recent rides, default limit is higher (50 instead of 20)
+	if c.Query("limit") == "" {
+		params.Limit = 50
+	}
 
-	rides, err := h.service.GetRecentRides(c.Request.Context(), limit)
+	rides, total, err := h.service.GetRecentRides(c.Request.Context(), params.Limit, params.Offset)
 	if err != nil {
 		if appErr, ok := err.(*common.AppError); ok {
 			common.AppErrorResponse(c, appErr)
@@ -215,7 +218,8 @@ func (h *Handler) GetRecentRides(c *gin.Context) {
 		return
 	}
 
-	common.SuccessResponse(c, rides)
+	meta := pagination.BuildMeta(params.Limit, params.Offset, total)
+	common.SuccessResponseWithMeta(c, rides, meta)
 }
 
 // HealthCheck returns service health status

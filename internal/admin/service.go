@@ -94,12 +94,12 @@ func (s *Service) GetRideStats(ctx context.Context, startDate, endDate *time.Tim
 }
 
 // GetRecentRides retrieves recent rides for monitoring
-func (s *Service) GetRecentRides(ctx context.Context, limit int) ([]*models.Ride, error) {
+func (s *Service) GetRecentRides(ctx context.Context, limit, offset int) ([]*models.Ride, int64, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 50
 	}
 
-	return s.repo.GetRecentRides(ctx, limit)
+	return s.repo.GetRecentRidesWithTotal(ctx, limit, offset)
 }
 
 // DashboardStats represents overall dashboard statistics
