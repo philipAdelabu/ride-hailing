@@ -270,6 +270,11 @@ func (h *Handler) GetMyRides(c *gin.Context) {
 		return
 	}
 
+	// Ensure empty array instead of null when no rides
+	if rides == nil {
+		rides = []*models.Ride{}
+	}
+
 	meta := pagination.BuildMeta(params.Limit, params.Offset, total)
 	common.SuccessResponseWithMeta(c, rides, meta)
 }
@@ -284,6 +289,11 @@ func (h *Handler) GetAvailableRides(c *gin.Context) {
 		}
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get available rides")
 		return
+	}
+
+	// Ensure empty array instead of null when no rides
+	if rides == nil {
+		rides = []*models.Ride{}
 	}
 
 	common.SuccessResponse(c, rides)
@@ -350,6 +360,11 @@ func (h *Handler) GetRideHistory(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch ride history"})
 		return
+	}
+
+	// Ensure empty array instead of null when no rides
+	if ridesList == nil {
+		ridesList = []*models.Ride{}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
