@@ -772,14 +772,14 @@ func (r *Repository) getPeriodDates(period string) (time.Time, time.Time) {
 	return startDate, previousStart
 }
 
-// GetRevenueTrend retrieves revenue trend data
+// GetRevenueTrend retrieves revenue trend data with flexible grouping
 func (r *Repository) GetRevenueTrend(ctx context.Context, period, groupBy string) (*RevenueTrend, error) {
-	days := r.getPeriodDays(period)
-	startDate := time.Now().AddDate(0, 0, -days).Truncate(24 * time.Hour)
+	startDate, days := r.getPeriodStartDate(period)
 
 	trend := &RevenueTrend{
-		Period: period,
-		Trend:  make([]RevenueTrendData, 0),
+		Period:  period,
+		GroupBy: groupBy,
+		Trend:   make([]RevenueTrendData, 0),
 	}
 
 	// Get total revenue for the period
@@ -792,21 +792,12 @@ func (r *Repository) GetRevenueTrend(ctx context.Context, period, groupBy string
 		return nil, fmt.Errorf("failed to get total revenue: %w", err)
 	}
 
-	trend.AvgDailyRevenue = trend.TotalRevenue / float64(days)
+	if days > 0 {
+		trend.AvgDailyRevenue = trend.TotalRevenue / float64(days)
+	}
 
-	// Get trend data grouped by day
-	query := `
-		SELECT
-			DATE(created_at) as date,
-			COALESCE(SUM(final_fare), 0) as revenue,
-			COUNT(*) as rides,
-			COALESCE(AVG(final_fare), 0) as avg_fare,
-			COALESCE(SUM(final_fare), 0) * 0.20 as commission
-		FROM rides
-		WHERE status = 'completed' AND created_at >= $1
-		GROUP BY DATE(created_at)
-		ORDER BY DATE(created_at) ASC
-	`
+	// Build query based on groupBy parameter
+	query := r.buildRevenueTrendQuery(groupBy)
 
 	rows, err := r.db.Query(ctx, query, startDate)
 	if err != nil {
@@ -814,34 +805,123 @@ func (r *Repository) GetRevenueTrend(ctx context.Context, period, groupBy string
 	}
 	defer rows.Close()
 
+	// Parse results based on groupBy format
 	for rows.Next() {
 		var data RevenueTrendData
-		var date time.Time
+		var dateValue interface{}
 
-		err := rows.Scan(&date, &data.Revenue, &data.Rides, &data.AvgFare, &data.Commission)
+		err := rows.Scan(&dateValue, &data.Revenue, &data.Rides, &data.AvgFare, &data.Commission)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan trend data: %w", err)
 		}
 
-		data.Date = date.Format("2006-01-02")
+		// Format date based on groupBy
+		data.Date = r.formatTrendDate(dateValue, groupBy)
 		trend.Trend = append(trend.Trend, data)
 	}
 
 	return trend, nil
 }
 
+// buildRevenueTrendQuery builds SQL query based on groupBy parameter
+func (r *Repository) buildRevenueTrendQuery(groupBy string) string {
+	baseQuery := `
+		SELECT
+			%s as date,
+			COALESCE(SUM(final_fare), 0) as revenue,
+			COUNT(*) as rides,
+			COALESCE(AVG(final_fare), 0) as avg_fare,
+			COALESCE(SUM(final_fare), 0) * 0.20 as commission
+		FROM rides
+		WHERE status = 'completed' AND created_at >= $1
+		GROUP BY %s
+		ORDER BY %s ASC
+	`
+
+	switch groupBy {
+	case "hour":
+		groupExpr := "DATE_TRUNC('hour', created_at)"
+		return fmt.Sprintf(baseQuery, groupExpr, groupExpr, groupExpr)
+	case "day":
+		groupExpr := "DATE(created_at)"
+		return fmt.Sprintf(baseQuery, groupExpr, groupExpr, groupExpr)
+	case "week":
+		groupExpr := "DATE_TRUNC('week', created_at)"
+		return fmt.Sprintf(baseQuery, groupExpr, groupExpr, groupExpr)
+	case "month":
+		groupExpr := "DATE_TRUNC('month', created_at)"
+		return fmt.Sprintf(baseQuery, groupExpr, groupExpr, groupExpr)
+	default: // default to day
+		groupExpr := "DATE(created_at)"
+		return fmt.Sprintf(baseQuery, groupExpr, groupExpr, groupExpr)
+	}
+}
+
+// formatTrendDate formats the date value based on groupBy type
+func (r *Repository) formatTrendDate(dateValue interface{}, groupBy string) string {
+	switch v := dateValue.(type) {
+	case time.Time:
+		switch groupBy {
+		case "hour":
+			return v.Format("2006-01-02 15:00") // e.g., "2026-01-13 14:00"
+		case "week":
+			return v.Format("2006-01-02") // Monday of the week
+		case "month":
+			return v.Format("2006-01") // e.g., "2026-01"
+		default: // day
+			return v.Format("2006-01-02")
+		}
+	default:
+		return fmt.Sprintf("%v", dateValue)
+	}
+}
+
 // getPeriodDays returns number of days for the period
 func (r *Repository) getPeriodDays(period string) int {
 	switch period {
+	case "today":
+		return 1
 	case "7days":
 		return 7
 	case "30days":
 		return 30
 	case "90days":
 		return 90
+	case "year":
+		return 365
 	default:
 		return 7
 	}
+}
+
+// getPeriodStartDate returns start date and number of days for the period
+func (r *Repository) getPeriodStartDate(period string) (time.Time, int) {
+	now := time.Now()
+	var startDate time.Time
+	var days int
+
+	switch period {
+	case "today":
+		startDate = now.Truncate(24 * time.Hour)
+		days = 1
+	case "7days":
+		startDate = now.AddDate(0, 0, -7).Truncate(24 * time.Hour)
+		days = 7
+	case "30days":
+		startDate = now.AddDate(0, 0, -30).Truncate(24 * time.Hour)
+		days = 30
+	case "90days":
+		startDate = now.AddDate(0, 0, -90).Truncate(24 * time.Hour)
+		days = 90
+	case "year":
+		startDate = now.AddDate(-1, 0, 0).Truncate(24 * time.Hour)
+		days = 365
+	default: // default to 7 days
+		startDate = now.AddDate(0, 0, -7).Truncate(24 * time.Hour)
+		days = 7
+	}
+
+	return startDate, days
 }
 
 // GetActionItems retrieves items requiring admin attention

@@ -227,6 +227,7 @@ type SummaryAlerts struct {
 // RevenueTrend represents revenue trend data
 type RevenueTrend struct {
 	Period           string             `json:"period"`
+	GroupBy          string             `json:"group_by"`
 	TotalRevenue     float64            `json:"total_revenue"`
 	AvgDailyRevenue  float64            `json:"avg_daily_revenue"`
 	Trend            []RevenueTrendData `json:"trend"`
