@@ -522,7 +522,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, jwtProvider jwtkeys.KeyProvider,
 		riders.POST("", h.RequestRide)
 		riders.GET("/:id", h.GetRide)
 		riders.GET("", h.GetMyRides)
-		riders.GET("/surge-info", h.GetSurgeInfo) // New endpoint
+		riders.GET("/surge-info", h.GetSurgeInfo)
 		riders.POST("/:id/cancel", h.CancelRide)
 		riders.POST("/:id/rate", h.RateRide)
 	}

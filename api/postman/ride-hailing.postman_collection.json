@@ -220,14 +220,14 @@
 								"header": [{"key": "Content-Type", "value": "application/json"}],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"pickup_lat\": 37.7749,\n  \"pickup_lon\": -122.4194,\n  \"pickup_address\": \"123 Market St, San Francisco, CA\",\n  \"dropoff_lat\": 37.7849,\n  \"dropoff_lon\": -122.4094,\n  \"dropoff_address\": \"456 Mission St, San Francisco, CA\",\n  \"ride_type_id\": \"{{ride_type_id}}\",\n  \"promo_code\": \"\"\n}"
+									"raw": "{\n  \"pickup_latitude\": 37.7749,\n  \"pickup_longitude\": -122.4194,\n  \"pickup_address\": \"123 Market St, San Francisco, CA\",\n  \"dropoff_latitude\": 37.7849,\n  \"dropoff_longitude\": -122.4094,\n  \"dropoff_address\": \"456 Mission St, San Francisco, CA\",\n  \"ride_type_id\": \"{{ride_type_id}}\",\n  \"promo_code\": \"\"\n}"
 								},
 								"url": {
 									"raw": "{{rides_base_url}}/api/v1/rides",
 									"host": ["{{rides_base_url}}"],
 									"path": ["api", "v1", "rides"]
 								},
-								"description": "Request a new ride.\n\n**Authorization:** Bearer token required (Rider role)\n\n**Request Body:**\n- `pickup_lat` (float, required): Pickup latitude\n- `pickup_lon` (float, required): Pickup longitude\n- `pickup_address` (string, required): Human-readable pickup address\n- `dropoff_lat` (float, required): Dropoff latitude\n- `dropoff_lon` (float, required): Dropoff longitude\n- `dropoff_address` (string, required): Human-readable dropoff address\n- `ride_type_id` (uuid, optional): Ride type (economy, premium, etc.)\n- `promo_code` (string, optional): Promo code to apply\n\n**Response:** Created ride with estimated fare and surge multiplier"
+								"description": "Request a new ride.\n\n**Authorization:** Bearer token required (Rider role)\n\n**Request Body:**\n- `pickup_latitude` (float, required): Pickup latitude\n- `pickup_longitude` (float, required): Pickup longitude\n- `pickup_address` (string, required): Human-readable pickup address\n- `dropoff_latitude` (float, required): Dropoff latitude\n- `dropoff_longitude` (float, required): Dropoff longitude\n- `dropoff_address` (string, required): Human-readable dropoff address\n- `ride_type_id` (uuid, optional): Ride type (economy, premium, etc.)\n- `promo_code` (string, optional): Promo code to apply\n\n**Response:** Created ride with estimated fare and surge multiplier"
 							}
 						},
 						{
