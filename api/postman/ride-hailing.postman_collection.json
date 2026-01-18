@@ -1416,6 +1416,69 @@
 								},
 								"description": "Analyze ride patterns for fraud."
 							}
+						},
+						{
+							"name": "Detect Account Fraud",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [{"key": "token", "value": "{{admin_token}}", "type": "string"}]
+								},
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{fraud_base_url}}/api/v1/fraud/detect/account/{{user_id}}",
+									"host": ["{{fraud_base_url}}"],
+									"path": ["api", "v1", "fraud", "detect", "account", "{{user_id}}"]
+								},
+								"description": "Analyze account patterns for fraud (email, phone, device, VPN)."
+							}
+						}
+					]
+				},
+				{
+					"name": "Analytics",
+					"item": [
+						{
+							"name": "Get Fraud Statistics",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [{"key": "token", "value": "{{admin_token}}", "type": "string"}]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{fraud_base_url}}/api/v1/fraud/statistics?start_date=2025-01-01&end_date=2025-01-31",
+									"host": ["{{fraud_base_url}}"],
+									"path": ["api", "v1", "fraud", "statistics"],
+									"query": [
+										{"key": "start_date", "value": "2025-01-01", "description": "Start date (YYYY-MM-DD)"},
+										{"key": "end_date", "value": "2025-01-31", "description": "End date (YYYY-MM-DD)"}
+									]
+								},
+								"description": "Get fraud detection statistics for a time period.\n\n**Returns:**\n- Total alerts by level (low, medium, high, critical)\n- Confirmed fraud cases\n- False positives\n- Pending investigations\n- Average response time\n- Estimated loss prevented"
+							}
+						},
+						{
+							"name": "Get Fraud Patterns",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [{"key": "token", "value": "{{admin_token}}", "type": "string"}]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{fraud_base_url}}/api/v1/fraud/patterns?limit=50",
+									"host": ["{{fraud_base_url}}"],
+									"path": ["api", "v1", "fraud", "patterns"],
+									"query": [
+										{"key": "limit", "value": "50", "description": "Maximum number of patterns to return"}
+									]
+								},
+								"description": "Get detected fraud patterns (organized fraud rings, coordinated attacks).\n\n**Returns:**\n- Pattern type\n- Description\n- Occurrences\n- Affected users\n- First/last detected timestamps\n- Severity level"
+							}
 						}
 					]
 				}

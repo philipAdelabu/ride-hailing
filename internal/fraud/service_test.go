@@ -79,6 +79,34 @@ func (m *mockFraudRepository) UpdateAlertStatus(ctx context.Context, alertID uui
 	return args.Error(0)
 }
 
+func (m *mockFraudRepository) GetAccountFraudIndicators(ctx context.Context, userID uuid.UUID) (*AccountFraudIndicators, error) {
+	args := m.Called(ctx, userID)
+	indicators, _ := args.Get(0).(*AccountFraudIndicators)
+	return indicators, args.Error(1)
+}
+
+func (m *mockFraudRepository) GetFraudStatistics(ctx context.Context, startDate, endDate time.Time) (*FraudStatistics, error) {
+	args := m.Called(ctx, startDate, endDate)
+	stats, _ := args.Get(0).(*FraudStatistics)
+	return stats, args.Error(1)
+}
+
+func (m *mockFraudRepository) GetFraudPatterns(ctx context.Context, limit int) ([]*FraudPattern, error) {
+	args := m.Called(ctx, limit)
+	patterns, _ := args.Get(0).([]*FraudPattern)
+	return patterns, args.Error(1)
+}
+
+func (m *mockFraudRepository) CreateFraudPattern(ctx context.Context, pattern *FraudPattern) error {
+	args := m.Called(ctx, pattern)
+	return args.Error(0)
+}
+
+func (m *mockFraudRepository) UpdateFraudPattern(ctx context.Context, pattern *FraudPattern) error {
+	args := m.Called(ctx, pattern)
+	return args.Error(0)
+}
+
 func TestAnalyzeUserCalculatesRiskAndGeneratesAlerts(t *testing.T) {
 	ctx := context.Background()
 	repo := new(mockFraudRepository)

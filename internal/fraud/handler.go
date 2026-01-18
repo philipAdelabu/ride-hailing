@@ -1,7 +1,9 @@
 package fraud
 
 import (
+	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -44,6 +46,11 @@ func (h *Handler) RegisterRoutes(router *gin.Engine, jwtProvider jwtkeys.KeyProv
 		// Fraud detection
 		api.POST("/detect/payment/:user_id", h.DetectPaymentFraud)
 		api.POST("/detect/ride/:user_id", h.DetectRideFraud)
+		api.POST("/detect/account/:user_id", h.DetectAccountFraud)
+
+		// Statistics and patterns
+		api.GET("/statistics", h.GetFraudStatistics)
+		api.GET("/patterns", h.GetFraudPatterns)
 	}
 }
 
@@ -347,4 +354,80 @@ func (h *Handler) DetectRideFraud(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "ride fraud detection completed"})
+}
+
+// DetectAccountFraud analyzes account patterns and creates alerts if needed
+func (h *Handler) DetectAccountFraud(c *gin.Context) {
+	userID, err := uuid.Parse(c.Param("user_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		return
+	}
+
+	if err := h.service.DetectAccountFraud(c.Request.Context(), userID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "account fraud detection completed"})
+}
+
+// GetFraudStatistics retrieves fraud statistics for a time period
+func (h *Handler) GetFraudStatistics(c *gin.Context) {
+	startDate := c.DefaultQuery("start_date", time.Now().AddDate(0, -1, 0).Format("2006-01-02"))
+	endDate := c.DefaultQuery("end_date", time.Now().Format("2006-01-02"))
+
+	start, err := time.Parse("2006-01-02", startDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid start_date format (use YYYY-MM-DD)"})
+		return
+	}
+
+	end, err := time.Parse("2006-01-02", endDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid end_date format (use YYYY-MM-DD)"})
+		return
+	}
+
+	// Set end date to end of day
+	end = end.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
+
+	stats, err := h.service.GetFraudStatistics(c.Request.Context(), start, end)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, stats)
+}
+
+// GetFraudPatterns retrieves detected fraud patterns
+func (h *Handler) GetFraudPatterns(c *gin.Context) {
+	limit := 50
+	if limitParam := c.Query("limit"); limitParam != "" {
+		if l, err := c.GetQuery("limit"); err {
+			if parsed, parseErr := parseInt(l); parseErr == nil && parsed > 0 {
+				limit = parsed
+			}
+		}
+	}
+
+	patterns, err := h.service.GetFraudPatterns(c.Request.Context(), limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if patterns == nil {
+		patterns = []*FraudPattern{}
+	}
+
+	c.JSON(http.StatusOK, patterns)
+}
+
+// Helper function to parse int
+func parseInt(s string) (int, error) {
+	var result int
+	_, err := fmt.Sscanf(s, "%d", &result)
+	return result, err
 }
