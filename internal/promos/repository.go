@@ -162,7 +162,7 @@ func (r *Repository) GetAllRideTypes(ctx context.Context) ([]*RideType, error) {
 	}
 	defer rows.Close()
 
-	var rideTypes []*RideType
+	rideTypes := make([]*RideType, 0)
 	for rows.Next() {
 		rt := &RideType{}
 		err := rows.Scan(

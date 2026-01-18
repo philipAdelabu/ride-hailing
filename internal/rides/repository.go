@@ -208,7 +208,7 @@ func (r *Repository) GetRidesByRider(ctx context.Context, riderID uuid.UUID, lim
 	}
 	defer rows.Close()
 
-	var rides []*models.Ride
+	rides := make([]*models.Ride, 0)
 	for rows.Next() {
 		ride := &models.Ride{}
 		err := rows.Scan(
@@ -277,7 +277,7 @@ func (r *Repository) GetRidesByDriver(ctx context.Context, driverID uuid.UUID, l
 	}
 	defer rows.Close()
 
-	var rides []*models.Ride
+	rides := make([]*models.Ride, 0)
 	for rows.Next() {
 		ride := &models.Ride{}
 		err := rows.Scan(
@@ -383,7 +383,7 @@ func (r *Repository) GetPendingRides(ctx context.Context) ([]*models.Ride, error
 	}
 	defer rows.Close()
 
-	var rides []*models.Ride
+	rides := make([]*models.Ride, 0)
 	for rows.Next() {
 		ride := &models.Ride{}
 		err := rows.Scan(
@@ -497,7 +497,7 @@ func (r *Repository) GetRidesByRiderWithFilters(ctx context.Context, riderID uui
 	}
 	defer rows.Close()
 
-	var rides []*models.Ride
+	rides := make([]*models.Ride, 0)
 	for rows.Next() {
 		ride := &models.Ride{}
 		err := rows.Scan(

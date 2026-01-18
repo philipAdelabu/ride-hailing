@@ -85,7 +85,7 @@ func (r *Repository) GetPromoCodePerformance(ctx context.Context, startDate, end
 	}
 	defer rows.Close()
 
-	var results []*PromoCodePerformance
+	results := make([]*PromoCodePerformance, 0)
 	for rows.Next() {
 		perf := &PromoCodePerformance{}
 		err := rows.Scan(
@@ -142,7 +142,7 @@ func (r *Repository) GetRideTypeStats(ctx context.Context, startDate, endDate ti
 	}
 	defer rows.Close()
 
-	var results []*RideTypeStats
+	results := make([]*RideTypeStats, 0)
 	for rows.Next() {
 		stats := &RideTypeStats{}
 		err := rows.Scan(
@@ -237,7 +237,7 @@ func (r *Repository) GetTopDrivers(ctx context.Context, startDate, endDate time.
 	}
 	defer rows.Close()
 
-	var results []*DriverPerformance
+	results := make([]*DriverPerformance, 0)
 	for rows.Next() {
 		perf := &DriverPerformance{}
 		err := rows.Scan(
@@ -351,7 +351,7 @@ func (r *Repository) GetDemandHeatMap(ctx context.Context, startDate, endDate ti
 	}
 	defer rows.Close()
 
-	var results []*DemandHeatMap
+	results := make([]*DemandHeatMap, 0)
 	for rows.Next() {
 		heatMap := &DemandHeatMap{}
 		var avgSurge float64
@@ -524,7 +524,7 @@ func (r *Repository) GetDemandZones(ctx context.Context, startDate, endDate time
 	}
 	defer rows.Close()
 
-	var results []*DemandZone
+	results := make([]*DemandZone, 0)
 	zoneNum := 1
 	for rows.Next() {
 		zone := &DemandZone{

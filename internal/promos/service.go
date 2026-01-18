@@ -258,7 +258,14 @@ func (s *Service) ApplyReferralCode(ctx context.Context, referralCode string, ne
 
 // GetAllRideTypes retrieves all available ride types
 func (s *Service) GetAllRideTypes(ctx context.Context) ([]*RideType, error) {
-	return s.repo.GetAllRideTypes(ctx)
+	rideTypes, err := s.repo.GetAllRideTypes(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if rideTypes == nil {
+		rideTypes = []*RideType{}
+	}
+	return rideTypes, nil
 }
 
 // GetRideTypeByID retrieves a specific ride type

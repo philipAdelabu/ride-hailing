@@ -157,7 +157,7 @@ func (r *Repository) GetTrainingData(ctx context.Context, limit int) ([]*Trainin
 	}
 	defer rows.Close()
 
-	var dataPoints []*TrainingDataPoint
+	dataPoints := make([]*TrainingDataPoint, 0)
 	for rows.Next() {
 		var dp TrainingDataPoint
 		err := rows.Scan(
@@ -270,7 +270,7 @@ func (r *Repository) GetPredictionHistory(ctx context.Context, limit int, offset
 	}
 	defer rows.Close()
 
-	var predictions []*ETAPrediction
+	predictions := make([]*ETAPrediction, 0)
 	for rows.Next() {
 		var p ETAPrediction
 		err := rows.Scan(

@@ -131,7 +131,7 @@ func (r *Repository) GetUserNotifications(ctx context.Context, userID uuid.UUID,
 	}
 	defer rows.Close()
 
-	var notifications []*models.Notification
+	notifications := make([]*models.Notification, 0)
 	for rows.Next() {
 		notification := &models.Notification{}
 		err := rows.Scan(
@@ -210,7 +210,7 @@ func (r *Repository) GetPendingNotifications(ctx context.Context, limit int) ([]
 	}
 	defer rows.Close()
 
-	var notifications []*models.Notification
+	notifications := make([]*models.Notification, 0)
 	for rows.Next() {
 		notification := &models.Notification{}
 		err := rows.Scan(

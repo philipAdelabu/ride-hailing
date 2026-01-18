@@ -110,7 +110,7 @@ func (r *Repository) GetPaymentsByRideID(ctx context.Context, rideID uuid.UUID) 
 	}
 	defer rows.Close()
 
-	var payments []*models.Payment
+	payments := make([]*models.Payment, 0)
 	for rows.Next() {
 		payment := &models.Payment{}
 		err := rows.Scan(
@@ -251,7 +251,7 @@ func (r *Repository) GetWalletTransactions(ctx context.Context, walletID uuid.UU
 	}
 	defer rows.Close()
 
-	var transactions []*models.WalletTransaction
+	transactions := make([]*models.WalletTransaction, 0)
 	for rows.Next() {
 		tx := &models.WalletTransaction{}
 		err := rows.Scan(

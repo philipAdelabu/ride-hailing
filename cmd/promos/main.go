@@ -71,10 +71,14 @@ func main() {
 	}
 	log.Println("Connected to PostgreSQL database")
 
+	// Set up Gin router
+	serviceName := "promos-service"
+	version := "1.0.0"
+
 	// Initialize Sentry for error tracking
 	sentryConfig := errors.DefaultSentryConfig()
-	sentryConfig.ServerName = "promos-service"
-	sentryConfig.Release = "1.0.0"
+	sentryConfig.ServerName = serviceName
+	sentryConfig.Release = version
 	if err := errors.InitSentry(sentryConfig); err != nil {
 		log.Printf("Warning: Failed to initialize Sentry, continuing without error tracking: %v", err)
 	} else {
@@ -119,12 +123,15 @@ func main() {
 	router.Use(middleware.SentryMiddleware())   // Sentry integration
 	router.Use(middleware.CorrelationID())
 	router.Use(middleware.RequestTimeout(&cfg.Timeout))
+	router.Use(middleware.RequestLogger(serviceName))
+	router.Use(middleware.CORS())
 	router.Use(middleware.SecurityHeaders())
 	router.Use(middleware.SanitizeRequest())
+	router.Use(middleware.Metrics(serviceName))
 
 	// Add tracing middleware if enabled
 	if tracerEnabled {
-		router.Use(middleware.TracingMiddleware("promos-service"))
+		router.Use(middleware.TracingMiddleware(serviceName))
 	}
 
 	// Add Sentry error handler (should be near the end of middleware chain)
@@ -133,7 +140,7 @@ func main() {
 	// Health check endpoints
 	router.GET("/healthz", handler.HealthCheck)
 	router.GET("/health/live", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "alive", "service": "promos-service", "version": "1.0.0"})
+		c.JSON(200, gin.H{"status": "alive", "service": serviceName, "version": version})
 	})
 
 	// Readiness probe with dependency checks
@@ -148,13 +155,13 @@ func main() {
 		allHealthy := true
 		for name, check := range healthChecks {
 			if err := check(); err != nil {
-				c.JSON(503, gin.H{"status": "not ready", "service": "promos-service", "failed_check": name, "error": err.Error()})
+				c.JSON(503, gin.H{"status": "not ready", "service": serviceName, "failed_check": name, "error": err.Error()})
 				allHealthy = false
 				return
 			}
 		}
 		if allHealthy {
-			c.JSON(200, gin.H{"status": "ready", "service": "promos-service", "version": "1.0.0"})
+			c.JSON(200, gin.H{"status": "ready", "service": serviceName, "version": version})
 		}
 	})
 
