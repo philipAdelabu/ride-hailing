@@ -171,15 +171,37 @@ func main() {
 	api.Use(middleware.AuthMiddlewareWithProvider(jwtProvider))
 	api.Use(middleware.RequireAdmin())
 	{
+		// Dashboard & Overview
 		api.GET("/dashboard", handler.GetDashboardMetrics)
 		api.GET("/revenue", handler.GetRevenueMetrics)
-		api.GET("/promo-codes", handler.GetPromoCodePerformance)
-		api.GET("/ride-types", handler.GetRideTypeStats)
-		api.GET("/referrals", handler.GetReferralMetrics)
-		api.GET("/top-drivers", handler.GetTopDrivers)
-		api.GET("/heat-map", handler.GetDemandHeatMap)
 		api.GET("/financial-report", handler.GetFinancialReport)
+
+		// Time-Series & Charts
+		api.GET("/revenue/timeseries", handler.GetRevenueTimeSeries)
+		api.GET("/rides/hourly", handler.GetHourlyDistribution)
+
+		// Driver Analytics
+		api.GET("/drivers/performance", handler.GetDriverAnalytics)
+		api.GET("/top-drivers", handler.GetTopDrivers)
+		api.GET("/top-drivers/detailed", handler.GetTopDriversDetailed)
+
+		// Rider Analytics
+		api.GET("/riders/growth", handler.GetRiderGrowth)
+
+		// Ride Metrics
+		api.GET("/rides/metrics", handler.GetRideMetrics)
+		api.GET("/ride-types", handler.GetRideTypeStats)
+
+		// Geographic
+		api.GET("/heat-map", handler.GetDemandHeatMap)
 		api.GET("/demand-zones", handler.GetDemandZones)
+
+		// Comparison
+		api.GET("/comparison", handler.GetPeriodComparison)
+
+		// Marketing
+		api.GET("/promo-codes", handler.GetPromoCodePerformance)
+		api.GET("/referrals", handler.GetReferralMetrics)
 	}
 
 	srv := &http.Server{

@@ -1612,6 +1612,157 @@
 						},
 						"description": "Get comprehensive financial report."
 					}
+				},
+				{
+					"name": "Get Revenue Time Series",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [{"key": "token", "value": "{{admin_token}}", "type": "string"}]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{analytics_base_url}}/api/v1/analytics/revenue/timeseries?start_date=2025-01-01&end_date=2025-01-31&granularity=day",
+							"host": ["{{analytics_base_url}}"],
+							"path": ["api", "v1", "analytics", "revenue", "timeseries"],
+							"query": [
+								{"key": "start_date", "value": "2025-01-01"},
+								{"key": "end_date", "value": "2025-01-31"},
+								{"key": "granularity", "value": "day", "description": "day, week, or month"}
+							]
+						},
+						"description": "Get time-series revenue data for charts.\n\n**Query Parameters:**\n- `granularity`: day, week, or month\n\n**Response:**\n- Array of { date, revenue, rides, avg_fare }"
+					}
+				},
+				{
+					"name": "Get Hourly Distribution",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [{"key": "token", "value": "{{admin_token}}", "type": "string"}]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{analytics_base_url}}/api/v1/analytics/rides/hourly?start_date=2025-01-01&end_date=2025-01-31",
+							"host": ["{{analytics_base_url}}"],
+							"path": ["api", "v1", "analytics", "rides", "hourly"],
+							"query": [
+								{"key": "start_date", "value": "2025-01-01"},
+								{"key": "end_date", "value": "2025-01-31"}
+							]
+						},
+						"description": "Get ride distribution by hour (peak hours analysis).\n\n**Response:**\n- Array of { hour (0-23), rides, avg_fare, avg_wait_time_minutes }"
+					}
+				},
+				{
+					"name": "Get Driver Performance Analytics",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [{"key": "token", "value": "{{admin_token}}", "type": "string"}]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{analytics_base_url}}/api/v1/analytics/drivers/performance?start_date=2025-01-01&end_date=2025-01-31",
+							"host": ["{{analytics_base_url}}"],
+							"path": ["api", "v1", "analytics", "drivers", "performance"],
+							"query": [
+								{"key": "start_date", "value": "2025-01-01"},
+								{"key": "end_date", "value": "2025-01-31"}
+							]
+						},
+						"description": "Get overall driver performance analytics.\n\n**Response:**\n- total_active_drivers\n- avg_rides_per_driver\n- avg_online_hours\n- avg_acceptance_rate\n- avg_cancellation_rate\n- avg_rating\n- new_drivers\n- churned_drivers"
+					}
+				},
+				{
+					"name": "Get Rider Growth",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [{"key": "token", "value": "{{admin_token}}", "type": "string"}]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{analytics_base_url}}/api/v1/analytics/riders/growth?start_date=2025-01-01&end_date=2025-01-31",
+							"host": ["{{analytics_base_url}}"],
+							"path": ["api", "v1", "analytics", "riders", "growth"],
+							"query": [
+								{"key": "start_date", "value": "2025-01-01"},
+								{"key": "end_date", "value": "2025-01-31"}
+							]
+						},
+						"description": "Get rider growth and retention metrics.\n\n**Response:**\n- new_riders\n- returning_riders\n- churned_riders\n- retention_rate\n- avg_rides_per_rider\n- first_time_riders_today\n- lifetime_value_avg"
+					}
+				},
+				{
+					"name": "Get Ride Metrics",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [{"key": "token", "value": "{{admin_token}}", "type": "string"}]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{analytics_base_url}}/api/v1/analytics/rides/metrics?start_date=2025-01-01&end_date=2025-01-31",
+							"host": ["{{analytics_base_url}}"],
+							"path": ["api", "v1", "analytics", "rides", "metrics"],
+							"query": [
+								{"key": "start_date", "value": "2025-01-01"},
+								{"key": "end_date", "value": "2025-01-31"}
+							]
+						},
+						"description": "Get ride quality of service metrics.\n\n**Response:**\n- avg_wait_time_minutes\n- avg_ride_duration_minutes\n- avg_distance_km\n- cancellation_rate\n- rider_cancellation_rate\n- driver_cancellation_rate\n- surge_rides_percentage\n- avg_surge_multiplier"
+					}
+				},
+				{
+					"name": "Get Top Drivers Detailed",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [{"key": "token", "value": "{{admin_token}}", "type": "string"}]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{analytics_base_url}}/api/v1/analytics/top-drivers/detailed?start_date=2025-01-01&end_date=2025-01-31&limit=10",
+							"host": ["{{analytics_base_url}}"],
+							"path": ["api", "v1", "analytics", "top-drivers", "detailed"],
+							"query": [
+								{"key": "start_date", "value": "2025-01-01"},
+								{"key": "end_date", "value": "2025-01-31"},
+								{"key": "limit", "value": "10"}
+							]
+						},
+						"description": "Get top performing drivers with detailed metrics.\n\n**Response (per driver):**\n- driver_id\n- name\n- total_rides\n- total_revenue\n- avg_rating\n- acceptance_rate\n- online_hours"
+					}
+				},
+				{
+					"name": "Get Period Comparison",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [{"key": "token", "value": "{{admin_token}}", "type": "string"}]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{analytics_base_url}}/api/v1/analytics/comparison?current_start=2025-01-01&current_end=2025-01-31&previous_start=2024-12-01&previous_end=2024-12-31",
+							"host": ["{{analytics_base_url}}"],
+							"path": ["api", "v1", "analytics", "comparison"],
+							"query": [
+								{"key": "current_start", "value": "2025-01-01"},
+								{"key": "current_end", "value": "2025-01-31"},
+								{"key": "previous_start", "value": "2024-12-01"},
+								{"key": "previous_end", "value": "2024-12-31"}
+							]
+						},
+						"description": "Compare metrics between two time periods.\n\n**Response (each with current, previous, change_percent):**\n- revenue\n- rides\n- new_riders\n- avg_rating"
+					}
 				}
 			]
 		},

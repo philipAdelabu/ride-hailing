@@ -69,6 +69,48 @@ func (m *mockAnalyticsRepository) GetDemandZones(ctx context.Context, startDate,
 	return zones, args.Error(1)
 }
 
+func (m *mockAnalyticsRepository) GetRevenueTimeSeries(ctx context.Context, startDate, endDate time.Time, granularity string) ([]*RevenueTimeSeries, error) {
+	args := m.Called(ctx, startDate, endDate, granularity)
+	data, _ := args.Get(0).([]*RevenueTimeSeries)
+	return data, args.Error(1)
+}
+
+func (m *mockAnalyticsRepository) GetHourlyDistribution(ctx context.Context, startDate, endDate time.Time) ([]*HourlyDistribution, error) {
+	args := m.Called(ctx, startDate, endDate)
+	data, _ := args.Get(0).([]*HourlyDistribution)
+	return data, args.Error(1)
+}
+
+func (m *mockAnalyticsRepository) GetDriverAnalytics(ctx context.Context, startDate, endDate time.Time) (*DriverAnalytics, error) {
+	args := m.Called(ctx, startDate, endDate)
+	data, _ := args.Get(0).(*DriverAnalytics)
+	return data, args.Error(1)
+}
+
+func (m *mockAnalyticsRepository) GetRiderGrowth(ctx context.Context, startDate, endDate time.Time) (*RiderGrowth, error) {
+	args := m.Called(ctx, startDate, endDate)
+	data, _ := args.Get(0).(*RiderGrowth)
+	return data, args.Error(1)
+}
+
+func (m *mockAnalyticsRepository) GetRideMetrics(ctx context.Context, startDate, endDate time.Time) (*RideMetrics, error) {
+	args := m.Called(ctx, startDate, endDate)
+	data, _ := args.Get(0).(*RideMetrics)
+	return data, args.Error(1)
+}
+
+func (m *mockAnalyticsRepository) GetTopDriversDetailed(ctx context.Context, startDate, endDate time.Time, limit int) ([]*TopDriver, error) {
+	args := m.Called(ctx, startDate, endDate, limit)
+	data, _ := args.Get(0).([]*TopDriver)
+	return data, args.Error(1)
+}
+
+func (m *mockAnalyticsRepository) GetPeriodComparison(ctx context.Context, currentStart, currentEnd, previousStart, previousEnd time.Time) (*PeriodComparison, error) {
+	args := m.Called(ctx, currentStart, currentEnd, previousStart, previousEnd)
+	data, _ := args.Get(0).(*PeriodComparison)
+	return data, args.Error(1)
+}
+
 func TestServiceGetRevenueMetrics(t *testing.T) {
 	ctx := context.Background()
 	repo := new(mockAnalyticsRepository)

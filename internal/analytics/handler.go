@@ -50,6 +50,11 @@ func (h *Handler) GetPromoCodePerformance(c *gin.Context) {
 		return
 	}
 
+	// Ensure we return empty array instead of null
+	if performance == nil {
+		performance = []*PromoCodePerformance{}
+	}
+
 	common.SuccessResponse(c, gin.H{
 		"promo_codes": performance,
 	})
@@ -67,6 +72,11 @@ func (h *Handler) GetRideTypeStats(c *gin.Context) {
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get ride type stats")
 		return
+	}
+
+	// Ensure we return empty array instead of null
+	if stats == nil {
+		stats = []*RideTypeStats{}
 	}
 
 	common.SuccessResponse(c, gin.H{
@@ -109,6 +119,11 @@ func (h *Handler) GetTopDrivers(c *gin.Context) {
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get top drivers")
 		return
+	}
+
+	// Ensure we return empty array instead of null
+	if drivers == nil {
+		drivers = []*DriverPerformance{}
 	}
 
 	common.SuccessResponse(c, gin.H{
@@ -156,6 +171,11 @@ func (h *Handler) GetDemandHeatMap(c *gin.Context) {
 		return
 	}
 
+	// Ensure we return empty array instead of null
+	if heatMap == nil {
+		heatMap = []*DemandHeatMap{}
+	}
+
 	common.SuccessResponse(c, gin.H{
 		"heat_map":     heatMap,
 		"grid_size_km": gridSize * 111, // Approximate conversion to km
@@ -199,8 +219,200 @@ func (h *Handler) GetDemandZones(c *gin.Context) {
 		return
 	}
 
+	// Ensure we return empty array instead of null
+	if zones == nil {
+		zones = []*DemandZone{}
+	}
+
 	common.SuccessResponse(c, gin.H{
 		"zones": zones,
+	})
+}
+
+// GetRevenueTimeSeries handles revenue time-series requests for charts
+func (h *Handler) GetRevenueTimeSeries(c *gin.Context) {
+	startDate, endDate, err := parseDateRange(c)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	granularity := c.DefaultQuery("granularity", "day")
+	if granularity != "day" && granularity != "week" && granularity != "month" {
+		granularity = "day"
+	}
+
+	data, err := h.service.GetRevenueTimeSeries(c.Request.Context(), startDate, endDate, granularity)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get revenue timeseries")
+		return
+	}
+
+	if data == nil {
+		data = []*RevenueTimeSeries{}
+	}
+
+	common.SuccessResponse(c, gin.H{
+		"data":        data,
+		"granularity": granularity,
+	})
+}
+
+// GetHourlyDistribution handles hourly ride distribution requests
+func (h *Handler) GetHourlyDistribution(c *gin.Context) {
+	startDate, endDate, err := parseDateRange(c)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	data, err := h.service.GetHourlyDistribution(c.Request.Context(), startDate, endDate)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get hourly distribution")
+		return
+	}
+
+	if data == nil {
+		data = []*HourlyDistribution{}
+	}
+
+	common.SuccessResponse(c, gin.H{
+		"data": data,
+	})
+}
+
+// GetDriverAnalytics handles driver performance analytics requests
+func (h *Handler) GetDriverAnalytics(c *gin.Context) {
+	startDate, endDate, err := parseDateRange(c)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	data, err := h.service.GetDriverAnalytics(c.Request.Context(), startDate, endDate)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get driver analytics")
+		return
+	}
+
+	common.SuccessResponse(c, gin.H{
+		"data": data,
+	})
+}
+
+// GetRiderGrowth handles rider growth and retention requests
+func (h *Handler) GetRiderGrowth(c *gin.Context) {
+	startDate, endDate, err := parseDateRange(c)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	data, err := h.service.GetRiderGrowth(c.Request.Context(), startDate, endDate)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get rider growth")
+		return
+	}
+
+	common.SuccessResponse(c, gin.H{
+		"data": data,
+	})
+}
+
+// GetRideMetrics handles ride quality metrics requests
+func (h *Handler) GetRideMetrics(c *gin.Context) {
+	startDate, endDate, err := parseDateRange(c)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	data, err := h.service.GetRideMetrics(c.Request.Context(), startDate, endDate)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get ride metrics")
+		return
+	}
+
+	common.SuccessResponse(c, gin.H{
+		"data": data,
+	})
+}
+
+// GetTopDriversDetailed handles detailed top drivers requests
+func (h *Handler) GetTopDriversDetailed(c *gin.Context) {
+	startDate, endDate, err := parseDateRange(c)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	limitStr := c.DefaultQuery("limit", "10")
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit < 1 || limit > 100 {
+		limit = 10
+	}
+
+	data, err := h.service.GetTopDriversDetailed(c.Request.Context(), startDate, endDate, limit)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get top drivers")
+		return
+	}
+
+	if data == nil {
+		data = []*TopDriver{}
+	}
+
+	common.SuccessResponse(c, gin.H{
+		"data": data,
+	})
+}
+
+// GetPeriodComparison handles period comparison requests
+func (h *Handler) GetPeriodComparison(c *gin.Context) {
+	currentStartStr := c.Query("current_start")
+	currentEndStr := c.Query("current_end")
+	previousStartStr := c.Query("previous_start")
+	previousEndStr := c.Query("previous_end")
+
+	if currentStartStr == "" || currentEndStr == "" || previousStartStr == "" || previousEndStr == "" {
+		common.ErrorResponse(c, http.StatusBadRequest, "all date parameters required: current_start, current_end, previous_start, previous_end")
+		return
+	}
+
+	currentStart, err := time.Parse("2006-01-02", currentStartStr)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid current_start date format")
+		return
+	}
+
+	currentEnd, err := time.Parse("2006-01-02", currentEndStr)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid current_end date format")
+		return
+	}
+	currentEnd = currentEnd.Add(24 * time.Hour).Add(-time.Second)
+
+	previousStart, err := time.Parse("2006-01-02", previousStartStr)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid previous_start date format")
+		return
+	}
+
+	previousEnd, err := time.Parse("2006-01-02", previousEndStr)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid previous_end date format")
+		return
+	}
+	previousEnd = previousEnd.Add(24 * time.Hour).Add(-time.Second)
+
+	data, err := h.service.GetPeriodComparison(c.Request.Context(), currentStart, currentEnd, previousStart, previousEnd)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get period comparison")
+		return
+	}
+
+	common.SuccessResponse(c, gin.H{
+		"data": data,
 	})
 }
 
