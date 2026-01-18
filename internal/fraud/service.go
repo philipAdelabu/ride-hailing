@@ -182,6 +182,9 @@ func (s *Service) GetUserAlerts(ctx context.Context, userID uuid.UUID, limit, of
 	if err != nil {
 		return nil, 0, common.NewInternalServerError("failed to get fraud alerts")
 	}
+	if alerts == nil {
+		alerts = []*FraudAlert{}
+	}
 	return alerts, total, nil
 }
 
@@ -190,6 +193,9 @@ func (s *Service) GetPendingAlerts(ctx context.Context, limit, offset int) ([]*F
 	alerts, total, err := s.repo.GetPendingAlertsWithTotal(ctx, limit, offset)
 	if err != nil {
 		return nil, 0, common.NewInternalServerError("failed to get pending alerts")
+	}
+	if alerts == nil {
+		alerts = []*FraudAlert{}
 	}
 	return alerts, total, nil
 }
@@ -402,6 +408,9 @@ func (s *Service) GetFraudPatterns(ctx context.Context, limit int) ([]*FraudPatt
 	patterns, err := s.repo.GetFraudPatterns(ctx, limit)
 	if err != nil {
 		return nil, common.NewInternalServerError("failed to get fraud patterns")
+	}
+	if patterns == nil {
+		patterns = []*FraudPattern{}
 	}
 	return patterns, nil
 }

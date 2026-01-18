@@ -132,7 +132,7 @@ func (r *Repository) GetAlertsByUser(ctx context.Context, userID uuid.UUID, limi
 	}
 	defer rows.Close()
 
-	var alerts []*FraudAlert
+	alerts := make([]*FraudAlert, 0)
 	for rows.Next() {
 		var alert FraudAlert
 		var detailsJSON []byte
@@ -206,7 +206,7 @@ func (r *Repository) GetPendingAlerts(ctx context.Context, limit, offset int) ([
 	}
 	defer rows.Close()
 
-	var alerts []*FraudAlert
+	alerts := make([]*FraudAlert, 0)
 	for rows.Next() {
 		var alert FraudAlert
 		var detailsJSON []byte
@@ -671,7 +671,7 @@ func (r *Repository) GetFraudPatterns(ctx context.Context, limit int) ([]*FraudP
 	}
 	defer rows.Close()
 
-	var patterns []*FraudPattern
+	patterns := make([]*FraudPattern, 0)
 	for rows.Next() {
 		var pattern FraudPattern
 		var detailsJSON []byte
