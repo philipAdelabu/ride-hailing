@@ -20,24 +20,59 @@ func NewRepository(db *pgxpool.Pool) *Repository {
 	return &Repository{db: db}
 }
 
-// GetAllUsers retrieves all users with pagination
-func (r *Repository) GetAllUsers(ctx context.Context, limit, offset int) ([]*models.User, int, error) {
-	// Get total count
+// UserFilter contains filter parameters for user queries
+type UserFilter struct {
+	Role     string // "admin", "driver", "rider", or empty for all
+	IsActive *bool  // true, false, or nil for all
+	Search   string // search by email, name, or phone
+}
+
+// GetAllUsers retrieves all users with pagination and filters
+func (r *Repository) GetAllUsers(ctx context.Context, limit, offset int, filter *UserFilter) ([]*models.User, int, error) {
+	// Build WHERE clause based on filters
+	whereClause := "WHERE 1=1"
+	args := make([]interface{}, 0)
+	argIndex := 1
+
+	if filter != nil {
+		if filter.Role != "" {
+			whereClause += fmt.Sprintf(" AND role = $%d", argIndex)
+			args = append(args, filter.Role)
+			argIndex++
+		}
+		if filter.IsActive != nil {
+			whereClause += fmt.Sprintf(" AND is_active = $%d", argIndex)
+			args = append(args, *filter.IsActive)
+			argIndex++
+		}
+		if filter.Search != "" {
+			// Search by email, first_name, last_name, or phone_number (case-insensitive)
+			whereClause += fmt.Sprintf(" AND (email ILIKE $%d OR first_name ILIKE $%d OR last_name ILIKE $%d OR phone_number ILIKE $%d OR CONCAT(first_name, ' ', last_name) ILIKE $%d)", argIndex, argIndex, argIndex, argIndex, argIndex)
+			args = append(args, "%"+filter.Search+"%")
+			argIndex++
+		}
+	}
+
+	// Get total count with filters
 	var total int
-	err := r.db.QueryRow(ctx, "SELECT COUNT(*) FROM users").Scan(&total)
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM users %s", whereClause)
+	err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get user count: %w", err)
 	}
 
-	// Get users
-	query := `
+	// Get users with filters
+	query := fmt.Sprintf(`
 		SELECT id, email, phone_number, first_name, last_name, role, is_active, created_at, updated_at
 		FROM users
+		%s
 		ORDER BY created_at DESC
-		LIMIT $1 OFFSET $2
-	`
+		LIMIT $%d OFFSET $%d
+	`, whereClause, argIndex, argIndex+1)
 
-	rows, err := r.db.Query(ctx, query, limit, offset)
+	args = append(args, limit, offset)
+
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get users: %w", err)
 	}
@@ -110,27 +145,114 @@ func (r *Repository) UpdateUserStatus(ctx context.Context, id uuid.UUID, isActiv
 	return nil
 }
 
-// GetAllDriversWithTotal retrieves all drivers with pagination and total count
-func (r *Repository) GetAllDriversWithTotal(ctx context.Context, limit, offset int) ([]*models.Driver, int64, error) {
-	// Get total count
+// DriverFilter contains filter parameters for driver queries
+type DriverFilter struct {
+	Status string // "online", "offline", "available", "pending", or empty for all
+	Search string // search by license, name, vehicle model, vehicle plate
+}
+
+// DriverStats represents driver statistics for stats cards
+type DriverStats struct {
+	TotalDrivers     int `json:"total_drivers"`
+	OnlineDrivers    int `json:"online_drivers"`
+	OfflineDrivers   int `json:"offline_drivers"`
+	AvailableDrivers int `json:"available_drivers"`
+	PendingApprovals int `json:"pending_approvals"`
+}
+
+// GetDriverStats retrieves driver statistics
+func (r *Repository) GetDriverStats(ctx context.Context) (*DriverStats, error) {
+	query := `
+		SELECT
+			COUNT(*) as total_drivers,
+			COUNT(CASE WHEN is_online = true THEN 1 END) as online_drivers,
+			COUNT(CASE WHEN is_online = false THEN 1 END) as offline_drivers,
+			COUNT(CASE WHEN is_available = true AND is_online = true THEN 1 END) as available_drivers,
+			COUNT(CASE WHEN is_available = false THEN 1 END) as pending_approvals
+		FROM drivers
+	`
+
+	stats := &DriverStats{}
+	err := r.db.QueryRow(ctx, query).Scan(
+		&stats.TotalDrivers,
+		&stats.OnlineDrivers,
+		&stats.OfflineDrivers,
+		&stats.AvailableDrivers,
+		&stats.PendingApprovals,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get driver stats: %w", err)
+	}
+
+	return stats, nil
+}
+
+// GetAllDriversWithTotal retrieves all drivers with pagination, filters, and total count
+func (r *Repository) GetAllDriversWithTotal(ctx context.Context, limit, offset int, filter *DriverFilter) ([]*models.Driver, int64, error) {
+	// Build WHERE clause based on filters
+	whereClause := "WHERE 1=1"
+	args := make([]interface{}, 0)
+	argIndex := 1
+
+	if filter != nil {
+		// Status filter
+		switch filter.Status {
+		case "online":
+			whereClause += " AND d.is_online = true"
+		case "offline":
+			whereClause += " AND d.is_online = false"
+		case "available":
+			whereClause += " AND d.is_available = true AND d.is_online = true"
+		case "pending":
+			whereClause += " AND d.is_available = false"
+		}
+
+		// Search filter
+		if filter.Search != "" {
+			whereClause += fmt.Sprintf(` AND (
+				d.license_number ILIKE $%d OR
+				d.vehicle_model ILIKE $%d OR
+				d.vehicle_plate ILIKE $%d OR
+				d.vehicle_color ILIKE $%d OR
+				u.first_name ILIKE $%d OR
+				u.last_name ILIKE $%d OR
+				u.phone_number ILIKE $%d OR
+				CONCAT(u.first_name, ' ', u.last_name) ILIKE $%d
+			)`, argIndex, argIndex, argIndex, argIndex, argIndex, argIndex, argIndex, argIndex)
+			args = append(args, "%"+filter.Search+"%")
+			argIndex++
+		}
+	}
+
+	// Get total count with filters
 	var total int64
-	countQuery := `SELECT COUNT(*) FROM drivers`
-	err := r.db.QueryRow(ctx, countQuery).Scan(&total)
+	countQuery := fmt.Sprintf(`
+		SELECT COUNT(*)
+		FROM drivers d
+		JOIN users u ON d.user_id = u.id
+		%s
+	`, whereClause)
+	err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to count drivers: %w", err)
 	}
 
-	// Get paginated drivers
-	query := `
+	// Get paginated drivers with filters
+	query := fmt.Sprintf(`
 		SELECT d.id, d.user_id, d.license_number, d.vehicle_model, d.vehicle_plate,
 		       d.vehicle_color, d.vehicle_year, d.is_available, d.is_online,
 		       d.rating, d.total_rides, d.created_at, d.updated_at
 		FROM drivers d
+		JOIN users u ON d.user_id = u.id
+		%s
 		ORDER BY d.created_at DESC
-		LIMIT $1 OFFSET $2
-	`
+		LIMIT $%d OFFSET $%d
+	`, whereClause, argIndex, argIndex+1)
 
-	rows, err := r.db.Query(ctx, query, limit, offset)
+	args = append(args, limit, offset)
+
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get drivers: %w", err)
 	}
@@ -373,6 +495,7 @@ func (r *Repository) GetUserStats(ctx context.Context) (*UserStats, error) {
 			COUNT(*) as total_users,
 			COUNT(CASE WHEN role = 'rider' THEN 1 END) as total_riders,
 			COUNT(CASE WHEN role = 'driver' THEN 1 END) as total_drivers,
+			COUNT(CASE WHEN role = 'admin' THEN 1 END) as total_admins,
 			COUNT(CASE WHEN is_active = true THEN 1 END) as active_users
 		FROM users
 	`
@@ -382,6 +505,7 @@ func (r *Repository) GetUserStats(ctx context.Context) (*UserStats, error) {
 		&stats.TotalUsers,
 		&stats.TotalRiders,
 		&stats.TotalDrivers,
+		&stats.TotalAdmins,
 		&stats.ActiveUsers,
 	)
 
@@ -538,6 +662,7 @@ type UserStats struct {
 	TotalUsers   int `json:"total_users"`
 	TotalRiders  int `json:"total_riders"`
 	TotalDrivers int `json:"total_drivers"`
+	TotalAdmins  int `json:"total_admins"`
 	ActiveUsers  int `json:"active_users"`
 }
 

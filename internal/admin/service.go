@@ -18,8 +18,8 @@ func NewService(repo *Repository) *Service {
 	return &Service{repo: repo}
 }
 
-// GetAllUsers retrieves all users with pagination
-func (s *Service) GetAllUsers(ctx context.Context, limit, offset int) ([]*models.User, int, error) {
+// GetAllUsers retrieves all users with pagination and filters
+func (s *Service) GetAllUsers(ctx context.Context, limit, offset int, filter *UserFilter) ([]*models.User, int, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
@@ -27,7 +27,20 @@ func (s *Service) GetAllUsers(ctx context.Context, limit, offset int) ([]*models
 		offset = 0
 	}
 
-	return s.repo.GetAllUsers(ctx, limit, offset)
+	// Validate role filter if provided
+	if filter != nil && filter.Role != "" {
+		validRoles := map[string]bool{"admin": true, "driver": true, "rider": true}
+		if !validRoles[filter.Role] {
+			filter.Role = "" // Ignore invalid role
+		}
+	}
+
+	return s.repo.GetAllUsers(ctx, limit, offset, filter)
+}
+
+// GetUserStats retrieves user statistics by role
+func (s *Service) GetUserStats(ctx context.Context) (*UserStats, error) {
+	return s.repo.GetUserStats(ctx)
 }
 
 // GetUser retrieves a specific user
@@ -45,8 +58,8 @@ func (s *Service) ActivateUser(ctx context.Context, userID uuid.UUID) error {
 	return s.repo.UpdateUserStatus(ctx, userID, true)
 }
 
-// GetAllDrivers retrieves all drivers with pagination
-func (s *Service) GetAllDrivers(ctx context.Context, limit, offset int) ([]*models.Driver, int64, error) {
+// GetAllDrivers retrieves all drivers with pagination and filters
+func (s *Service) GetAllDrivers(ctx context.Context, limit, offset int, filter *DriverFilter) ([]*models.Driver, int64, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
@@ -54,7 +67,20 @@ func (s *Service) GetAllDrivers(ctx context.Context, limit, offset int) ([]*mode
 		offset = 0
 	}
 
-	return s.repo.GetAllDriversWithTotal(ctx, limit, offset)
+	// Validate status filter if provided
+	if filter != nil && filter.Status != "" {
+		validStatuses := map[string]bool{"online": true, "offline": true, "available": true, "pending": true}
+		if !validStatuses[filter.Status] {
+			filter.Status = "" // Ignore invalid status
+		}
+	}
+
+	return s.repo.GetAllDriversWithTotal(ctx, limit, offset, filter)
+}
+
+// GetDriverStats retrieves driver statistics for stats cards
+func (s *Service) GetDriverStats(ctx context.Context) (*DriverStats, error) {
+	return s.repo.GetDriverStats(ctx)
 }
 
 // GetPendingDrivers retrieves drivers awaiting approval

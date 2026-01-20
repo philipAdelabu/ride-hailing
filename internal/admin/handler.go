@@ -35,11 +35,36 @@ func (h *Handler) GetDashboard(c *gin.Context) {
 	common.SuccessResponse(c, stats)
 }
 
-// GetAllUsers retrieves all users with pagination
+// GetAllUsers retrieves all users with pagination and filters
 func (h *Handler) GetAllUsers(c *gin.Context) {
 	params := pagination.ParseParams(c)
 
-	users, total, err := h.service.GetAllUsers(c.Request.Context(), params.Limit, params.Offset)
+	// Parse filter query parameters
+	filter := &UserFilter{}
+
+	// Role filter: ?role=admin, ?role=driver, ?role=rider
+	if role := c.Query("role"); role != "" {
+		filter.Role = role
+	}
+
+	// Status filter: ?status=active or ?status=inactive
+	if status := c.Query("status"); status != "" {
+		switch status {
+		case "active":
+			isActive := true
+			filter.IsActive = &isActive
+		case "inactive":
+			isActive := false
+			filter.IsActive = &isActive
+		}
+	}
+
+	// Search filter: ?search=john or ?search=john@example.com or ?search=+1234567890
+	if search := c.Query("search"); search != "" {
+		filter.Search = search
+	}
+
+	users, total, err := h.service.GetAllUsers(c.Request.Context(), params.Limit, params.Offset, filter)
 	if err != nil {
 		if appErr, ok := err.(*common.AppError); ok {
 			common.AppErrorResponse(c, appErr)
@@ -49,7 +74,15 @@ func (h *Handler) GetAllUsers(c *gin.Context) {
 		return
 	}
 
+	// Get user stats for the stats cards
+	userStats, err := h.service.GetUserStats(c.Request.Context())
+	if err != nil {
+		// Log error but don't fail the request - stats are supplementary
+		userStats = nil
+	}
+
 	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(total))
+	meta.Stats = userStats
 	common.SuccessResponseWithMeta(c, users, meta)
 }
 
@@ -114,11 +147,24 @@ func (h *Handler) ActivateUser(c *gin.Context) {
 	common.SuccessResponseWithStatus(c, http.StatusOK, nil, "User activated successfully")
 }
 
-// GetAllDrivers retrieves all drivers with pagination
+// GetAllDrivers retrieves all drivers with pagination, filters, and stats
 func (h *Handler) GetAllDrivers(c *gin.Context) {
 	params := pagination.ParseParams(c)
 
-	drivers, total, err := h.service.GetAllDrivers(c.Request.Context(), params.Limit, params.Offset)
+	// Parse filter query parameters
+	filter := &DriverFilter{}
+
+	// Status filter: ?status=online, ?status=offline, ?status=available, ?status=pending
+	if status := c.Query("status"); status != "" {
+		filter.Status = status
+	}
+
+	// Search filter: ?search=ABC123 (license, name, vehicle model, plate)
+	if search := c.Query("search"); search != "" {
+		filter.Search = search
+	}
+
+	drivers, total, err := h.service.GetAllDrivers(c.Request.Context(), params.Limit, params.Offset, filter)
 	if err != nil {
 		if appErr, ok := err.(*common.AppError); ok {
 			common.AppErrorResponse(c, appErr)
@@ -128,7 +174,15 @@ func (h *Handler) GetAllDrivers(c *gin.Context) {
 		return
 	}
 
+	// Get driver stats for the stats cards
+	driverStats, err := h.service.GetDriverStats(c.Request.Context())
+	if err != nil {
+		// Log error but don't fail the request - stats are supplementary
+		driverStats = nil
+	}
+
 	meta := pagination.BuildMeta(params.Limit, params.Offset, total)
+	meta.Stats = driverStats
 	common.SuccessResponseWithMeta(c, drivers, meta)
 }
 

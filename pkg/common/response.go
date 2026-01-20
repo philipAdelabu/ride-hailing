@@ -22,12 +22,13 @@ type ErrorInfo struct {
 
 // Meta contains metadata for paginated responses
 type Meta struct {
-	Page       int   `json:"page,omitempty"`
-	PerPage    int   `json:"per_page,omitempty"`
-	Limit      int   `json:"limit,omitempty"`
-	Offset     int   `json:"offset,omitempty"`
-	Total      int64 `json:"total,omitempty"`
-	TotalPages int   `json:"total_pages,omitempty"`
+	Page       int         `json:"page,omitempty"`
+	PerPage    int         `json:"per_page,omitempty"`
+	Limit      int         `json:"limit,omitempty"`
+	Offset     int         `json:"offset,omitempty"`
+	Total      int64       `json:"total,omitempty"`
+	TotalPages int         `json:"total_pages,omitempty"`
+	Stats      interface{} `json:"stats,omitempty"`
 }
 
 // SuccessResponse sends a successful response (backward compatibility)
