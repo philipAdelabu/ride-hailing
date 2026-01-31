@@ -149,7 +149,7 @@ func main() {
 			Timeout:          time.Duration(breakerCfg.TimeoutSeconds) * time.Second,
 			FailureThreshold: uint32(breakerCfg.FailureThreshold),
 			SuccessThreshold: uint32(breakerCfg.SuccessThreshold),
-		}, nil)
+		}, resilience.GracefulDegradation("promos-service"))
 
 		logger.Info("Circuit breaker configured for promos service",
 			zap.Int("failure_threshold", breakerCfg.FailureThreshold),
@@ -166,7 +166,7 @@ func main() {
 			cbCfg := cfg.Resilience.CircuitBreaker.SettingsFor("ml-eta-service")
 			mlEtaBreaker = resilience.NewCircuitBreaker(
 				resilience.BuildSettings("ml-eta-service", cbCfg.IntervalSeconds, cbCfg.TimeoutSeconds, cbCfg.FailureThreshold, cbCfg.SuccessThreshold),
-				nil,
+				resilience.GracefulDegradation("ml-eta-service"),
 			)
 		}
 		logger.Info("ML ETA service URL configured", zap.String("url", mlEtaURL))
@@ -194,7 +194,7 @@ func main() {
 		cbCfg := cfg.Resilience.CircuitBreaker.SettingsFor("geo-service")
 		geoBreaker := resilience.NewCircuitBreaker(
 			resilience.BuildSettings(fmt.Sprintf("%s-geo", serviceName), cbCfg.IntervalSeconds, cbCfg.TimeoutSeconds, cbCfg.FailureThreshold, cbCfg.SuccessThreshold),
-			nil,
+			resilience.StaticFallback([]byte("[]")),
 		)
 		matchingProvider.SetCircuitBreaker(geoBreaker)
 	}

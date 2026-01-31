@@ -116,7 +116,7 @@ func main() {
 		cbCfg := cfg.Resilience.CircuitBreaker.SettingsFor("google-maps-api")
 		geocodingBreaker := resilience.NewCircuitBreaker(
 			resilience.BuildSettings(fmt.Sprintf("%s-geocoding", serviceName), cbCfg.IntervalSeconds, cbCfg.TimeoutSeconds, cbCfg.FailureThreshold, cbCfg.SuccessThreshold),
-			nil,
+			resilience.GracefulDegradation("google-maps-api"),
 		)
 		geocodingSvc.SetCircuitBreaker(geocodingBreaker)
 		logger.Info("Circuit breaker enabled for geocoding API")

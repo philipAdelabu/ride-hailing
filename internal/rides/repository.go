@@ -189,6 +189,27 @@ func (r *Repository) UpdateRideCompletion(ctx context.Context, id uuid.UUID, act
 	return nil
 }
 
+// AtomicCompleteRide atomically sets completion data and status in a single UPDATE
+// with a status+driver guard. Returns false if the ride was not in_progress or
+// the driver doesn't match (prevents inconsistent state on partial failure).
+func (r *Repository) AtomicCompleteRide(ctx context.Context, rideID, driverID uuid.UUID, actualDistance float64, actualDuration int, finalFare float64) (bool, error) {
+	now := time.Now()
+	query := `
+		UPDATE rides
+		SET status = $1, actual_distance = $2, actual_duration = $3,
+		    final_fare = $4, completed_at = $5, updated_at = $5
+		WHERE id = $6 AND status = $7 AND driver_id = $8
+	`
+	tag, err := r.db.Exec(ctx, query,
+		models.RideStatusCompleted, actualDistance, actualDuration, finalFare,
+		now, rideID, models.RideStatusInProgress, driverID,
+	)
+	if err != nil {
+		return false, fmt.Errorf("failed to complete ride: %w", err)
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
 // UpdateRideRating updates ride rating and feedback
 func (r *Repository) UpdateRideRating(ctx context.Context, id uuid.UUID, rating int, feedback *string) error {
 	query := `

@@ -129,3 +129,14 @@ spec:
         value: 2
         periodSeconds: 30
       selectPolicy: Max
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: geo-service-pdb
+  namespace: ridehailing
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: geo-service

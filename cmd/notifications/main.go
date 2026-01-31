@@ -293,6 +293,6 @@ func main() {
 func buildBreaker(name string, cbCfg config.CircuitBreakerSettings) *resilience.CircuitBreaker {
 	return resilience.NewCircuitBreaker(
 		resilience.BuildSettings(name, cbCfg.IntervalSeconds, cbCfg.TimeoutSeconds, cbCfg.FailureThreshold, cbCfg.SuccessThreshold),
-		nil,
+		resilience.GracefulDegradation(name),
 	)
 }

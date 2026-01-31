@@ -114,7 +114,7 @@ func main() {
 		cbCfg := cfg.Resilience.CircuitBreaker.SettingsFor("stripe-api")
 		stripeBreaker = resilience.NewCircuitBreaker(
 			resilience.BuildSettings(fmt.Sprintf("%s-stripe", serviceName), cbCfg.IntervalSeconds, cbCfg.TimeoutSeconds, cbCfg.FailureThreshold, cbCfg.SuccessThreshold),
-			nil,
+			resilience.GracefulDegradation("stripe-api"),
 		)
 	}
 

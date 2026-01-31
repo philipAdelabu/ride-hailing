@@ -353,14 +353,15 @@ func (s *Service) CompleteRide(ctx context.Context, rideID, driverID uuid.UUID, 
 		attribute.Float64("estimated_fare", ride.EstimatedFare),
 	)
 
-	if err := s.repo.UpdateRideCompletion(ctx, rideID, actualDistance, actualDuration, finalFare); err != nil {
-		tracing.RecordError(ctx, err)
-		return nil, common.NewInternalServerError("failed to update ride completion")
-	}
-
-	if err := s.repo.UpdateRideStatus(ctx, rideID, models.RideStatusCompleted, nil); err != nil {
+	// Atomic completion: single UPDATE sets fare data + status with driver guard
+	completed, err := s.repo.AtomicCompleteRide(ctx, rideID, driverID, actualDistance, actualDuration, finalFare)
+	if err != nil {
 		tracing.RecordError(ctx, err)
 		return nil, common.NewInternalServerError("failed to complete ride")
+	}
+	if !completed {
+		return nil, common.NewErrorWithCode(409, common.ErrCodeRideAlreadyDone,
+			"ride is no longer in progress", nil)
 	}
 
 	ride.Status = models.RideStatusCompleted

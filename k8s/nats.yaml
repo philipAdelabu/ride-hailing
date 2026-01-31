@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: nats
+  namespace: ridehailing
+  labels:
+    app: nats
+    tier: messaging
+spec:
+  serviceName: nats
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nats
+  template:
+    metadata:
+      labels:
+        app: nats
+        tier: messaging
+    spec:
+      containers:
+      - name: nats
+        image: nats:2-alpine
+        args:
+        - "--js"
+        - "--sd"
+        - "/data"
+        - "-m"
+        - "8222"
+        ports:
+        - containerPort: 4222
+          name: client
+          protocol: TCP
+        - containerPort: 8222
+          name: monitoring
+          protocol: TCP
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8222
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8222
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: nats-data
+          mountPath: /data
+  volumeClaimTemplates:
+  - metadata:
+      name: nats-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 5Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats
+  namespace: ridehailing
+  labels:
+    app: nats
+spec:
+  type: ClusterIP
+  ports:
+  - port: 4222
+    targetPort: 4222
+    protocol: TCP
+    name: client
+  - port: 8222
+    targetPort: 8222
+    protocol: TCP
+    name: monitoring
+  selector:
+    app: nats
