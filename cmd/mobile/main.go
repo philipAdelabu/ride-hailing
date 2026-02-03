@@ -11,8 +11,23 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/richxcame/ride-hailing/internal/cancellation"
+	"github.com/richxcame/ride-hailing/internal/chat"
+	"github.com/richxcame/ride-hailing/internal/disputes"
+	"github.com/richxcame/ride-hailing/internal/earnings"
+	"github.com/richxcame/ride-hailing/internal/family"
 	"github.com/richxcame/ride-hailing/internal/favorites"
+	"github.com/richxcame/ride-hailing/internal/giftcards"
+	"github.com/richxcame/ride-hailing/internal/paymentmethods"
+	"github.com/richxcame/ride-hailing/internal/preferences"
+	"github.com/richxcame/ride-hailing/internal/ratings"
+	"github.com/richxcame/ride-hailing/internal/ridehistory"
 	"github.com/richxcame/ride-hailing/internal/rides"
+	"github.com/richxcame/ride-hailing/internal/subscriptions"
+	"github.com/richxcame/ride-hailing/internal/support"
+	"github.com/richxcame/ride-hailing/internal/tips"
+	"github.com/richxcame/ride-hailing/internal/vehicle"
+	"github.com/richxcame/ride-hailing/internal/waittime"
 	"github.com/richxcame/ride-hailing/pkg/config"
 	"github.com/richxcame/ride-hailing/pkg/errors"
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
@@ -20,6 +35,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	"github.com/richxcame/ride-hailing/pkg/swagger"
 	"github.com/richxcame/ride-hailing/pkg/tracing"
+	ws "github.com/richxcame/ride-hailing/pkg/websocket"
 	"go.uber.org/zap"
 )
 
@@ -136,17 +152,66 @@ func main() {
 	promosServiceURL := getEnv("PROMOS_SERVICE_URL", "http://localhost:8089")
 	logger.Info("Promos service URL configured", zap.String("url", promosServiceURL))
 
+	// Initialize WebSocket hub
+	wsHub := ws.NewHub()
+	go wsHub.Run()
+
 	// Initialize repositories
 	ridesRepo := rides.NewRepository(db)
 	favoritesRepo := favorites.NewRepository(db)
+	cancellationRepo := cancellation.NewRepository(db)
+	supportRepo := support.NewRepository(db)
+	disputesRepo := disputes.NewRepository(db)
+	tipsRepo := tips.NewRepository(db)
+	ratingsRepo := ratings.NewRepository(db)
+	earningsRepo := earnings.NewRepository(db)
+	vehicleRepo := vehicle.NewRepository(db)
+	paymentmethodsRepo := paymentmethods.NewRepository(db)
+	ridehistoryRepo := ridehistory.NewRepository(db)
+	familyRepo := family.NewRepository(db)
+	giftcardsRepo := giftcards.NewRepository(db)
+	subscriptionsRepo := subscriptions.NewRepository(db)
+	preferencesRepo := preferences.NewRepository(db)
+	waittimeRepo := waittime.NewRepository(db)
+	chatRepo := chat.NewRepository(db)
 
 	// Initialize services
 	ridesService := rides.NewService(ridesRepo, promosServiceURL, nil)
 	favoritesService := favorites.NewService(favoritesRepo)
+	cancellationService := cancellation.NewService(cancellationRepo, db)
+	supportService := support.NewService(supportRepo)
+	disputesService := disputes.NewService(disputesRepo)
+	tipsService := tips.NewService(tipsRepo)
+	ratingsService := ratings.NewService(ratingsRepo)
+	earningsService := earnings.NewService(earningsRepo)
+	vehicleService := vehicle.NewService(vehicleRepo)
+	paymentmethodsService := paymentmethods.NewService(paymentmethodsRepo)
+	ridehistoryService := ridehistory.NewService(ridehistoryRepo)
+	familyService := family.NewService(familyRepo)
+	giftcardsService := giftcards.NewService(giftcardsRepo)
+	subscriptionsService := subscriptions.NewService(subscriptionsRepo, nil) // TODO: wire PaymentProcessor
+	preferencesService := preferences.NewService(preferencesRepo)
+	waittimeService := waittime.NewService(waittimeRepo)
+	chatService := chat.NewService(chatRepo, wsHub)
 
 	// Initialize handlers
 	ridesHandler := rides.NewHandler(ridesService)
 	favoritesHandler := favorites.NewHandler(favoritesService)
+	cancellationHandler := cancellation.NewHandler(cancellationService)
+	supportHandler := support.NewHandler(supportService)
+	disputesHandler := disputes.NewHandler(disputesService)
+	tipsHandler := tips.NewHandler(tipsService)
+	ratingsHandler := ratings.NewHandler(ratingsService)
+	earningsHandler := earnings.NewHandler(earningsService)
+	vehicleHandler := vehicle.NewHandler(vehicleService)
+	paymentmethodsHandler := paymentmethods.NewHandler(paymentmethodsService)
+	ridehistoryHandler := ridehistory.NewHandler(ridehistoryService)
+	familyHandler := family.NewHandler(familyService)
+	giftcardsHandler := giftcards.NewHandler(giftcardsService)
+	subscriptionsHandler := subscriptions.NewHandler(subscriptionsService)
+	preferencesHandler := preferences.NewHandler(preferencesService)
+	waittimeHandler := waittime.NewHandler(waittimeService)
+	chatHandler := chat.NewHandler(chatService)
 
 	// Set up Gin router
 	router := gin.New()
@@ -227,6 +292,23 @@ func main() {
 		api.GET("/profile", ridesHandler.GetUserProfile)
 		api.PUT("/profile", ridesHandler.UpdateUserProfile)
 	}
+
+	// Register feature routes
+	cancellationHandler.RegisterRoutes(router, jwtProvider)
+	supportHandler.RegisterRoutes(router, jwtProvider)
+	disputesHandler.RegisterRoutes(router, jwtProvider)
+	tipsHandler.RegisterRoutes(router, jwtProvider)
+	ratingsHandler.RegisterRoutes(router, jwtProvider)
+	earningsHandler.RegisterRoutes(router, jwtProvider)
+	vehicleHandler.RegisterRoutes(router, jwtProvider)
+	paymentmethodsHandler.RegisterRoutes(router, jwtProvider)
+	ridehistoryHandler.RegisterRoutes(router, jwtProvider)
+	familyHandler.RegisterRoutes(router, jwtProvider)
+	giftcardsHandler.RegisterRoutes(router, jwtProvider)
+	subscriptionsHandler.RegisterRoutes(router, jwtProvider)
+	preferencesHandler.RegisterRoutes(router, jwtProvider)
+	waittimeHandler.RegisterRoutes(router, jwtProvider)
+	chatHandler.RegisterRoutes(router, jwtProvider)
 
 	// Start server
 	addr := ":" + port
