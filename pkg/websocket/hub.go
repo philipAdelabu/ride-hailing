@@ -16,6 +16,9 @@ type Hub struct {
 	// Clients grouped by ride ID
 	rides map[string]map[string]*Client
 
+	// Clients grouped by negotiation session ID
+	negotiations map[string]map[string]*Client
+
 	// Register requests from clients
 	Register chan *Client
 
@@ -42,12 +45,13 @@ type BroadcastMessage struct {
 // NewHub creates a new Hub instance
 func NewHub() *Hub {
 	return &Hub{
-		clients:    make(map[string]*Client),
-		rides:      make(map[string]map[string]*Client),
-		Register:   make(chan *Client),
-		Unregister: make(chan *Client),
-		Broadcast:  make(chan *BroadcastMessage, 256),
-		handlers:   make(map[string]MessageHandler),
+		clients:      make(map[string]*Client),
+		rides:        make(map[string]map[string]*Client),
+		negotiations: make(map[string]map[string]*Client),
+		Register:     make(chan *Client),
+		Unregister:   make(chan *Client),
+		Broadcast:    make(chan *BroadcastMessage, 256),
+		handlers:     make(map[string]MessageHandler),
 	}
 }
 
@@ -129,6 +133,14 @@ func (h *Hub) broadcastMessage(broadcast *BroadcastMessage) {
 		// Send to all clients in a ride
 		if ride, ok := h.rides[broadcast.TargetID]; ok {
 			for _, client := range ride {
+				client.SendMessage(broadcast.Message)
+			}
+		}
+
+	case "negotiation":
+		// Send to all clients in a negotiation session
+		if negotiation, ok := h.negotiations[broadcast.TargetID]; ok {
+			for _, client := range negotiation {
 				client.SendMessage(broadcast.Message)
 			}
 		}
@@ -263,4 +275,111 @@ func (h *Hub) GetRideCount() int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return len(h.rides)
+}
+
+// ========================================
+// NEGOTIATION ROOM METHODS
+// ========================================
+
+// AddClientToNegotiation adds a client to a negotiation session room
+func (h *Hub) AddClientToNegotiation(clientID, sessionID string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	client, ok := h.clients[clientID]
+	if !ok {
+		return
+	}
+
+	// Create negotiation room if doesn't exist
+	if _, ok := h.negotiations[sessionID]; !ok {
+		h.negotiations[sessionID] = make(map[string]*Client)
+	}
+
+	// Add client to negotiation room
+	h.negotiations[sessionID][clientID] = client
+
+	log.Printf("Client %s joined negotiation %s", clientID, sessionID)
+}
+
+// RemoveClientFromNegotiation removes a client from a negotiation room
+func (h *Hub) RemoveClientFromNegotiation(clientID, sessionID string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if negotiation, ok := h.negotiations[sessionID]; ok {
+		delete(negotiation, clientID)
+		if len(negotiation) == 0 {
+			delete(h.negotiations, sessionID)
+		}
+	}
+
+	log.Printf("Client %s left negotiation %s", clientID, sessionID)
+}
+
+// SendToNegotiation sends a message to all clients in a negotiation session
+func (h *Hub) SendToNegotiation(sessionID string, msg *Message) {
+	h.Broadcast <- &BroadcastMessage{
+		Target:   "negotiation",
+		TargetID: sessionID,
+		Message:  msg,
+	}
+}
+
+// GetClientsInNegotiation returns all clients in a negotiation session
+func (h *Hub) GetClientsInNegotiation(sessionID string) []*Client {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	clients := make([]*Client, 0)
+	if negotiation, ok := h.negotiations[sessionID]; ok {
+		for _, client := range negotiation {
+			clients = append(clients, client)
+		}
+	}
+	return clients
+}
+
+// GetNegotiationCount returns the number of active negotiation sessions
+func (h *Hub) GetNegotiationCount() int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return len(h.negotiations)
+}
+
+// CloseNegotiation closes a negotiation room and notifies all participants
+func (h *Hub) CloseNegotiation(sessionID string, reason string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if negotiation, ok := h.negotiations[sessionID]; ok {
+		// Notify all clients before removing
+		closeMsg := &Message{
+			Type: "negotiation.closed",
+			Data: map[string]interface{}{
+				"session_id": sessionID,
+				"reason":     reason,
+			},
+		}
+
+		for _, client := range negotiation {
+			client.SendMessage(closeMsg)
+		}
+
+		// Remove the room
+		delete(h.negotiations, sessionID)
+		log.Printf("Negotiation %s closed: %s", sessionID, reason)
+	}
+}
+
+// SendToMultipleUsers sends a message to multiple users
+func (h *Hub) SendToMultipleUsers(userIDs []string, msg *Message) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	for _, userID := range userIDs {
+		if client, ok := h.clients[userID]; ok {
+			client.SendMessage(msg)
+		}
+	}
 }

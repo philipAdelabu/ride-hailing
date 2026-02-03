@@ -100,3 +100,80 @@ type FraudDetectedData struct {
 	Details    string    `json:"details"`
 	DetectedAt time.Time `json:"detected_at"`
 }
+
+// ========================================
+// NEGOTIATION EVENTS
+// ========================================
+
+// NegotiationStartedData is emitted when a negotiation session starts.
+type NegotiationStartedData struct {
+	SessionID            uuid.UUID `json:"session_id"`
+	RiderID              uuid.UUID `json:"rider_id"`
+	PickupLat            float64   `json:"pickup_lat"`
+	PickupLng            float64   `json:"pickup_lng"`
+	DropoffLat           float64   `json:"dropoff_lat"`
+	DropoffLng           float64   `json:"dropoff_lng"`
+	PickupAddress        string    `json:"pickup_address"`
+	DropoffAddress       string    `json:"dropoff_address"`
+	CityID               *uuid.UUID `json:"city_id,omitempty"`
+	EstimatedFare        float64   `json:"estimated_fare"`
+	FairPriceMin         float64   `json:"fair_price_min"`
+	FairPriceMax         float64   `json:"fair_price_max"`
+	CurrencyCode         string    `json:"currency_code"`
+	RiderInitialOffer    *float64  `json:"rider_initial_offer,omitempty"`
+	ExpiresAt            time.Time `json:"expires_at"`
+	StartedAt            time.Time `json:"started_at"`
+}
+
+// NegotiationOfferData is emitted when a driver makes an offer.
+type NegotiationOfferData struct {
+	OfferID             uuid.UUID `json:"offer_id"`
+	SessionID           uuid.UUID `json:"session_id"`
+	DriverID            uuid.UUID `json:"driver_id"`
+	RiderID             uuid.UUID `json:"rider_id"`
+	OfferedPrice        float64   `json:"offered_price"`
+	CurrencyCode        string    `json:"currency_code"`
+	EstimatedPickupTime *int      `json:"estimated_pickup_time,omitempty"`
+	DriverRating        *float64  `json:"driver_rating,omitempty"`
+	IsCounterOffer      bool      `json:"is_counter_offer"`
+	CreatedAt           time.Time `json:"created_at"`
+}
+
+// NegotiationOfferAcceptedData is emitted when an offer is accepted.
+type NegotiationOfferAcceptedData struct {
+	SessionID    uuid.UUID `json:"session_id"`
+	OfferID      uuid.UUID `json:"offer_id"`
+	RiderID      uuid.UUID `json:"rider_id"`
+	DriverID     uuid.UUID `json:"driver_id"`
+	AcceptedPrice float64  `json:"accepted_price"`
+	CurrencyCode string    `json:"currency_code"`
+	AcceptedAt   time.Time `json:"accepted_at"`
+}
+
+// NegotiationExpiredData is emitted when a session expires.
+type NegotiationExpiredData struct {
+	SessionID    uuid.UUID `json:"session_id"`
+	RiderID      uuid.UUID `json:"rider_id"`
+	OffersCount  int       `json:"offers_count"`
+	ExpiredAt    time.Time `json:"expired_at"`
+}
+
+// NegotiationCancelledData is emitted when a session is cancelled.
+type NegotiationCancelledData struct {
+	SessionID    uuid.UUID `json:"session_id"`
+	RiderID      uuid.UUID `json:"rider_id"`
+	Reason       string    `json:"reason"`
+	CancelledAt  time.Time `json:"cancelled_at"`
+}
+
+// DriverInviteData is emitted to invite nearby drivers to a session.
+type DriverInviteData struct {
+	SessionID         uuid.UUID   `json:"session_id"`
+	DriverIDs         []uuid.UUID `json:"driver_ids"`
+	PickupLat         float64     `json:"pickup_lat"`
+	PickupLng         float64     `json:"pickup_lng"`
+	EstimatedFare     float64     `json:"estimated_fare"`
+	FairPriceMin      float64     `json:"fair_price_min"`
+	FairPriceMax      float64     `json:"fair_price_max"`
+	ExpiresAt         time.Time   `json:"expires_at"`
+}
