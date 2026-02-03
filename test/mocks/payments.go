@@ -73,7 +73,7 @@ func (m *MockPaymentsRepository) GetWalletTransactionsWithTotal(ctx context.Cont
 	if args.Get(0) == nil {
 		return nil, 0, args.Error(2)
 	}
-	return args.Get(0).([]*models.WalletTransaction), int64(args.Int(1)), args.Error(2)
+	return args.Get(0).([]*models.WalletTransaction), args.Get(1).(int64), args.Error(2)
 }
 
 func (m *MockPaymentsRepository) GetRideDriverID(ctx context.Context, rideID uuid.UUID) (*uuid.UUID, error) {
@@ -83,6 +83,14 @@ func (m *MockPaymentsRepository) GetRideDriverID(ctx context.Context, rideID uui
 	}
 	id := args.Get(0).(*uuid.UUID)
 	return id, args.Error(1)
+}
+
+func (m *MockPaymentsRepository) GetPaymentsByRideID(ctx context.Context, rideID uuid.UUID) ([]*models.Payment, error) {
+	args := m.Called(ctx, rideID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.Payment), args.Error(1)
 }
 
 // MockStripeClient is a mock implementation of the Stripe client

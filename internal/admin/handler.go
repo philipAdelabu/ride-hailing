@@ -107,6 +107,16 @@ func (h *Handler) GetUser(c *gin.Context) {
 	common.SuccessResponse(c, user)
 }
 
+// getAdminID extracts the authenticated admin user ID from the request context.
+func getAdminID(c *gin.Context) uuid.UUID {
+	if id, ok := c.Get("user_id"); ok {
+		if uid, ok := id.(uuid.UUID); ok {
+			return uid
+		}
+	}
+	return uuid.Nil
+}
+
 // SuspendUser suspends a user account
 func (h *Handler) SuspendUser(c *gin.Context) {
 	userID, err := uuid.Parse(c.Param("id"))
@@ -115,7 +125,7 @@ func (h *Handler) SuspendUser(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.SuspendUser(c.Request.Context(), userID); err != nil {
+	if err := h.service.SuspendUser(c.Request.Context(), getAdminID(c), userID); err != nil {
 		if appErr, ok := err.(*common.AppError); ok {
 			common.AppErrorResponse(c, appErr)
 			return
@@ -135,7 +145,7 @@ func (h *Handler) ActivateUser(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.ActivateUser(c.Request.Context(), userID); err != nil {
+	if err := h.service.ActivateUser(c.Request.Context(), getAdminID(c), userID); err != nil {
 		if appErr, ok := err.(*common.AppError); ok {
 			common.AppErrorResponse(c, appErr)
 			return
@@ -233,7 +243,7 @@ func (h *Handler) ApproveDriver(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.ApproveDriver(c.Request.Context(), driverID); err != nil {
+	if err := h.service.ApproveDriver(c.Request.Context(), getAdminID(c), driverID); err != nil {
 		if appErr, ok := err.(*common.AppError); ok {
 			common.AppErrorResponse(c, appErr)
 			return
@@ -253,7 +263,7 @@ func (h *Handler) RejectDriver(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.RejectDriver(c.Request.Context(), driverID); err != nil {
+	if err := h.service.RejectDriver(c.Request.Context(), getAdminID(c), driverID); err != nil {
 		if appErr, ok := err.(*common.AppError); ok {
 			common.AppErrorResponse(c, appErr)
 			return

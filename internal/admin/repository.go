@@ -20,6 +20,47 @@ func NewRepository(db *pgxpool.Pool) *Repository {
 	return &Repository{db: db}
 }
 
+// AuditLog represents an admin action audit record.
+// Required table:
+//
+//	CREATE TABLE IF NOT EXISTS audit_logs (
+//	    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+//	    admin_id UUID NOT NULL REFERENCES users(id),
+//	    action TEXT NOT NULL,
+//	    target_type TEXT NOT NULL,
+//	    target_id UUID NOT NULL,
+//	    metadata JSONB DEFAULT '{}',
+//	    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+//	);
+//	CREATE INDEX idx_audit_logs_admin ON audit_logs(admin_id);
+//	CREATE INDEX idx_audit_logs_target ON audit_logs(target_type, target_id);
+type AuditLog struct {
+	ID         uuid.UUID              `json:"id"`
+	AdminID    uuid.UUID              `json:"admin_id"`
+	Action     string                 `json:"action"`
+	TargetType string                 `json:"target_type"`
+	TargetID   uuid.UUID              `json:"target_id"`
+	Metadata   map[string]interface{} `json:"metadata"`
+	CreatedAt  time.Time              `json:"created_at"`
+}
+
+// InsertAuditLog records an admin action in the audit log.
+// Failures are logged but do not block the calling operation.
+func (r *Repository) InsertAuditLog(ctx context.Context, adminID uuid.UUID, action, targetType string, targetID uuid.UUID, metadata map[string]interface{}) {
+	if metadata == nil {
+		metadata = map[string]interface{}{}
+	}
+	query := `
+		INSERT INTO audit_logs (id, admin_id, action, target_type, target_id, metadata)
+		VALUES ($1, $2, $3, $4, $5, $6)
+	`
+	_, err := r.db.Exec(ctx, query, uuid.New(), adminID, action, targetType, targetID, metadata)
+	if err != nil {
+		// Audit log failure should not block the operation
+		fmt.Printf("WARN: failed to insert audit log: %v\n", err)
+	}
+}
+
 // UserFilter contains filter parameters for user queries
 type UserFilter struct {
 	Role     string // "admin", "driver", "rider", or empty for all

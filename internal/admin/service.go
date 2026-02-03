@@ -49,13 +49,21 @@ func (s *Service) GetUser(ctx context.Context, userID uuid.UUID) (*models.User, 
 }
 
 // SuspendUser suspends a user account
-func (s *Service) SuspendUser(ctx context.Context, userID uuid.UUID) error {
-	return s.repo.UpdateUserStatus(ctx, userID, false)
+func (s *Service) SuspendUser(ctx context.Context, adminID, userID uuid.UUID) error {
+	if err := s.repo.UpdateUserStatus(ctx, userID, false); err != nil {
+		return err
+	}
+	s.repo.InsertAuditLog(ctx, adminID, "suspend_user", "user", userID, nil)
+	return nil
 }
 
 // ActivateUser activates a user account
-func (s *Service) ActivateUser(ctx context.Context, userID uuid.UUID) error {
-	return s.repo.UpdateUserStatus(ctx, userID, true)
+func (s *Service) ActivateUser(ctx context.Context, adminID, userID uuid.UUID) error {
+	if err := s.repo.UpdateUserStatus(ctx, userID, true); err != nil {
+		return err
+	}
+	s.repo.InsertAuditLog(ctx, adminID, "activate_user", "user", userID, nil)
+	return nil
 }
 
 // GetAllDrivers retrieves all drivers with pagination and filters
@@ -101,13 +109,21 @@ func (s *Service) GetDriver(ctx context.Context, driverID uuid.UUID) (*models.Dr
 }
 
 // ApproveDriver approves a driver application
-func (s *Service) ApproveDriver(ctx context.Context, driverID uuid.UUID) error {
-	return s.repo.ApproveDriver(ctx, driverID)
+func (s *Service) ApproveDriver(ctx context.Context, adminID, driverID uuid.UUID) error {
+	if err := s.repo.ApproveDriver(ctx, driverID); err != nil {
+		return err
+	}
+	s.repo.InsertAuditLog(ctx, adminID, "approve_driver", "driver", driverID, nil)
+	return nil
 }
 
 // RejectDriver rejects a driver application
-func (s *Service) RejectDriver(ctx context.Context, driverID uuid.UUID) error {
-	return s.repo.RejectDriver(ctx, driverID)
+func (s *Service) RejectDriver(ctx context.Context, adminID, driverID uuid.UUID) error {
+	if err := s.repo.RejectDriver(ctx, driverID); err != nil {
+		return err
+	}
+	s.repo.InsertAuditLog(ctx, adminID, "reject_driver", "driver", driverID, nil)
+	return nil
 }
 
 // GetDashboardStats retrieves overall dashboard statistics

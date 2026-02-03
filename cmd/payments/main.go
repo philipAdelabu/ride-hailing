@@ -16,6 +16,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/config"
 	"github.com/richxcame/ride-hailing/pkg/database"
 	"github.com/richxcame/ride-hailing/pkg/errors"
+	"github.com/richxcame/ride-hailing/pkg/eventbus"
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/logger"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
@@ -132,6 +133,26 @@ func main() {
 	stripeClient := payments.NewResilientStripeClient(stripeAPIKey, stripeBreaker)
 	paymentService := payments.NewService(paymentRepo, stripeClient)
 	paymentHandler := payments.NewHandler(paymentService)
+
+	// Initialize NATS event bus for driver payout on ride completion
+	if cfg.NATS.Enabled && cfg.NATS.URL != "" {
+		bus, err := eventbus.New(eventbus.Config{
+			URL:        cfg.NATS.URL,
+			Name:       serviceName,
+			StreamName: cfg.NATS.StreamName,
+		})
+		if err != nil {
+			logger.Warn("Failed to connect to NATS - driver payouts via events disabled", zap.Error(err))
+		} else {
+			defer bus.Close()
+			logger.Info("NATS event bus connected for payment events")
+
+			paymentEventHandler := payments.NewEventHandler(paymentService)
+			if err := paymentEventHandler.RegisterSubscriptions(rootCtx, bus); err != nil {
+				logger.Error("Failed to register payment event subscriptions", zap.Error(err))
+			}
+		}
+	}
 
 	jwtProvider, err := jwtkeys.NewManagerFromConfig(rootCtx, cfg.JWT, true)
 	if err != nil {

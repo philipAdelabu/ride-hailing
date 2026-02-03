@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/richxcame/ride-hailing/pkg/common"
+	"github.com/richxcame/ride-hailing/pkg/database"
 	"github.com/richxcame/ride-hailing/pkg/models"
 )
 
@@ -86,7 +87,7 @@ func (r *Repository) UpdatePaymentStatus(ctx context.Context, id uuid.UUID, stat
 		SET status = $1, stripe_charge_id = COALESCE($2, stripe_charge_id), updated_at = NOW()
 		WHERE id = $3`
 
-	_, err := r.db.Exec(ctx, query, status, stripeChargeID, id)
+	_, err := database.RetryableExec(ctx, r.db, query, status, stripeChargeID, id)
 	if err != nil {
 		return common.NewInternalError("failed to update payment status", err)
 	}
@@ -312,6 +313,19 @@ func (r *Repository) ProcessPaymentWithWallet(ctx context.Context, payment *mode
 		return common.NewInternalError("failed to start transaction", err)
 	}
 	defer tx.Rollback(ctx)
+
+	// Idempotency guard: skip if a completed payment already exists for this ride
+	var existingCount int
+	err = tx.QueryRow(ctx,
+		`SELECT COUNT(*) FROM payments WHERE ride_id = $1 AND status = 'completed'`,
+		payment.RideID,
+	).Scan(&existingCount)
+	if err != nil {
+		return common.NewInternalError("failed to check existing payment", err)
+	}
+	if existingCount > 0 {
+		return common.NewBadRequestError("payment already processed for this ride", nil)
+	}
 
 	// Get current wallet balance
 	var currentBalance float64
