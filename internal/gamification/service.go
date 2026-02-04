@@ -251,11 +251,15 @@ func (s *Service) ClaimQuestReward(ctx context.Context, req *ClaimQuestRewardReq
 
 	// Add bonus earned
 	if quest.RewardType == "bonus" {
-		_ = s.repo.AddBonusEarned(ctx, req.DriverID, quest.RewardValue)
+		if err := s.repo.AddBonusEarned(ctx, req.DriverID, quest.RewardValue); err != nil {
+			logger.Error("failed to add bonus earned", zap.Error(err))
+		}
 	}
 
 	// Increment quests completed
-	_ = s.repo.IncrementQuestsCompleted(ctx, req.DriverID)
+	if err := s.repo.IncrementQuestsCompleted(ctx, req.DriverID); err != nil {
+		logger.Error("failed to increment quests completed", zap.Error(err))
+	}
 
 	logger.Info("Quest reward claimed",
 		zap.String("driver_id", req.DriverID.String()),
@@ -348,7 +352,9 @@ func (s *Service) CheckAchievements(ctx context.Context, driverID uuid.UUID) err
 			}
 
 			// Add points
-			_ = s.repo.AddAchievementPoints(ctx, driverID, achievement.Points)
+			if err := s.repo.AddAchievementPoints(ctx, driverID, achievement.Points); err != nil {
+				logger.Error("failed to add achievement points", zap.Error(err))
+			}
 
 			logger.Info("Achievement awarded",
 				zap.String("driver_id", driverID.String()),
@@ -452,10 +458,18 @@ func (s *Service) ProcessRideCompleted(ctx context.Context, driverID uuid.UUID, 
 
 	// Update quest progress for ride count
 	go func() {
-		_ = s.UpdateQuestProgress(context.Background(), driverID, QuestTypeRideCount, 1)
-		_ = s.UpdateQuestProgress(context.Background(), driverID, QuestTypeEarnings, int(earnings))
-		_ = s.CheckTierUpgrade(context.Background(), driverID)
-		_ = s.CheckAchievements(context.Background(), driverID)
+		if err := s.UpdateQuestProgress(context.Background(), driverID, QuestTypeRideCount, 1); err != nil {
+			logger.Error("failed to update quest progress for ride count", zap.Error(err))
+		}
+		if err := s.UpdateQuestProgress(context.Background(), driverID, QuestTypeEarnings, int(earnings)); err != nil {
+			logger.Error("failed to update quest progress for earnings", zap.Error(err))
+		}
+		if err := s.CheckTierUpgrade(context.Background(), driverID); err != nil {
+			logger.Error("failed to check tier upgrade", zap.Error(err))
+		}
+		if err := s.CheckAchievements(context.Background(), driverID); err != nil {
+			logger.Error("failed to check achievements", zap.Error(err))
+		}
 	}()
 
 	return nil
@@ -495,7 +509,9 @@ func (s *Service) ProcessStreak(ctx context.Context, driverID uuid.UUID) error {
 
 	// Update streak quest progress
 	go func() {
-		_ = s.UpdateQuestProgress(context.Background(), driverID, QuestTypeStreak, newStreak)
+		if err := s.UpdateQuestProgress(context.Background(), driverID, QuestTypeStreak, newStreak); err != nil {
+			logger.Error("failed to update quest progress for streak", zap.Error(err))
+		}
 	}()
 
 	return nil

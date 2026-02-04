@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/richxcame/ride-hailing/pkg/common"
 )
 
 // Handler handles HTTP requests for favorite locations
@@ -29,7 +30,7 @@ func (h *Handler) CreateFavorite(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -43,11 +44,11 @@ func (h *Handler) CreateFavorite(c *gin.Context) {
 	)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusCreated, favorite)
+	common.CreatedResponse(c, favorite)
 }
 
 // GetFavorites retrieves all favorite locations for the user
@@ -60,11 +61,11 @@ func (h *Handler) GetFavorites(c *gin.Context) {
 	)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"favorites": favorites})
+	common.SuccessResponse(c, gin.H{"favorites": favorites})
 }
 
 // GetFavorite retrieves a specific favorite location
@@ -72,7 +73,7 @@ func (h *Handler) GetFavorite(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	favoriteID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid favorite ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "Invalid favorite ID")
 		return
 	}
 
@@ -83,11 +84,11 @@ func (h *Handler) GetFavorite(c *gin.Context) {
 	)
 
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusNotFound, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, favorite)
+	common.SuccessResponse(c, favorite)
 }
 
 // UpdateFavorite updates a favorite location
@@ -95,7 +96,7 @@ func (h *Handler) UpdateFavorite(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	favoriteID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid favorite ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "Invalid favorite ID")
 		return
 	}
 
@@ -107,7 +108,7 @@ func (h *Handler) UpdateFavorite(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -122,11 +123,11 @@ func (h *Handler) UpdateFavorite(c *gin.Context) {
 	)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, favorite)
+	common.SuccessResponse(c, favorite)
 }
 
 // DeleteFavorite deletes a favorite location
@@ -134,7 +135,7 @@ func (h *Handler) DeleteFavorite(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	favoriteID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid favorite ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "Invalid favorite ID")
 		return
 	}
 
@@ -145,9 +146,9 @@ func (h *Handler) DeleteFavorite(c *gin.Context) {
 	)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Favorite location deleted"})
+	common.SuccessResponse(c, gin.H{"message": "Favorite location deleted"})
 }

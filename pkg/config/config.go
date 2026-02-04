@@ -368,7 +368,7 @@ func Load(serviceName string) (*Config, error) {
 			DB:       getEnvAsInt("REDIS_DB", 0),
 		},
 		JWT: JWTConfig{
-			Secret:         getEnv("JWT_SECRET", "your-secret-key-change-in-production"),
+			Secret:         getEnv("JWT_SECRET", ""),
 			Expiration:     getEnvAsInt("JWT_EXPIRATION", 24),
 			KeyFile:        getEnv("JWT_KEYS_FILE", "config/jwt_keys.json"),
 			RotationHours:  getEnvAsInt("JWT_ROTATION_HOURS", 24*30),

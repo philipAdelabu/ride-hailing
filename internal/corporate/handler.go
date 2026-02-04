@@ -11,6 +11,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	"github.com/richxcame/ride-hailing/pkg/models"
+	"github.com/richxcame/ride-hailing/pkg/pagination"
 )
 
 // Handler handles HTTP requests for corporate accounts
@@ -96,8 +97,7 @@ func (h *Handler) GetDashboard(c *gin.Context) {
 // ListAccounts lists corporate accounts (admin)
 // GET /api/v1/admin/corporate/accounts
 func (h *Handler) ListAccounts(c *gin.Context) {
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	params := pagination.ParseParams(c)
 
 	var status *AccountStatus
 	if s := c.Query("status"); s != "" {
@@ -105,16 +105,14 @@ func (h *Handler) ListAccounts(c *gin.Context) {
 		status = &st
 	}
 
-	accounts, err := h.service.ListAccounts(c.Request.Context(), status, limit, offset)
+	accounts, err := h.service.ListAccounts(c.Request.Context(), status, params.Limit, params.Offset)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to list accounts")
 		return
 	}
 
-	common.SuccessResponse(c, gin.H{
-		"accounts": accounts,
-		"count":    len(accounts),
-	})
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(len(accounts)))
+	common.SuccessResponseWithMeta(c, accounts, meta)
 }
 
 // ActivateAccount activates a pending account
@@ -186,15 +184,16 @@ func (h *Handler) ListDepartments(c *gin.Context) {
 		return
 	}
 
+	params := pagination.ParseParams(c)
+
 	depts, err := h.service.ListDepartments(c.Request.Context(), accountID)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to list departments")
 		return
 	}
 
-	common.SuccessResponse(c, gin.H{
-		"departments": depts,
-	})
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(len(depts)))
+	common.SuccessResponseWithMeta(c, depts, meta)
 }
 
 // ========================================
@@ -241,19 +240,16 @@ func (h *Handler) ListEmployees(c *gin.Context) {
 		return
 	}
 
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	params := pagination.ParseParams(c)
 
-	employees, err := h.service.ListEmployees(c.Request.Context(), accountID, limit, offset)
+	employees, err := h.service.ListEmployees(c.Request.Context(), accountID, params.Limit, params.Offset)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to list employees")
 		return
 	}
 
-	common.SuccessResponse(c, gin.H{
-		"employees": employees,
-		"count":     len(employees),
-	})
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(len(employees)))
+	common.SuccessResponseWithMeta(c, employees, meta)
 }
 
 // GetMyProfile gets the current user's corporate profile
@@ -409,19 +405,16 @@ func (h *Handler) ListInvoices(c *gin.Context) {
 		return
 	}
 
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "12"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	params := pagination.ParseParams(c)
 
-	invoices, err := h.service.ListInvoices(c.Request.Context(), accountID, limit, offset)
+	invoices, err := h.service.ListInvoices(c.Request.Context(), accountID, params.Limit, params.Offset)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to list invoices")
 		return
 	}
 
-	common.SuccessResponse(c, gin.H{
-		"invoices": invoices,
-		"count":    len(invoices),
-	})
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(len(invoices)))
+	common.SuccessResponseWithMeta(c, invoices, meta)
 }
 
 // GenerateInvoice generates an invoice for a period

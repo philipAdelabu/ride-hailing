@@ -9,6 +9,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/common"
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
+	"github.com/richxcame/ride-hailing/pkg/pagination"
 )
 
 // Handler handles HTTP requests for scheduling
@@ -90,16 +91,16 @@ func (h *Handler) ListRecurringRides(c *gin.Context) {
 		return
 	}
 
+	params := pagination.ParseParams(c)
+
 	rides, err := h.service.ListRecurringRides(c.Request.Context(), riderID)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to list recurring rides")
 		return
 	}
 
-	common.SuccessResponse(c, gin.H{
-		"recurring_rides": rides,
-		"count":           len(rides),
-	})
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(len(rides)))
+	common.SuccessResponseWithMeta(c, rides, meta)
 }
 
 // UpdateRecurringRide updates a recurring ride

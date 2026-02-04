@@ -9,6 +9,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	"github.com/richxcame/ride-hailing/pkg/models"
+	"github.com/richxcame/ride-hailing/pkg/pagination"
 )
 
 // Handler handles HTTP requests for subscriptions
@@ -28,16 +29,16 @@ func NewHandler(service *Service) *Handler {
 // ListPlans lists available subscription plans
 // GET /api/v1/subscriptions/plans
 func (h *Handler) ListPlans(c *gin.Context) {
+	params := pagination.ParseParams(c)
+
 	plans, err := h.service.ListPlans(c.Request.Context())
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to list plans")
 		return
 	}
 
-	common.SuccessResponse(c, gin.H{
-		"plans": plans,
-		"count": len(plans),
-	})
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(len(plans)))
+	common.SuccessResponseWithMeta(c, plans, meta)
 }
 
 // ComparePlans returns plans with personalized savings estimates
@@ -215,16 +216,16 @@ func (h *Handler) CreatePlan(c *gin.Context) {
 // ListAllPlans lists all plans including inactive (admin)
 // GET /api/v1/admin/subscriptions/plans
 func (h *Handler) ListAllPlans(c *gin.Context) {
+	params := pagination.ParseParams(c)
+
 	plans, err := h.service.ListAllPlans(c.Request.Context())
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to list plans")
 		return
 	}
 
-	common.SuccessResponse(c, gin.H{
-		"plans": plans,
-		"count": len(plans),
-	})
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(len(plans)))
+	common.SuccessResponseWithMeta(c, plans, meta)
 }
 
 // DeactivatePlan deactivates a plan (admin)

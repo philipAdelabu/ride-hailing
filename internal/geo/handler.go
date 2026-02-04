@@ -285,10 +285,20 @@ func (h *Handler) PlaceAutocomplete(c *gin.Context) {
 
 	var lat, lng float64
 	if latStr := c.Query("latitude"); latStr != "" {
-		lat, _ = strconv.ParseFloat(latStr, 64)
+		var err error
+		lat, err = strconv.ParseFloat(latStr, 64)
+		if err != nil {
+			common.ErrorResponse(c, http.StatusBadRequest, "invalid latitude value")
+			return
+		}
 	}
 	if lngStr := c.Query("longitude"); lngStr != "" {
-		lng, _ = strconv.ParseFloat(lngStr, 64)
+		var err error
+		lng, err = strconv.ParseFloat(lngStr, 64)
+		if err != nil {
+			common.ErrorResponse(c, http.StatusBadRequest, "invalid longitude value")
+			return
+		}
 	}
 
 	results, err := h.geocoding.Autocomplete(c.Request.Context(), input, lat, lng)

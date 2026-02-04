@@ -100,7 +100,9 @@ func (s *Service) CreateSplit(ctx context.Context, initiatorID uuid.UUID, req *C
 	for _, p := range participants {
 		if p.UserID != nil && *p.UserID != initiatorID {
 			if s.notificationSvc != nil {
-				_ = s.notificationSvc.SendSplitInvitation(ctx, p.ID, split.ID, "User", p.Amount)
+				if err := s.notificationSvc.SendSplitInvitation(ctx, p.ID, split.ID, "User", p.Amount); err != nil {
+					logger.Warn("failed to send split invitation", zap.Error(err))
+				}
 			}
 		}
 	}
@@ -187,7 +189,9 @@ func (s *Service) RespondToSplit(ctx context.Context, userID uuid.UUID, splitID 
 
 		// Notify initiator
 		if s.notificationSvc != nil {
-			_ = s.notificationSvc.SendSplitAccepted(ctx, split.InitiatorID, participant.DisplayName)
+			if err := s.notificationSvc.SendSplitAccepted(ctx, split.InitiatorID, participant.DisplayName); err != nil {
+				logger.Warn("failed to send split accepted notification", zap.Error(err))
+			}
 		}
 
 		// Check if all have accepted
@@ -399,9 +403,13 @@ func (s *Service) ProcessExpiredSplits(ctx context.Context) error {
 	for _, split := range expired {
 		// If partially collected, mark as partial
 		if split.CollectedAmount > 0 {
-			_ = s.repo.UpdateSplitStatus(ctx, split.ID, SplitStatusPartial)
+			if err := s.repo.UpdateSplitStatus(ctx, split.ID, SplitStatusPartial); err != nil {
+				logger.Error("failed to update split status to partial", zap.Error(err))
+			}
 		} else {
-			_ = s.repo.UpdateSplitStatus(ctx, split.ID, SplitStatusExpired)
+			if err := s.repo.UpdateSplitStatus(ctx, split.ID, SplitStatusExpired); err != nil {
+				logger.Error("failed to update split status to expired", zap.Error(err))
+			}
 		}
 
 		logger.Info("Split expired",
@@ -423,9 +431,13 @@ func (s *Service) SendPendingReminders(ctx context.Context) error {
 
 	for _, p := range pendingParticipants {
 		if s.notificationSvc != nil {
-			_ = s.notificationSvc.SendSplitReminder(ctx, p.ID, p.SplitID, p.Amount)
+			if err := s.notificationSvc.SendSplitReminder(ctx, p.ID, p.SplitID, p.Amount); err != nil {
+				logger.Warn("failed to send split reminder", zap.Error(err))
+			}
 		}
-		_ = s.repo.UpdateParticipantReminder(ctx, p.ID)
+		if err := s.repo.UpdateParticipantReminder(ctx, p.ID); err != nil {
+			logger.Error("failed to update participant reminder", zap.Error(err))
+		}
 	}
 
 	return nil
@@ -589,7 +601,9 @@ func (s *Service) checkAndActivateSplit(ctx context.Context, splitID uuid.UUID) 
 	}
 
 	if allAccepted {
-		_ = s.repo.UpdateSplitStatus(ctx, splitID, SplitStatusActive)
+		if err := s.repo.UpdateSplitStatus(ctx, splitID, SplitStatusActive); err != nil {
+			logger.Error("failed to update split status to active", zap.Error(err))
+		}
 	}
 }
 
@@ -608,9 +622,13 @@ func (s *Service) checkAndCompleteSplit(ctx context.Context, splitID uuid.UUID) 
 	}
 
 	if allPaid {
-		_ = s.repo.UpdateSplitStatus(ctx, splitID, SplitStatusCompleted)
+		if err := s.repo.UpdateSplitStatus(ctx, splitID, SplitStatusCompleted); err != nil {
+			logger.Error("failed to update split status to completed", zap.Error(err))
+		}
 		if s.notificationSvc != nil {
-			_ = s.notificationSvc.SendSplitCompleted(ctx, splitID)
+			if err := s.notificationSvc.SendSplitCompleted(ctx, splitID); err != nil {
+				logger.Warn("failed to send split completed notification", zap.Error(err))
+			}
 		}
 	}
 }

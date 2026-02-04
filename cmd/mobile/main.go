@@ -16,19 +16,36 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/richxcame/ride-hailing/internal/cancellation"
 	"github.com/richxcame/ride-hailing/internal/chat"
+	"github.com/richxcame/ride-hailing/internal/corporate"
+	"github.com/richxcame/ride-hailing/internal/currency"
+	"github.com/richxcame/ride-hailing/internal/delivery"
+	"github.com/richxcame/ride-hailing/internal/demandforecast"
 	"github.com/richxcame/ride-hailing/internal/disputes"
 	"github.com/richxcame/ride-hailing/internal/earnings"
+	"github.com/richxcame/ride-hailing/internal/experiments"
 	"github.com/richxcame/ride-hailing/internal/family"
 	"github.com/richxcame/ride-hailing/internal/favorites"
+	"github.com/richxcame/ride-hailing/internal/fraud"
+	"github.com/richxcame/ride-hailing/internal/gamification"
+	"github.com/richxcame/ride-hailing/internal/geography"
 	"github.com/richxcame/ride-hailing/internal/giftcards"
+	"github.com/richxcame/ride-hailing/internal/loyalty"
+	"github.com/richxcame/ride-hailing/internal/negotiation"
+	"github.com/richxcame/ride-hailing/internal/onboarding"
 	"github.com/richxcame/ride-hailing/internal/paymentmethods"
+	"github.com/richxcame/ride-hailing/internal/paymentsplit"
+	"github.com/richxcame/ride-hailing/internal/pool"
 	"github.com/richxcame/ride-hailing/internal/preferences"
+	"github.com/richxcame/ride-hailing/internal/pricing"
 	"github.com/richxcame/ride-hailing/internal/ratings"
+	"github.com/richxcame/ride-hailing/internal/recording"
 	"github.com/richxcame/ride-hailing/internal/ridehistory"
 	"github.com/richxcame/ride-hailing/internal/rides"
+	"github.com/richxcame/ride-hailing/internal/safety"
 	"github.com/richxcame/ride-hailing/internal/subscriptions"
 	"github.com/richxcame/ride-hailing/internal/support"
 	"github.com/richxcame/ride-hailing/internal/tips"
+	"github.com/richxcame/ride-hailing/internal/twofa"
 	"github.com/richxcame/ride-hailing/internal/vehicle"
 	"github.com/richxcame/ride-hailing/internal/waittime"
 	"github.com/richxcame/ride-hailing/pkg/config"
@@ -70,7 +87,7 @@ func main() {
 	dbUser := getEnv("DB_USER", "postgres")
 	dbPassword := getEnv("DB_PASSWORD", "postgres")
 	dbName := getEnv("DB_NAME", "ride_hailing")
-	jwtSecret := getEnv("JWT_SECRET", "your-secret-key")
+	jwtSecret := getEnv("JWT_SECRET", "")
 	port := getEnv("PORT", "8087")
 	rootCtx, cancelKeys := context.WithCancel(context.Background())
 	defer cancelKeys()
@@ -177,6 +194,23 @@ func main() {
 	preferencesRepo := preferences.NewRepository(db)
 	waittimeRepo := waittime.NewRepository(db)
 	chatRepo := chat.NewRepository(db)
+	corporateRepo := corporate.NewRepository(db)
+	twofaRepo := twofa.NewRepository(db)
+	loyaltyRepo := loyalty.NewRepository(db)
+	poolRepo := pool.NewRepository(db)
+	deliveryRepo := delivery.NewRepository(db)
+	recordingRepo := recording.NewRepository(db)
+	onboardingRepo := onboarding.NewRepository(db)
+	demandforecastRepo := demandforecast.NewRepository(db)
+	experimentsRepo := experiments.NewRepository(db)
+	fraudRepo := fraud.NewRepository(db)
+	gamificationRepo := gamification.NewRepository(db)
+	paymentsplitRepo := paymentsplit.NewRepository(db)
+	geographyRepo := geography.NewRepository(db)
+	currencyRepo := currency.NewRepository(db)
+	pricingRepo := pricing.NewRepository(db)
+	negotiationRepo := negotiation.NewRepository(db)
+	safetyRepo := safety.NewRepository(db)
 
 	// Initialize services
 	ridesService := rides.NewService(ridesRepo, promosServiceURL, nil)
@@ -196,6 +230,25 @@ func main() {
 	preferencesService := preferences.NewService(preferencesRepo)
 	waittimeService := waittime.NewService(waittimeRepo)
 	chatService := chat.NewService(chatRepo, wsHub)
+	corporateService := corporate.NewService(corporateRepo)
+	twofaService := twofa.NewService(twofaRepo, nil, nil, getEnv("APP_NAME", "RideHailing")) // TODO: wire SMSSender, Redis
+	loyaltyService := loyalty.NewService(loyaltyRepo)
+	poolService := pool.NewService(poolRepo, nil, pool.DefaultServiceConfig()) // TODO: wire MapsService
+	deliveryService := delivery.NewService(deliveryRepo)
+	recordingService := recording.NewService(recordingRepo, nil, recording.Config{}) // TODO: wire Storage
+	onboardingService := onboarding.NewService(onboardingRepo, nil, nil)              // TODO: wire DocumentService, NotificationService
+	demandforecastService := demandforecast.NewService(demandforecastRepo, nil, nil, nil) // TODO: wire WeatherService, DriverLocationService
+	experimentsService := experiments.NewService(experimentsRepo)
+	fraudService := fraud.NewService(fraudRepo)
+	gamificationService := gamification.NewService(gamificationRepo)
+	paymentsplitService := paymentsplit.NewService(paymentsplitRepo, nil, nil) // TODO: wire PaymentService, NotificationService
+	geographyService := geography.NewService(geographyRepo)
+	currencyService := currency.NewService(currencyRepo, getEnv("BASE_CURRENCY", "USD"))
+	pricingService := pricing.NewService(pricingRepo, geographyService, currencyService)
+	negotiationService := negotiation.NewService(negotiationRepo, pricingService, geographyService)
+	safetyService := safety.NewService(safetyRepo, safety.Config{
+		EmergencyNumber: getEnv("EMERGENCY_NUMBER", "112"),
+	})
 
 	// Initialize handlers
 	ridesHandler := rides.NewHandler(ridesService)
@@ -215,6 +268,23 @@ func main() {
 	preferencesHandler := preferences.NewHandler(preferencesService)
 	waittimeHandler := waittime.NewHandler(waittimeService)
 	chatHandler := chat.NewHandler(chatService)
+	corporateHandler := corporate.NewHandler(corporateService)
+	twofaHandler := twofa.NewHandler(twofaService)
+	loyaltyHandler := loyalty.NewHandler(loyaltyService)
+	poolHandler := pool.NewHandler(poolService)
+	deliveryHandler := delivery.NewHandler(deliveryService)
+	recordingHandler := recording.NewHandler(recordingService)
+	onboardingHandler := onboarding.NewHandler(onboardingService)
+	demandforecastHandler := demandforecast.NewHandler(demandforecastService)
+	experimentsHandler := experiments.NewHandler(experimentsService)
+	fraudHandler := fraud.NewHandler(fraudService)
+	gamificationHandler := gamification.NewHandler(gamificationService)
+	paymentsplitHandler := paymentsplit.NewHandler(paymentsplitService)
+	geographyHandler := geography.NewHandler(geographyService)
+	currencyHandler := currency.NewHandler(currencyService)
+	pricingHandler := pricing.NewHandler(pricingService)
+	negotiationHandler := negotiation.NewHandler(negotiationService)
+	safetyHandler := safety.NewHandler(safetyService)
 
 	// Set up Gin router
 	router := gin.New()
@@ -312,6 +382,27 @@ func main() {
 	preferencesHandler.RegisterRoutes(router, jwtProvider)
 	waittimeHandler.RegisterRoutes(router, jwtProvider)
 	chatHandler.RegisterRoutes(router, jwtProvider)
+	corporateHandler.RegisterRoutes(router, jwtProvider)
+	twofaHandler.RegisterRoutes(router, jwtProvider)
+	loyaltyHandler.RegisterRoutes(router, jwtProvider)
+	poolHandler.RegisterRoutes(router, jwtProvider)
+	deliveryHandler.RegisterRoutes(router, jwtProvider)
+	recordingHandler.RegisterRoutes(router, jwtProvider)
+	onboardingHandler.RegisterRoutes(router, jwtProvider)
+	demandforecastHandler.RegisterRoutes(router, jwtProvider)
+	experimentsHandler.RegisterRoutes(router, jwtProvider)
+	fraudHandler.RegisterRoutes(router, jwtProvider)
+	gamificationHandler.RegisterRoutes(router, jwtProvider)
+	paymentsplitHandler.RegisterRoutes(router, jwtProvider)
+
+	// Register RouterGroup-based routes
+	apiGroup := router.Group("/api/v1")
+	apiGroup.Use(middleware.AuthMiddlewareWithProvider(jwtProvider))
+	geographyHandler.RegisterRoutes(apiGroup)
+	currencyHandler.RegisterRoutes(apiGroup)
+	pricingHandler.RegisterRoutes(apiGroup)
+	negotiationHandler.RegisterRoutes(apiGroup)
+	safetyHandler.RegisterRoutes(apiGroup)
 
 	// Create HTTP server with timeouts
 	srv := &http.Server{

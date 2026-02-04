@@ -7,6 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/richxcame/ride-hailing/pkg/logger"
+	"go.uber.org/zap"
 )
 
 // Repository handles scheduling database operations
@@ -98,9 +100,15 @@ func (r *Repository) GetRecurringRide(ctx context.Context, rideID uuid.UUID) (*R
 		return nil, err
 	}
 
-	_ = json.Unmarshal(pickupJSON, &ride.PickupLocation)
-	_ = json.Unmarshal(dropoffJSON, &ride.DropoffLocation)
-	_ = json.Unmarshal(daysJSON, &ride.DaysOfWeek)
+	if err := json.Unmarshal(pickupJSON, &ride.PickupLocation); err != nil {
+		logger.Warn("failed to unmarshal pickup location", zap.Error(err))
+	}
+	if err := json.Unmarshal(dropoffJSON, &ride.DropoffLocation); err != nil {
+		logger.Warn("failed to unmarshal dropoff location", zap.Error(err))
+	}
+	if err := json.Unmarshal(daysJSON, &ride.DaysOfWeek); err != nil {
+		logger.Warn("failed to unmarshal days of week", zap.Error(err))
+	}
 
 	return &ride, nil
 }
@@ -150,9 +158,15 @@ func (r *Repository) ListRecurringRidesForRider(ctx context.Context, riderID uui
 		if err != nil {
 			continue
 		}
-		_ = json.Unmarshal(pickupJSON, &ride.PickupLocation)
-		_ = json.Unmarshal(dropoffJSON, &ride.DropoffLocation)
-		_ = json.Unmarshal(daysJSON, &ride.DaysOfWeek)
+		if err := json.Unmarshal(pickupJSON, &ride.PickupLocation); err != nil {
+			logger.Warn("failed to unmarshal pickup location", zap.Error(err))
+		}
+		if err := json.Unmarshal(dropoffJSON, &ride.DropoffLocation); err != nil {
+			logger.Warn("failed to unmarshal dropoff location", zap.Error(err))
+		}
+		if err := json.Unmarshal(daysJSON, &ride.DaysOfWeek); err != nil {
+			logger.Warn("failed to unmarshal days of week", zap.Error(err))
+		}
 		rides = append(rides, &ride)
 	}
 
@@ -241,9 +255,15 @@ func (r *Repository) GetActiveRecurringRidesForScheduling(ctx context.Context) (
 		if err != nil {
 			continue
 		}
-		_ = json.Unmarshal(pickupJSON, &ride.PickupLocation)
-		_ = json.Unmarshal(dropoffJSON, &ride.DropoffLocation)
-		_ = json.Unmarshal(daysJSON, &ride.DaysOfWeek)
+		if err := json.Unmarshal(pickupJSON, &ride.PickupLocation); err != nil {
+			logger.Warn("failed to unmarshal pickup location", zap.Error(err))
+		}
+		if err := json.Unmarshal(dropoffJSON, &ride.DropoffLocation); err != nil {
+			logger.Warn("failed to unmarshal dropoff location", zap.Error(err))
+		}
+		if err := json.Unmarshal(daysJSON, &ride.DaysOfWeek); err != nil {
+			logger.Warn("failed to unmarshal days of week", zap.Error(err))
+		}
 		rides = append(rides, &ride)
 	}
 
@@ -316,8 +336,12 @@ func (r *Repository) GetInstance(ctx context.Context, instanceID uuid.UUID) (*Sc
 		return nil, err
 	}
 
-	_ = json.Unmarshal(pickupJSON, &instance.PickupLocation)
-	_ = json.Unmarshal(dropoffJSON, &instance.DropoffLocation)
+	if err := json.Unmarshal(pickupJSON, &instance.PickupLocation); err != nil {
+		logger.Warn("failed to unmarshal pickup location", zap.Error(err))
+	}
+	if err := json.Unmarshal(dropoffJSON, &instance.DropoffLocation); err != nil {
+		logger.Warn("failed to unmarshal dropoff location", zap.Error(err))
+	}
 
 	return &instance, nil
 }
@@ -364,8 +388,12 @@ func (r *Repository) GetUpcomingInstances(ctx context.Context, recurringRideID u
 		if err != nil {
 			continue
 		}
-		_ = json.Unmarshal(pickupJSON, &instance.PickupLocation)
-		_ = json.Unmarshal(dropoffJSON, &instance.DropoffLocation)
+		if err := json.Unmarshal(pickupJSON, &instance.PickupLocation); err != nil {
+			logger.Warn("failed to unmarshal pickup location", zap.Error(err))
+		}
+		if err := json.Unmarshal(dropoffJSON, &instance.DropoffLocation); err != nil {
+			logger.Warn("failed to unmarshal dropoff location", zap.Error(err))
+		}
 		instances = append(instances, &instance)
 	}
 
@@ -413,8 +441,12 @@ func (r *Repository) GetUpcomingInstancesForRider(ctx context.Context, riderID u
 		if err != nil {
 			continue
 		}
-		_ = json.Unmarshal(pickupJSON, &instance.PickupLocation)
-		_ = json.Unmarshal(dropoffJSON, &instance.DropoffLocation)
+		if err := json.Unmarshal(pickupJSON, &instance.PickupLocation); err != nil {
+			logger.Warn("failed to unmarshal pickup location", zap.Error(err))
+		}
+		if err := json.Unmarshal(dropoffJSON, &instance.DropoffLocation); err != nil {
+			logger.Warn("failed to unmarshal dropoff location", zap.Error(err))
+		}
 		instances = append(instances, &instance)
 	}
 
@@ -493,8 +525,12 @@ func (r *Repository) GetInstancesNeedingReminders(ctx context.Context) ([]*Sched
 		if err != nil {
 			continue
 		}
-		_ = json.Unmarshal(pickupJSON, &instance.PickupLocation)
-		_ = json.Unmarshal(dropoffJSON, &instance.DropoffLocation)
+		if err := json.Unmarshal(pickupJSON, &instance.PickupLocation); err != nil {
+			logger.Warn("failed to unmarshal pickup location", zap.Error(err))
+		}
+		if err := json.Unmarshal(dropoffJSON, &instance.DropoffLocation); err != nil {
+			logger.Warn("failed to unmarshal dropoff location", zap.Error(err))
+		}
 		instances = append(instances, &instance)
 	}
 
@@ -542,11 +578,13 @@ func (r *Repository) GetRiderStats(ctx context.Context, riderID uuid.UUID) (*Rec
 	}
 
 	// Total savings from price lock
-	_ = r.db.QueryRow(ctx, `
+	if err := r.db.QueryRow(ctx, `
 		SELECT COALESCE(SUM(estimated_fare - COALESCE(actual_fare, estimated_fare)), 0)
 		FROM scheduled_ride_instances
 		WHERE rider_id = $1 AND price_locked = true AND status = 'completed'
-	`, riderID).Scan(&stats.TotalSavings)
+	`, riderID).Scan(&stats.TotalSavings); err != nil {
+		logger.Warn("failed to query total savings from price lock", zap.Error(err))
+	}
 
 	return stats, nil
 }

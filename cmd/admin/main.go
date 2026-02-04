@@ -53,7 +53,7 @@ func main() {
 	)
 
 	// Load environment variables
-	jwtSecret := getEnv("JWT_SECRET", "your-secret-key")
+	jwtSecret := getEnv("JWT_SECRET", "")
 	rootCtx, cancelKeys := context.WithCancel(context.Background())
 	defer cancelKeys()
 

@@ -9,6 +9,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	"github.com/richxcame/ride-hailing/pkg/models"
+	"github.com/richxcame/ride-hailing/pkg/pagination"
 )
 
 // Handler handles HTTP requests for wait time
@@ -150,16 +151,16 @@ func (h *Handler) CreateConfig(c *gin.Context) {
 // ListConfigs lists all wait time configurations
 // GET /api/v1/admin/wait-time/configs
 func (h *Handler) ListConfigs(c *gin.Context) {
+	params := pagination.ParseParams(c)
+
 	configs, err := h.service.ListConfigs(c.Request.Context())
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to list configs")
 		return
 	}
 
-	common.SuccessResponse(c, gin.H{
-		"configs": configs,
-		"count":   len(configs),
-	})
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(len(configs)))
+	common.SuccessResponseWithMeta(c, configs, meta)
 }
 
 // WaiveCharge waives wait time charges for a record

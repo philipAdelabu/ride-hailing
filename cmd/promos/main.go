@@ -20,6 +20,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/logger"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
+	"github.com/richxcame/ride-hailing/pkg/ratelimit"
 	"github.com/richxcame/ride-hailing/pkg/swagger"
 	"github.com/richxcame/ride-hailing/pkg/tracing"
 	"go.uber.org/zap"
@@ -131,6 +132,17 @@ func main() {
 		}()
 	}
 
+	// Initialize rate limiter
+	var limiter *ratelimit.Limiter
+	if redisClient != nil && cfg.RateLimit.Enabled {
+		limiter = ratelimit.NewLimiter(redisClient.Client, cfg.RateLimit)
+		logger.Info("Rate limiting enabled",
+			zap.Int("default_limit", cfg.RateLimit.DefaultLimit),
+			zap.Int("default_burst", cfg.RateLimit.DefaultBurst),
+			zap.Duration("window", cfg.RateLimit.Window()),
+		)
+	}
+
 	// Create repository, service and handler
 	repo := promos.NewRepository(db)
 	service := promos.NewService(repo)
@@ -151,6 +163,9 @@ func main() {
 	router.Use(middleware.SecurityHeaders())
 	router.Use(middleware.MaxBodySize(10 << 20)) // 10MB request body limit
 	router.Use(middleware.SanitizeRequest())
+	if limiter != nil {
+		router.Use(middleware.RateLimit(limiter, cfg.RateLimit))
+	}
 	router.Use(middleware.Metrics(serviceName))
 
 	// Add tracing middleware if enabled

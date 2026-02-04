@@ -106,8 +106,7 @@ func main() {
 	// Get Stripe API key from configuration / secrets manager
 	stripeAPIKey := cfg.Payments.StripeAPIKey
 	if stripeAPIKey == "" {
-		log.Warn("STRIPE_API_KEY not set, payment processing will be limited")
-		stripeAPIKey = "sk_test_dummy" // Dummy key for development
+		log.Fatal("STRIPE_API_KEY is required - set via env var or configure secrets manager")
 	}
 
 	var stripeBreaker *resilience.CircuitBreaker

@@ -2,7 +2,6 @@ package experiments
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -10,6 +9,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	"github.com/richxcame/ride-hailing/pkg/models"
+	"github.com/richxcame/ride-hailing/pkg/pagination"
 )
 
 // Handler handles HTTP requests for experiments and feature flags
@@ -94,8 +94,7 @@ func (h *Handler) CreateFlag(c *gin.Context) {
 // ListFlags lists all feature flags (admin)
 // GET /api/v1/admin/flags
 func (h *Handler) ListFlags(c *gin.Context) {
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	params := pagination.ParseParams(c)
 
 	var status *FlagStatus
 	if s := c.Query("status"); s != "" {
@@ -103,16 +102,14 @@ func (h *Handler) ListFlags(c *gin.Context) {
 		status = &st
 	}
 
-	flags, err := h.service.ListFlags(c.Request.Context(), status, limit, offset)
+	flags, err := h.service.ListFlags(c.Request.Context(), status, params.Limit, params.Offset)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to list flags")
 		return
 	}
 
-	common.SuccessResponse(c, gin.H{
-		"flags": flags,
-		"count": len(flags),
-	})
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(len(flags)))
+	common.SuccessResponseWithMeta(c, flags, meta)
 }
 
 // GetFlag gets a flag by key (admin)
@@ -244,16 +241,16 @@ func (h *Handler) ListOverrides(c *gin.Context) {
 		return
 	}
 
+	params := pagination.ParseParams(c)
+
 	overrides, err := h.service.ListOverrides(c.Request.Context(), flagID)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to list overrides")
 		return
 	}
 
-	common.SuccessResponse(c, gin.H{
-		"overrides": overrides,
-		"count":     len(overrides),
-	})
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(len(overrides)))
+	common.SuccessResponseWithMeta(c, overrides, meta)
 }
 
 // ========================================
@@ -291,8 +288,7 @@ func (h *Handler) CreateExperiment(c *gin.Context) {
 // ListExperiments lists experiments (admin)
 // GET /api/v1/admin/experiments
 func (h *Handler) ListExperiments(c *gin.Context) {
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	params := pagination.ParseParams(c)
 
 	var status *ExperimentStatus
 	if s := c.Query("status"); s != "" {
@@ -300,16 +296,14 @@ func (h *Handler) ListExperiments(c *gin.Context) {
 		status = &st
 	}
 
-	experiments, err := h.service.ListExperiments(c.Request.Context(), status, limit, offset)
+	experiments, err := h.service.ListExperiments(c.Request.Context(), status, params.Limit, params.Offset)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to list experiments")
 		return
 	}
 
-	common.SuccessResponse(c, gin.H{
-		"experiments": experiments,
-		"count":       len(experiments),
-	})
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(len(experiments)))
+	common.SuccessResponseWithMeta(c, experiments, meta)
 }
 
 // GetExperiment gets an experiment with variants (admin)

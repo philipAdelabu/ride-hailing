@@ -76,17 +76,17 @@ func (h *Handler) GetPendingAlerts(c *gin.Context) {
 func (h *Handler) GetAlert(c *gin.Context) {
 	alertID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid alert ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid alert ID")
 		return
 	}
 
 	alert, err := h.service.GetAlert(c.Request.Context(), alertID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusNotFound, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, alert)
+	common.SuccessResponse(c, alert)
 }
 
 // CreateAlertRequest represents a request to create a fraud alert
@@ -103,7 +103,7 @@ type CreateAlertRequest struct {
 func (h *Handler) CreateAlert(c *gin.Context) {
 	var req CreateAlertRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -117,11 +117,11 @@ func (h *Handler) CreateAlert(c *gin.Context) {
 	}
 
 	if err := h.service.CreateAlert(c.Request.Context(), alert); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusCreated, alert)
+	common.CreatedResponse(c, alert)
 }
 
 // InvestigateAlertRequest represents a request to investigate an alert
@@ -133,13 +133,13 @@ type InvestigateAlertRequest struct {
 func (h *Handler) InvestigateAlert(c *gin.Context) {
 	alertID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid alert ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid alert ID")
 		return
 	}
 
 	var req InvestigateAlertRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -147,16 +147,16 @@ func (h *Handler) InvestigateAlert(c *gin.Context) {
 	adminID := c.GetString("user_id")
 	investigatorID, err := uuid.Parse(adminID)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user ID"})
+		common.ErrorResponse(c, http.StatusUnauthorized, "invalid user ID")
 		return
 	}
 
 	if err := h.service.InvestigateAlert(c.Request.Context(), alertID, investigatorID, req.Notes); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "alert marked as investigating"})
+	common.SuccessResponse(c, gin.H{"message": "alert marked as investigating"})
 }
 
 // ResolveAlertRequest represents a request to resolve an alert
@@ -170,13 +170,13 @@ type ResolveAlertRequest struct {
 func (h *Handler) ResolveAlert(c *gin.Context) {
 	alertID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid alert ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid alert ID")
 		return
 	}
 
 	var req ResolveAlertRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -184,16 +184,16 @@ func (h *Handler) ResolveAlert(c *gin.Context) {
 	adminID := c.GetString("user_id")
 	investigatorID, err := uuid.Parse(adminID)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user ID"})
+		common.ErrorResponse(c, http.StatusUnauthorized, "invalid user ID")
 		return
 	}
 
 	if err := h.service.ResolveAlert(c.Request.Context(), alertID, investigatorID, req.Confirmed, req.Notes, req.ActionTaken); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "alert resolved successfully"})
+	common.SuccessResponse(c, gin.H{"message": "alert resolved successfully"})
 }
 
 // GetUserAlerts retrieves all fraud alerts for a user
@@ -224,34 +224,34 @@ func (h *Handler) GetUserAlerts(c *gin.Context) {
 func (h *Handler) GetUserRiskProfile(c *gin.Context) {
 	userID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid user ID")
 		return
 	}
 
 	profile, err := h.service.GetUserRiskProfile(c.Request.Context(), userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, profile)
+	common.SuccessResponse(c, profile)
 }
 
 // AnalyzeUser performs comprehensive fraud analysis on a user
 func (h *Handler) AnalyzeUser(c *gin.Context) {
 	userID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid user ID")
 		return
 	}
 
 	profile, err := h.service.AnalyzeUser(c.Request.Context(), userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, profile)
+	common.SuccessResponse(c, profile)
 }
 
 // SuspendUserRequest represents a request to suspend a user
@@ -263,13 +263,13 @@ type SuspendUserRequest struct {
 func (h *Handler) SuspendUser(c *gin.Context) {
 	userID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid user ID")
 		return
 	}
 
 	var req SuspendUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -277,16 +277,16 @@ func (h *Handler) SuspendUser(c *gin.Context) {
 	adminID := c.GetString("user_id")
 	adminUUID, err := uuid.Parse(adminID)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid admin ID"})
+		common.ErrorResponse(c, http.StatusUnauthorized, "invalid admin ID")
 		return
 	}
 
 	if err := h.service.SuspendUser(c.Request.Context(), userID, adminUUID, req.Reason); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "user account suspended"})
+	common.SuccessResponse(c, gin.H{"message": "user account suspended"})
 }
 
 // ReinstateUserRequest represents a request to reinstate a user
@@ -298,13 +298,13 @@ type ReinstateUserRequest struct {
 func (h *Handler) ReinstateUser(c *gin.Context) {
 	userID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid user ID")
 		return
 	}
 
 	var req ReinstateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -312,64 +312,64 @@ func (h *Handler) ReinstateUser(c *gin.Context) {
 	adminID := c.GetString("user_id")
 	adminUUID, err := uuid.Parse(adminID)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid admin ID"})
+		common.ErrorResponse(c, http.StatusUnauthorized, "invalid admin ID")
 		return
 	}
 
 	if err := h.service.ReinstateUser(c.Request.Context(), userID, adminUUID, req.Reason); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "user account reinstated"})
+	common.SuccessResponse(c, gin.H{"message": "user account reinstated"})
 }
 
 // DetectPaymentFraud analyzes payment patterns and creates alerts if needed
 func (h *Handler) DetectPaymentFraud(c *gin.Context) {
 	userID, err := uuid.Parse(c.Param("user_id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid user ID")
 		return
 	}
 
 	if err := h.service.DetectPaymentFraud(c.Request.Context(), userID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "payment fraud detection completed"})
+	common.SuccessResponse(c, gin.H{"message": "payment fraud detection completed"})
 }
 
 // DetectRideFraud analyzes ride patterns and creates alerts if needed
 func (h *Handler) DetectRideFraud(c *gin.Context) {
 	userID, err := uuid.Parse(c.Param("user_id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid user ID")
 		return
 	}
 
 	if err := h.service.DetectRideFraud(c.Request.Context(), userID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "ride fraud detection completed"})
+	common.SuccessResponse(c, gin.H{"message": "ride fraud detection completed"})
 }
 
 // DetectAccountFraud analyzes account patterns and creates alerts if needed
 func (h *Handler) DetectAccountFraud(c *gin.Context) {
 	userID, err := uuid.Parse(c.Param("user_id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid user ID")
 		return
 	}
 
 	if err := h.service.DetectAccountFraud(c.Request.Context(), userID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "account fraud detection completed"})
+	common.SuccessResponse(c, gin.H{"message": "account fraud detection completed"})
 }
 
 // GetFraudStatistics retrieves fraud statistics for a time period
@@ -379,13 +379,13 @@ func (h *Handler) GetFraudStatistics(c *gin.Context) {
 
 	start, err := time.Parse("2006-01-02", startDate)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid start_date format (use YYYY-MM-DD)"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid start_date format (use YYYY-MM-DD)")
 		return
 	}
 
 	end, err := time.Parse("2006-01-02", endDate)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid end_date format (use YYYY-MM-DD)"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid end_date format (use YYYY-MM-DD)")
 		return
 	}
 
@@ -394,11 +394,11 @@ func (h *Handler) GetFraudStatistics(c *gin.Context) {
 
 	stats, err := h.service.GetFraudStatistics(c.Request.Context(), start, end)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, stats)
+	common.SuccessResponse(c, stats)
 }
 
 // GetFraudPatterns retrieves detected fraud patterns
@@ -414,7 +414,7 @@ func (h *Handler) GetFraudPatterns(c *gin.Context) {
 
 	patterns, err := h.service.GetFraudPatterns(c.Request.Context(), limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -422,7 +422,7 @@ func (h *Handler) GetFraudPatterns(c *gin.Context) {
 		patterns = []*FraudPattern{}
 	}
 
-	c.JSON(http.StatusOK, patterns)
+	common.SuccessResponse(c, patterns)
 }
 
 // Helper function to parse int

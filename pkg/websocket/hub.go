@@ -1,8 +1,10 @@
 package websocket
 
 import (
-	"log"
 	"sync"
+
+	"github.com/richxcame/ride-hailing/pkg/logger"
+	"go.uber.org/zap"
 )
 
 // MessageHandler is a function that handles incoming messages
@@ -57,7 +59,7 @@ func NewHub() *Hub {
 
 // Run starts the hub's main loop
 func (h *Hub) Run() {
-	log.Println("WebSocket Hub started")
+	logger.Info("WebSocket Hub started")
 	for {
 		select {
 		case client := <-h.Register:
@@ -83,7 +85,7 @@ func (h *Hub) registerClient(client *Client) {
 	}
 
 	h.clients[client.ID] = client
-	log.Printf("Client registered: %s (role: %s)", client.ID, client.Role)
+	logger.Info("Client registered", zap.String("client_id", client.ID), zap.String("role", client.Role))
 }
 
 // unregisterClient removes a client from the hub
@@ -113,7 +115,7 @@ func (h *Hub) unregisterClient(client *Client) {
 		client.closeOnce.Do(func() {
 			close(client.Send)
 		})
-		log.Printf("Client unregistered: %s", client.ID)
+		logger.Info("Client unregistered", zap.String("client_id", client.ID))
 	}
 }
 
@@ -162,7 +164,7 @@ func (h *Hub) HandleMessage(client *Client, msg *Message) {
 	if exists {
 		handler(client, msg)
 	} else {
-		log.Printf("No handler for message type: %s", msg.Type)
+		logger.Warn("No handler for message type", zap.String("type", msg.Type))
 	}
 }
 
@@ -171,7 +173,7 @@ func (h *Hub) RegisterHandler(msgType string, handler MessageHandler) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.handlers[msgType] = handler
-	log.Printf("Registered handler for message type: %s", msgType)
+	logger.Info("Registered handler for message type", zap.String("type", msgType))
 }
 
 // AddClientToRide adds a client to a ride room
@@ -193,7 +195,7 @@ func (h *Hub) AddClientToRide(clientID, rideID string) {
 	h.rides[rideID][clientID] = client
 	client.SetRide(rideID)
 
-	log.Printf("Client %s joined ride %s", clientID, rideID)
+	logger.Info("Client joined ride", zap.String("client_id", clientID), zap.String("ride_id", rideID))
 }
 
 // RemoveClientFromRide removes a client from a ride room
@@ -212,7 +214,7 @@ func (h *Hub) RemoveClientFromRide(clientID, rideID string) {
 		client.SetRide("")
 	}
 
-	log.Printf("Client %s left ride %s", clientID, rideID)
+	logger.Info("Client left ride", zap.String("client_id", clientID), zap.String("ride_id", rideID))
 }
 
 // SendToUser sends a message to a specific user
@@ -299,7 +301,7 @@ func (h *Hub) AddClientToNegotiation(clientID, sessionID string) {
 	// Add client to negotiation room
 	h.negotiations[sessionID][clientID] = client
 
-	log.Printf("Client %s joined negotiation %s", clientID, sessionID)
+	logger.Info("Client joined negotiation", zap.String("client_id", clientID), zap.String("session_id", sessionID))
 }
 
 // RemoveClientFromNegotiation removes a client from a negotiation room
@@ -314,7 +316,7 @@ func (h *Hub) RemoveClientFromNegotiation(clientID, sessionID string) {
 		}
 	}
 
-	log.Printf("Client %s left negotiation %s", clientID, sessionID)
+	logger.Info("Client left negotiation", zap.String("client_id", clientID), zap.String("session_id", sessionID))
 }
 
 // SendToNegotiation sends a message to all clients in a negotiation session
@@ -368,7 +370,7 @@ func (h *Hub) CloseNegotiation(sessionID string, reason string) {
 
 		// Remove the room
 		delete(h.negotiations, sessionID)
-		log.Printf("Negotiation %s closed: %s", sessionID, reason)
+		logger.Info("Negotiation closed", zap.String("session_id", sessionID), zap.String("reason", reason))
 	}
 }
 
