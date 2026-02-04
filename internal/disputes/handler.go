@@ -2,7 +2,6 @@ package disputes
 
 import (
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -11,6 +10,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	"github.com/richxcame/ride-hailing/pkg/models"
+	"github.com/richxcame/ride-hailing/pkg/pagination"
 )
 
 // Handler handles HTTP requests for fare disputes
@@ -64,8 +64,7 @@ func (h *Handler) GetMyDisputes(c *gin.Context) {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	params := pagination.ParseParams(c)
 
 	var status *DisputeStatus
 	if s := c.Query("status"); s != "" {
@@ -73,18 +72,16 @@ func (h *Handler) GetMyDisputes(c *gin.Context) {
 		status = &st
 	}
 
-	disputes, total, err := h.service.GetMyDisputes(c.Request.Context(), userID, status, page, pageSize)
+	disputes, total, err := h.service.GetMyDisputes(c.Request.Context(), userID, status, params.Limit, params.Offset)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get disputes")
 		return
 	}
 
-	common.SuccessResponse(c, gin.H{
-		"disputes":  disputes,
-		"total":     total,
-		"page":      page,
-		"page_size": pageSize,
-	})
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(total))
+	common.SuccessResponseWithMeta(c, gin.H{
+		"disputes": disputes,
+	}, meta)
 }
 
 // GetDisputeDetail returns full dispute details
@@ -163,8 +160,7 @@ func (h *Handler) GetDisputeReasons(c *gin.Context) {
 // AdminGetDisputes returns all disputes with filters
 // GET /api/v1/admin/disputes?status=pending&reason=overcharged&page=1
 func (h *Handler) AdminGetDisputes(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	params := pagination.ParseParams(c)
 
 	var status *DisputeStatus
 	if s := c.Query("status"); s != "" {
@@ -177,18 +173,16 @@ func (h *Handler) AdminGetDisputes(c *gin.Context) {
 		reason = &dr
 	}
 
-	disputes, total, err := h.service.AdminGetDisputes(c.Request.Context(), status, reason, page, pageSize)
+	disputes, total, err := h.service.AdminGetDisputes(c.Request.Context(), status, reason, params.Limit, params.Offset)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get disputes")
 		return
 	}
 
-	common.SuccessResponse(c, gin.H{
-		"disputes":  disputes,
-		"total":     total,
-		"page":      page,
-		"page_size": pageSize,
-	})
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(total))
+	common.SuccessResponseWithMeta(c, gin.H{
+		"disputes": disputes,
+	}, meta)
 }
 
 // AdminGetDisputeDetail returns full dispute details (admin view)

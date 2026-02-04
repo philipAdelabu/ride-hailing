@@ -10,6 +10,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	"github.com/richxcame/ride-hailing/pkg/models"
+	"github.com/richxcame/ride-hailing/pkg/pagination"
 )
 
 // Handler handles HTTP requests for vehicles
@@ -328,10 +329,9 @@ func (h *Handler) AdminReview(c *gin.Context) {
 // AdminGetPending returns vehicles pending review
 // GET /api/v1/admin/vehicles/pending?page=1&page_size=20
 func (h *Handler) AdminGetPending(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	params := pagination.ParseParams(c)
 
-	vehicles, total, err := h.service.GetPendingReviews(c.Request.Context(), page, pageSize)
+	vehicles, total, err := h.service.GetPendingReviews(c.Request.Context(), params.Limit, params.Offset)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get pending vehicles")
 		return
@@ -340,11 +340,10 @@ func (h *Handler) AdminGetPending(c *gin.Context) {
 		vehicles = []Vehicle{}
 	}
 
-	common.SuccessResponse(c, gin.H{
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(total))
+	common.SuccessResponseWithMeta(c, gin.H{
 		"vehicles": vehicles,
-		"total":    total,
-		"page":     page,
-	})
+	}, meta)
 }
 
 // AdminGetStats returns vehicle statistics

@@ -270,7 +270,7 @@ func (h *Handler) HandleCheckrWebhook(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": "processed"})
+	common.SuccessResponse(c, gin.H{"status": "processed"})
 }
 
 // HandleSterlingWebhook handles Sterling webhooks
@@ -293,7 +293,7 @@ func (h *Handler) HandleSterlingWebhook(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": "processed"})
+	common.SuccessResponse(c, gin.H{"status": "processed"})
 }
 
 // HandleOnfidoWebhook handles Onfido webhooks
@@ -316,7 +316,7 @@ func (h *Handler) HandleOnfidoWebhook(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": "processed"})
+	common.SuccessResponse(c, gin.H{"status": "processed"})
 }
 
 // ========================================

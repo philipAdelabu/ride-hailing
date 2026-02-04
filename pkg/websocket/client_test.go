@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 // TestNewClient tests client creation
@@ -14,7 +15,7 @@ func TestNewClient(t *testing.T) {
 	hub := NewHub()
 	conn := createTestWebSocketConn(t)
 
-	client := NewClient("user-123", conn, hub, "rider")
+	client := NewClient("user-123", conn, hub, "rider", zap.NewNop())
 
 	assert.NotNil(t, client)
 	assert.Equal(t, "user-123", client.ID)
@@ -28,7 +29,7 @@ func TestNewClient(t *testing.T) {
 func TestClientSetRide(t *testing.T) {
 	hub := NewHub()
 	conn := createTestWebSocketConn(t)
-	client := NewClient("user-123", conn, hub, "rider")
+	client := NewClient("user-123", conn, hub, "rider", zap.NewNop())
 
 	assert.Equal(t, "", client.GetRide())
 
@@ -42,7 +43,7 @@ func TestClientSetRide(t *testing.T) {
 func TestClientGetRide(t *testing.T) {
 	hub := NewHub()
 	conn := createTestWebSocketConn(t)
-	client := NewClient("user-123", conn, hub, "rider")
+	client := NewClient("user-123", conn, hub, "rider", zap.NewNop())
 
 	// Initially empty
 	assert.Equal(t, "", client.GetRide())
@@ -60,7 +61,7 @@ func TestClientGetRide(t *testing.T) {
 func TestClientSendMessage(t *testing.T) {
 	hub := NewHub()
 	conn := createTestWebSocketConn(t)
-	client := NewClient("user-123", conn, hub, "rider")
+	client := NewClient("user-123", conn, hub, "rider", zap.NewNop())
 
 	msg := &Message{
 		Type: "test",
@@ -88,7 +89,7 @@ func TestClientSendMessageChannelFull(t *testing.T) {
 	go hub.Run()
 
 	conn := createTestWebSocketConn(t)
-	client := NewClient("user-123", conn, hub, "rider")
+	client := NewClient("user-123", conn, hub, "rider", zap.NewNop())
 
 	// Use small channel
 	client.Send = make(chan *Message, 2)
@@ -121,7 +122,7 @@ func TestClientSendMessageChannelFull(t *testing.T) {
 func TestClientConcurrentRideAccess(t *testing.T) {
 	hub := NewHub()
 	conn := createTestWebSocketConn(t)
-	client := NewClient("user-123", conn, hub, "rider")
+	client := NewClient("user-123", conn, hub, "rider", zap.NewNop())
 
 	done := make(chan bool)
 
@@ -316,7 +317,7 @@ func TestMessageWithComplexData(t *testing.T) {
 func TestClientChannelBuffering(t *testing.T) {
 	hub := NewHub()
 	conn := createTestWebSocketConn(t)
-	client := NewClient("user-123", conn, hub, "rider")
+	client := NewClient("user-123", conn, hub, "rider", zap.NewNop())
 
 	// Default channel should have 256 capacity
 	assert.Equal(t, 256, cap(client.Send))
@@ -347,7 +348,7 @@ func TestMultipleClients(t *testing.T) {
 	// Create multiple clients
 	for i := 0; i < numClients; i++ {
 		conn := createTestWebSocketConn(t)
-		client := NewClient("user-"+string(rune(i)), conn, hub, "rider")
+		client := NewClient("user-"+string(rune(i)), conn, hub, "rider", zap.NewNop())
 		clients[i] = client
 
 		hub.Register <- client
@@ -386,7 +387,7 @@ func TestClientRoleTypes(t *testing.T) {
 	roles := []string{"rider", "driver", "admin"}
 
 	for _, role := range roles {
-		client := NewClient("user-"+role, conn, hub, role)
+		client := NewClient("user-"+role, conn, hub, role, zap.NewNop())
 		assert.Equal(t, role, client.Role)
 	}
 }
@@ -461,7 +462,7 @@ func TestClientIDUniqueness(t *testing.T) {
 
 	for i := 0; i < numClients; i++ {
 		conn := createTestWebSocketConn(t)
-		client := NewClient("user-"+string(rune(i)), conn, hub, "rider")
+		client := NewClient("user-"+string(rune(i)), conn, hub, "rider", zap.NewNop())
 
 		// Check ID is not duplicate
 		assert.False(t, ids[client.ID], "Duplicate client ID: %s", client.ID)

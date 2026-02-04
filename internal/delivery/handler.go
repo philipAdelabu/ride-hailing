@@ -10,6 +10,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	"github.com/richxcame/ride-hailing/pkg/models"
+	"github.com/richxcame/ride-hailing/pkg/pagination"
 )
 
 // Handler handles HTTP requests for package delivery
@@ -117,8 +118,7 @@ func (h *Handler) GetMyDeliveries(c *gin.Context) {
 		return
 	}
 
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	params := pagination.ParseParams(c)
 
 	var filters DeliveryListFilters
 	if status := c.Query("status"); status != "" {
@@ -130,7 +130,7 @@ func (h *Handler) GetMyDeliveries(c *gin.Context) {
 		filters.Priority = &p
 	}
 
-	deliveries, total, err := h.service.GetMyDeliveries(c.Request.Context(), userID, &filters, limit, offset)
+	deliveries, total, err := h.service.GetMyDeliveries(c.Request.Context(), userID, &filters, params.Limit, params.Offset)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to list deliveries")
 		return
@@ -140,12 +140,10 @@ func (h *Handler) GetMyDeliveries(c *gin.Context) {
 		deliveries = []*Delivery{}
 	}
 
-	common.SuccessResponse(c, gin.H{
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(total))
+	common.SuccessResponseWithMeta(c, gin.H{
 		"deliveries": deliveries,
-		"total":      total,
-		"limit":      limit,
-		"offset":     offset,
-	})
+	}, meta)
 }
 
 // CancelDelivery cancels a delivery
@@ -490,10 +488,9 @@ func (h *Handler) GetDriverDeliveries(c *gin.Context) {
 		return
 	}
 
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	params := pagination.ParseParams(c)
 
-	deliveries, total, err := h.service.GetDriverDeliveries(c.Request.Context(), driverID, limit, offset)
+	deliveries, total, err := h.service.GetDriverDeliveries(c.Request.Context(), driverID, params.Limit, params.Offset)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to list deliveries")
 		return
@@ -503,12 +500,10 @@ func (h *Handler) GetDriverDeliveries(c *gin.Context) {
 		deliveries = []*Delivery{}
 	}
 
-	common.SuccessResponse(c, gin.H{
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(total))
+	common.SuccessResponseWithMeta(c, gin.H{
 		"deliveries": deliveries,
-		"total":      total,
-		"limit":      limit,
-		"offset":     offset,
-	})
+	}, meta)
 }
 
 // UpdateStopStatus updates an intermediate stop

@@ -18,7 +18,7 @@ jobs:
 
     strategy:
       matrix:
-        service: [auth, rides, geo]
+        service: [auth, rides, geo, payments, notifications, realtime, fraud, analytics, admin, promos, scheduler, ml-eta, mobile, negotiation]
 
     steps:
       - name: Checkout repository

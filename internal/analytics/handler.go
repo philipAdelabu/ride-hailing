@@ -144,7 +144,7 @@ func (h *Handler) GetDashboardMetrics(c *gin.Context) {
 
 // HealthCheck handles health check requests
 func (h *Handler) HealthCheck(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
+	common.SuccessResponse(c, gin.H{
 		"service": "analytics",
 		"status":  "healthy",
 	})

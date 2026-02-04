@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/richxcame/ride-hailing/pkg/common"
 	"github.com/richxcame/ride-hailing/pkg/logger"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	"go.uber.org/zap"
@@ -65,13 +66,13 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 func (h *Handler) GetRoute(c *gin.Context) {
 	var req RouteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
 		return
 	}
 
 	// Validate coordinates
 	if !isValidCoordinate(req.Origin) || !isValidCoordinate(req.Destination) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coordinates"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid coordinates")
 		return
 	}
 
@@ -79,11 +80,11 @@ func (h *Handler) GetRoute(c *gin.Context) {
 	resp, err := h.service.GetRoute(ctx, &req)
 	if err != nil {
 		logger.Error("Failed to get route", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to calculate route"})
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to calculate route")
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	common.SuccessResponse(c, resp)
 }
 
 // GetETA handles ETA calculation requests
@@ -100,12 +101,12 @@ func (h *Handler) GetRoute(c *gin.Context) {
 func (h *Handler) GetETA(c *gin.Context) {
 	var req ETARequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
 		return
 	}
 
 	if !isValidCoordinate(req.Origin) || !isValidCoordinate(req.Destination) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coordinates"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid coordinates")
 		return
 	}
 
@@ -113,11 +114,11 @@ func (h *Handler) GetETA(c *gin.Context) {
 	resp, err := h.service.GetTrafficAwareETA(ctx, req.Origin, req.Destination)
 	if err != nil {
 		logger.Error("Failed to get ETA", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to calculate ETA"})
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to calculate ETA")
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	common.SuccessResponse(c, resp)
 }
 
 // BatchGetETA handles batch ETA calculation requests
@@ -134,19 +135,19 @@ func (h *Handler) GetETA(c *gin.Context) {
 func (h *Handler) BatchGetETA(c *gin.Context) {
 	var requests []*ETARequest
 	if err := c.ShouldBindJSON(&requests); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
 		return
 	}
 
 	if len(requests) > 100 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "maximum 100 requests per batch"})
+		common.ErrorResponse(c, http.StatusBadRequest, "maximum 100 requests per batch")
 		return
 	}
 
 	// Validate all coordinates
 	for i, req := range requests {
 		if !isValidCoordinate(req.Origin) || !isValidCoordinate(req.Destination) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coordinates at index " + strconv.Itoa(i)})
+			common.ErrorResponse(c, http.StatusBadRequest, "invalid coordinates at index "+strconv.Itoa(i))
 			return
 		}
 	}
@@ -155,11 +156,11 @@ func (h *Handler) BatchGetETA(c *gin.Context) {
 	responses, err := h.service.BatchGetETA(ctx, requests)
 	if err != nil {
 		logger.Error("Failed to batch get ETA", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to calculate ETAs"})
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to calculate ETAs")
 		return
 	}
 
-	c.JSON(http.StatusOK, responses)
+	common.SuccessResponse(c, responses)
 }
 
 // GetDistanceMatrix handles distance matrix requests
@@ -176,17 +177,17 @@ func (h *Handler) BatchGetETA(c *gin.Context) {
 func (h *Handler) GetDistanceMatrix(c *gin.Context) {
 	var req DistanceMatrixRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
 		return
 	}
 
 	if len(req.Origins) == 0 || len(req.Destinations) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "origins and destinations are required"})
+		common.ErrorResponse(c, http.StatusBadRequest, "origins and destinations are required")
 		return
 	}
 
 	if len(req.Origins)*len(req.Destinations) > 625 { // 25x25 max
-		c.JSON(http.StatusBadRequest, gin.H{"error": "maximum 625 elements (25 origins x 25 destinations)"})
+		common.ErrorResponse(c, http.StatusBadRequest, "maximum 625 elements (25 origins x 25 destinations)")
 		return
 	}
 
@@ -194,11 +195,11 @@ func (h *Handler) GetDistanceMatrix(c *gin.Context) {
 	resp, err := h.service.GetDistanceMatrix(ctx, &req)
 	if err != nil {
 		logger.Error("Failed to get distance matrix", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to calculate distance matrix"})
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to calculate distance matrix")
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	common.SuccessResponse(c, resp)
 }
 
 // GetTrafficFlow handles traffic flow requests
@@ -215,7 +216,7 @@ func (h *Handler) GetDistanceMatrix(c *gin.Context) {
 func (h *Handler) GetTrafficFlow(c *gin.Context) {
 	var req TrafficFlowRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
 		return
 	}
 
@@ -223,11 +224,11 @@ func (h *Handler) GetTrafficFlow(c *gin.Context) {
 	resp, err := h.service.GetTrafficFlow(ctx, &req)
 	if err != nil {
 		logger.Error("Failed to get traffic flow", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get traffic data"})
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get traffic data")
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	common.SuccessResponse(c, resp)
 }
 
 // GetTrafficIncidents handles traffic incidents requests
@@ -244,7 +245,7 @@ func (h *Handler) GetTrafficFlow(c *gin.Context) {
 func (h *Handler) GetTrafficIncidents(c *gin.Context) {
 	var req TrafficIncidentsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
 		return
 	}
 
@@ -252,11 +253,11 @@ func (h *Handler) GetTrafficIncidents(c *gin.Context) {
 	resp, err := h.service.GetTrafficIncidents(ctx, &req)
 	if err != nil {
 		logger.Error("Failed to get traffic incidents", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get traffic incidents"})
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get traffic incidents")
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	common.SuccessResponse(c, resp)
 }
 
 // Geocode handles geocoding requests
@@ -273,12 +274,12 @@ func (h *Handler) GetTrafficIncidents(c *gin.Context) {
 func (h *Handler) Geocode(c *gin.Context) {
 	var req GeocodingRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
 		return
 	}
 
 	if req.Address == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "address is required"})
+		common.ErrorResponse(c, http.StatusBadRequest, "address is required")
 		return
 	}
 
@@ -286,11 +287,11 @@ func (h *Handler) Geocode(c *gin.Context) {
 	resp, err := h.service.Geocode(ctx, &req)
 	if err != nil {
 		logger.Error("Failed to geocode", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to geocode address"})
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to geocode address")
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	common.SuccessResponse(c, resp)
 }
 
 // ReverseGeocode handles reverse geocoding requests
@@ -307,17 +308,17 @@ func (h *Handler) Geocode(c *gin.Context) {
 func (h *Handler) ReverseGeocode(c *gin.Context) {
 	var req GeocodingRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
 		return
 	}
 
 	if req.Coordinate == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "coordinate is required"})
+		common.ErrorResponse(c, http.StatusBadRequest, "coordinate is required")
 		return
 	}
 
 	if !isValidCoordinate(*req.Coordinate) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coordinate"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid coordinate")
 		return
 	}
 
@@ -325,11 +326,11 @@ func (h *Handler) ReverseGeocode(c *gin.Context) {
 	resp, err := h.service.ReverseGeocode(ctx, &req)
 	if err != nil {
 		logger.Error("Failed to reverse geocode", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to reverse geocode"})
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to reverse geocode")
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	common.SuccessResponse(c, resp)
 }
 
 // SearchPlaces handles place search requests
@@ -346,12 +347,12 @@ func (h *Handler) ReverseGeocode(c *gin.Context) {
 func (h *Handler) SearchPlaces(c *gin.Context) {
 	var req PlaceSearchRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
 		return
 	}
 
 	if req.Query == "" && req.Location == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "query or location is required"})
+		common.ErrorResponse(c, http.StatusBadRequest, "query or location is required")
 		return
 	}
 
@@ -359,11 +360,11 @@ func (h *Handler) SearchPlaces(c *gin.Context) {
 	resp, err := h.service.SearchPlaces(ctx, &req)
 	if err != nil {
 		logger.Error("Failed to search places", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to search places"})
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to search places")
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	common.SuccessResponse(c, resp)
 }
 
 // SnapToRoad handles snap-to-road requests
@@ -380,17 +381,17 @@ func (h *Handler) SearchPlaces(c *gin.Context) {
 func (h *Handler) SnapToRoad(c *gin.Context) {
 	var req SnapToRoadRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
 		return
 	}
 
 	if len(req.Path) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "path is required"})
+		common.ErrorResponse(c, http.StatusBadRequest, "path is required")
 		return
 	}
 
 	if len(req.Path) > 100 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "maximum 100 points per request"})
+		common.ErrorResponse(c, http.StatusBadRequest, "maximum 100 points per request")
 		return
 	}
 
@@ -398,11 +399,11 @@ func (h *Handler) SnapToRoad(c *gin.Context) {
 	resp, err := h.service.SnapToRoad(ctx, &req)
 	if err != nil {
 		logger.Error("Failed to snap to road", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to snap to road"})
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to snap to road")
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	common.SuccessResponse(c, resp)
 }
 
 // GetSpeedLimits handles speed limits requests
@@ -419,12 +420,12 @@ func (h *Handler) SnapToRoad(c *gin.Context) {
 func (h *Handler) GetSpeedLimits(c *gin.Context) {
 	var req SpeedLimitsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
 		return
 	}
 
 	if len(req.Path) == 0 && len(req.PlaceIDs) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "path or place_ids is required"})
+		common.ErrorResponse(c, http.StatusBadRequest, "path or place_ids is required")
 		return
 	}
 
@@ -432,11 +433,11 @@ func (h *Handler) GetSpeedLimits(c *gin.Context) {
 	resp, err := h.service.GetSpeedLimits(ctx, &req)
 	if err != nil {
 		logger.Error("Failed to get speed limits", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get speed limits"})
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get speed limits")
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	common.SuccessResponse(c, resp)
 }
 
 // OptimizeWaypoints handles waypoint optimization requests
@@ -453,17 +454,17 @@ func (h *Handler) GetSpeedLimits(c *gin.Context) {
 func (h *Handler) OptimizeWaypoints(c *gin.Context) {
 	var req OptimizeWaypointsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
 		return
 	}
 
 	if len(req.Waypoints) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "waypoints are required"})
+		common.ErrorResponse(c, http.StatusBadRequest, "waypoints are required")
 		return
 	}
 
 	if len(req.Waypoints) > 23 { // Max waypoints for Google Maps
-		c.JSON(http.StatusBadRequest, gin.H{"error": "maximum 23 waypoints"})
+		common.ErrorResponse(c, http.StatusBadRequest, "maximum 23 waypoints")
 		return
 	}
 
@@ -471,7 +472,7 @@ func (h *Handler) OptimizeWaypoints(c *gin.Context) {
 	order, err := h.service.OptimizeWaypoints(ctx, req.Origin, req.Waypoints, req.Destination)
 	if err != nil {
 		logger.Error("Failed to optimize waypoints", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to optimize waypoints"})
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to optimize waypoints")
 		return
 	}
 
@@ -481,7 +482,7 @@ func (h *Handler) OptimizeWaypoints(c *gin.Context) {
 		optimizedWaypoints[i] = req.Waypoints[idx]
 	}
 
-	c.JSON(http.StatusOK, OptimizeWaypointsResponse{
+	common.SuccessResponse(c, OptimizeWaypointsResponse{
 		Order:              order,
 		OptimizedWaypoints: optimizedWaypoints,
 	})
@@ -513,10 +514,10 @@ func (h *Handler) HealthCheck(c *gin.Context) {
 		status = "unhealthy"
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"status":   status,
-		"primary":  h.service.GetPrimaryProvider(),
-		"errors":   errors,
+	common.SuccessResponse(c, gin.H{
+		"status":    status,
+		"primary":   h.service.GetPrimaryProvider(),
+		"errors":    errors,
 		"providers": results,
 	})
 }
@@ -555,7 +556,7 @@ func (h *Handler) RegisterInternalRoutes(rg *gin.RouterGroup) {
 			destLng, _ := strconv.ParseFloat(c.Query("dest_lng"), 64)
 
 			if originLat == 0 || originLng == 0 || destLat == 0 || destLng == 0 {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coordinates"})
+				common.ErrorResponse(c, http.StatusBadRequest, "invalid coordinates")
 				return
 			}
 
@@ -567,11 +568,11 @@ func (h *Handler) RegisterInternalRoutes(rg *gin.RouterGroup) {
 			ctx := c.Request.Context()
 			resp, err := h.service.GetETA(ctx, req)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				common.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 				return
 			}
 
-			c.JSON(http.StatusOK, resp)
+			common.SuccessResponse(c, resp)
 		})
 
 		// Traffic level for a location
@@ -580,7 +581,7 @@ func (h *Handler) RegisterInternalRoutes(rg *gin.RouterGroup) {
 			lng, _ := strconv.ParseFloat(c.Query("lng"), 64)
 
 			if lat == 0 || lng == 0 {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coordinates"})
+				common.ErrorResponse(c, http.StatusBadRequest, "invalid coordinates")
 				return
 			}
 
@@ -592,11 +593,11 @@ func (h *Handler) RegisterInternalRoutes(rg *gin.RouterGroup) {
 			ctx := c.Request.Context()
 			resp, err := h.service.GetTrafficFlow(ctx, req)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				common.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 				return
 			}
 
-			c.JSON(http.StatusOK, gin.H{
+			common.SuccessResponse(c, gin.H{
 				"traffic_level": resp.OverallLevel,
 				"updated_at":    resp.UpdatedAt,
 			})
@@ -611,7 +612,7 @@ func (h *Handler) RegisterAdminRoutes(rg *gin.RouterGroup, authMiddleware gin.Ha
 	admin.Use(middleware.RequireRole("admin"))
 	{
 		admin.GET("/stats", func(c *gin.Context) {
-			c.JSON(http.StatusOK, gin.H{
+			common.SuccessResponse(c, gin.H{
 				"primary_provider": h.service.GetPrimaryProvider(),
 				"fallback_count":   len(h.service.fallbacks),
 				"cache_enabled":    h.service.config.CacheEnabled,

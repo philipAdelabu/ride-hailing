@@ -1,7 +1,6 @@
 package rides
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -308,13 +307,7 @@ func (h *Handler) GetRideHistory(c *gin.Context) {
 	status := c.Query("status")
 	startDate := c.Query("start_date")
 	endDate := c.Query("end_date")
-	limitStr := c.DefaultQuery("limit", "20")
-	offsetStr := c.DefaultQuery("offset", "0")
-
-	limit := 20
-	offset := 0
-	fmt.Sscanf(limitStr, "%d", &limit)
-	fmt.Sscanf(offsetStr, "%d", &offset)
+	params := pagination.ParseParams(c)
 
 	// Build filters
 	filters := &RideFilters{}
@@ -344,21 +337,21 @@ func (h *Handler) GetRideHistory(c *gin.Context) {
 			c.Request.Context(),
 			userID.(uuid.UUID),
 			filters,
-			limit,
-			offset,
+			params.Limit,
+			params.Offset,
 		)
 	} else {
 		ridesList, total, err = h.service.repo.GetRidesByRiderWithFilters(
 			c.Request.Context(),
 			userID.(uuid.UUID),
 			filters,
-			limit,
-			offset,
+			params.Limit,
+			params.Offset,
 		)
 	}
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch ride history"})
+		common.ErrorResponse(c, http.StatusInternalServerError, "Failed to fetch ride history")
 		return
 	}
 
@@ -367,12 +360,10 @@ func (h *Handler) GetRideHistory(c *gin.Context) {
 		ridesList = []*models.Ride{}
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"rides":  ridesList,
-		"total":  total,
-		"limit":  limit,
-		"offset": offset,
-	})
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(total))
+	common.SuccessResponseWithMeta(c, gin.H{
+		"rides": ridesList,
+	}, meta)
 }
 
 // GetRideReceipt generates a receipt for a completed ride

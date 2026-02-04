@@ -4,26 +4,28 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"log"
 	"time"
 
 	"github.com/richxcame/ride-hailing/pkg/redis"
 	ws "github.com/richxcame/ride-hailing/pkg/websocket"
+	"go.uber.org/zap"
 )
 
 // Service handles real-time communication
 type Service struct {
-	hub   *ws.Hub
-	db    *sql.DB
-	redis *redis.Client
+	hub    *ws.Hub
+	db     *sql.DB
+	redis  *redis.Client
+	logger *zap.Logger
 }
 
 // NewService creates a new real-time service
-func NewService(hub *ws.Hub, db *sql.DB, redisClient *redis.Client) *Service {
+func NewService(hub *ws.Hub, db *sql.DB, redisClient *redis.Client, logger *zap.Logger) *Service {
 	s := &Service{
-		hub:   hub,
-		db:    db,
-		redis: redisClient,
+		hub:    hub,
+		db:     db,
+		redis:  redisClient,
+		logger: logger,
 	}
 
 	// Register message handlers
@@ -46,7 +48,7 @@ func (s *Service) registerHandlers() {
 func (s *Service) handleLocationUpdate(client *ws.Client, msg *ws.Message) {
 	// Only drivers can update location
 	if client.Role != "driver" {
-		log.Printf("Non-driver attempted location update: %s", client.ID)
+		s.logger.Warn("non-driver attempted location update", zap.String("client_id", client.ID))
 		return
 	}
 
@@ -54,7 +56,7 @@ func (s *Service) handleLocationUpdate(client *ws.Client, msg *ws.Message) {
 	lng, lngOk := msg.Data["longitude"].(float64)
 
 	if !latOk || !lngOk {
-		log.Printf("Invalid location data from driver %s", client.ID)
+		s.logger.Warn("invalid location data from driver", zap.String("client_id", client.ID))
 		return
 	}
 
@@ -71,7 +73,7 @@ func (s *Service) handleLocationUpdate(client *ws.Client, msg *ws.Message) {
 
 	data, _ := json.Marshal(locationData)
 	if err := s.redis.Set(ctx, key, string(data), 5*time.Minute).Err(); err != nil {
-		log.Printf("Failed to cache location: %v", err)
+		s.logger.Error("failed to cache location", zap.Error(err))
 	}
 
 	// If driver is in a ride, broadcast to rider
@@ -102,13 +104,13 @@ func (s *Service) handleLocationUpdate(client *ws.Client, msg *ws.Message) {
 func (s *Service) handleRideStatus(client *ws.Client, msg *ws.Message) {
 	rideID, ok := msg.Data["ride_id"].(string)
 	if !ok {
-		log.Printf("Invalid ride_id in status update")
+		s.logger.Warn("invalid ride_id in status update")
 		return
 	}
 
 	status, ok := msg.Data["status"].(string)
 	if !ok {
-		log.Printf("Invalid status in status update")
+		s.logger.Warn("invalid status in status update")
 		return
 	}
 
@@ -130,13 +132,13 @@ func (s *Service) handleRideStatus(client *ws.Client, msg *ws.Message) {
 func (s *Service) handleChatMessage(client *ws.Client, msg *ws.Message) {
 	rideID := client.GetRide()
 	if rideID == "" {
-		log.Printf("Client %s attempted to send chat without being in a ride", client.ID)
+		s.logger.Warn("client attempted to send chat without being in a ride", zap.String("client_id", client.ID))
 		return
 	}
 
 	message, ok := msg.Data["message"].(string)
 	if !ok || message == "" {
-		log.Printf("Invalid chat message from client %s", client.ID)
+		s.logger.Warn("invalid chat message from client", zap.String("client_id", client.ID))
 		return
 	}
 
@@ -152,7 +154,7 @@ func (s *Service) handleChatMessage(client *ws.Client, msg *ws.Message) {
 
 	data, _ := json.Marshal(chatMsg)
 	if err := s.redis.RPush(ctx, chatKey, string(data)); err != nil {
-		log.Printf("Failed to store chat message: %v", err)
+		s.logger.Error("failed to store chat message", zap.Error(err))
 	}
 
 	// Set expiry on chat history (24 hours)
@@ -212,7 +214,7 @@ func (s *Service) handleTyping(client *ws.Client, msg *ws.Message) {
 func (s *Service) handleJoinRide(client *ws.Client, msg *ws.Message) {
 	rideID, ok := msg.Data["ride_id"].(string)
 	if !ok || rideID == "" {
-		log.Printf("Invalid ride_id in join_ride request")
+		s.logger.Warn("invalid ride_id in join_ride request")
 		return
 	}
 
@@ -224,7 +226,7 @@ func (s *Service) handleJoinRide(client *ws.Client, msg *ws.Message) {
 	`
 	err := s.db.QueryRow(query, rideID, client.ID).Scan(&count)
 	if err != nil || count == 0 {
-		log.Printf("Client %s not authorized for ride %s", client.ID, rideID)
+		s.logger.Warn("client not authorized for ride", zap.String("client_id", client.ID), zap.String("ride_id", rideID))
 		client.SendMessage(&ws.Message{
 			Type:      "error",
 			Timestamp: time.Now(),

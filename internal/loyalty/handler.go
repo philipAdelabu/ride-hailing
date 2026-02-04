@@ -2,7 +2,6 @@ package loyalty
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -10,6 +9,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	"github.com/richxcame/ride-hailing/pkg/models"
+	"github.com/richxcame/ride-hailing/pkg/pagination"
 )
 
 // Handler handles HTTP requests for loyalty
@@ -57,10 +57,9 @@ func (h *Handler) GetPointsHistory(c *gin.Context) {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	params := pagination.ParseParams(c)
 
-	history, err := h.service.GetPointsHistory(c.Request.Context(), riderID, page, pageSize)
+	history, err := h.service.GetPointsHistory(c.Request.Context(), riderID, params.Limit, params.Offset)
 	if err != nil {
 		if appErr, ok := err.(*common.AppError); ok {
 			common.AppErrorResponse(c, appErr)

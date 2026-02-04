@@ -188,6 +188,7 @@ jobs:
             scheduler,
             ml-eta,
             mobile,
+            negotiation,
           ]
     steps:
       - name: Checkout code
@@ -210,7 +211,7 @@ jobs:
           fi
 
       - name: Upload build artifacts
-        if: success() && hashFiles('bin/${{ matrix.service }}') != ''
+        if: ${{ success() && hashFiles(format('bin/{0}', matrix.service)) != '' }}
         uses: actions/upload-artifact@v3
         with:
           name: ${{ matrix.service }}-binary

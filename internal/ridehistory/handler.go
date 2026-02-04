@@ -2,7 +2,6 @@ package ridehistory
 
 import (
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -11,6 +10,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	"github.com/richxcame/ride-hailing/pkg/models"
+	"github.com/richxcame/ride-hailing/pkg/pagination"
 )
 
 // Handler handles HTTP requests for ride history
@@ -36,8 +36,7 @@ func (h *Handler) GetRiderHistory(c *gin.Context) {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	params := pagination.ParseParams(c)
 
 	filters := &HistoryFilters{}
 	if status := c.Query("status"); status != "" {
@@ -55,7 +54,7 @@ func (h *Handler) GetRiderHistory(c *gin.Context) {
 		}
 	}
 
-	resp, err := h.service.GetRiderHistory(c.Request.Context(), riderID, filters, page, pageSize)
+	resp, err := h.service.GetRiderHistory(c.Request.Context(), riderID, filters, params.Limit, params.Offset)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get ride history")
 		return
@@ -171,8 +170,7 @@ func (h *Handler) GetDriverHistory(c *gin.Context) {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	params := pagination.ParseParams(c)
 
 	filters := &HistoryFilters{}
 	if status := c.Query("status"); status != "" {
@@ -190,7 +188,7 @@ func (h *Handler) GetDriverHistory(c *gin.Context) {
 		}
 	}
 
-	resp, err := h.service.GetDriverHistory(c.Request.Context(), driverID, filters, page, pageSize)
+	resp, err := h.service.GetDriverHistory(c.Request.Context(), driverID, filters, params.Limit, params.Offset)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get ride history")
 		return

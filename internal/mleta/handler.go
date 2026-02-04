@@ -5,6 +5,8 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/richxcame/ride-hailing/pkg/common"
+	"github.com/richxcame/ride-hailing/pkg/pagination"
 )
 
 type Handler struct {
@@ -19,24 +21,23 @@ func NewHandler(service *Service) *Handler {
 func (h *Handler) PredictETA(c *gin.Context) {
 	var req ETAPredictionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, "Invalid request body: "+err.Error())
 		return
 	}
 
 	// Validate coordinates
 	if req.PickupLat == 0 || req.PickupLng == 0 || req.DropoffLat == 0 || req.DropoffLng == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid coordinates"})
+		common.ErrorResponse(c, http.StatusBadRequest, "Invalid coordinates")
 		return
 	}
 
 	prediction, err := h.service.PredictETA(c.Request.Context(), &req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to predict ETA", "details": err.Error()})
+		common.ErrorResponse(c, http.StatusInternalServerError, "Failed to predict ETA: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success":    true,
+	common.SuccessResponse(c, gin.H{
 		"prediction": prediction,
 	})
 }
@@ -45,28 +46,27 @@ func (h *Handler) PredictETA(c *gin.Context) {
 func (h *Handler) BatchPredictETA(c *gin.Context) {
 	var requests []*ETAPredictionRequest
 	if err := c.ShouldBindJSON(&requests); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, "Invalid request body: "+err.Error())
 		return
 	}
 
 	if len(requests) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No requests provided"})
+		common.ErrorResponse(c, http.StatusBadRequest, "No requests provided")
 		return
 	}
 
 	if len(requests) > 100 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Maximum 100 requests allowed per batch"})
+		common.ErrorResponse(c, http.StatusBadRequest, "Maximum 100 requests allowed per batch")
 		return
 	}
 
 	predictions, err := h.service.BatchPredictETA(c.Request.Context(), requests)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to predict ETAs", "details": err.Error()})
+		common.ErrorResponse(c, http.StatusInternalServerError, "Failed to predict ETAs: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success":     true,
+	common.SuccessResponse(c, gin.H{
 		"predictions": predictions,
 		"count":       len(predictions),
 	})
@@ -81,19 +81,17 @@ func (h *Handler) TriggerModelTraining(c *gin.Context) {
 		}
 	}()
 
-	c.JSON(http.StatusAccepted, gin.H{
-		"success": true,
+	common.SuccessResponseWithStatus(c, http.StatusAccepted, gin.H{
 		"message": "Model training started in background",
-	})
+	}, "")
 }
 
 // GetModelStats returns current model statistics
 func (h *Handler) GetModelStats(c *gin.Context) {
 	stats := h.service.GetModelStats()
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"stats":   stats,
+	common.SuccessResponse(c, gin.H{
+		"stats": stats,
 	})
 }
 
@@ -108,12 +106,11 @@ func (h *Handler) GetModelAccuracy(c *gin.Context) {
 
 	metrics, err := h.service.repo.GetAccuracyMetrics(c.Request.Context(), days)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get accuracy metrics", "details": err.Error()})
+		common.ErrorResponse(c, http.StatusInternalServerError, "Failed to get accuracy metrics: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
+	common.SuccessResponse(c, gin.H{
 		"metrics": metrics,
 	})
 }
@@ -131,7 +128,7 @@ func (h *Handler) TuneHyperparameters(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&params); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, "Invalid request body: "+err.Error())
 		return
 	}
 
@@ -165,15 +162,11 @@ func (h *Handler) TuneHyperparameters(c *gin.Context) {
 		model.DayOfWeekWeight + model.WeatherWeight + model.HistoricalWeight
 
 	if totalWeight < 0.8 || totalWeight > 1.2 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Weights must sum to approximately 1.0",
-			"total": totalWeight,
-		})
+		common.ErrorResponse(c, http.StatusBadRequest, "Weights must sum to approximately 1.0")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
+	common.SuccessResponse(c, gin.H{
 		"message": "Hyperparameters updated successfully",
 		"model":   model,
 	})
@@ -181,34 +174,19 @@ func (h *Handler) TuneHyperparameters(c *gin.Context) {
 
 // GetPredictionHistory returns historical predictions
 func (h *Handler) GetPredictionHistory(c *gin.Context) {
-	limit := 50
-	offset := 0
+	params := pagination.ParseParams(c)
 
-	if limitParam := c.Query("limit"); limitParam != "" {
-		if l, err := strconv.Atoi(limitParam); err == nil && l > 0 && l <= 1000 {
-			limit = l
-		}
-	}
-
-	if offsetParam := c.Query("offset"); offsetParam != "" {
-		if o, err := strconv.Atoi(offsetParam); err == nil && o >= 0 {
-			offset = o
-		}
-	}
-
-	predictions, err := h.service.repo.GetPredictionHistory(c.Request.Context(), limit, offset)
+	predictions, err := h.service.repo.GetPredictionHistory(c.Request.Context(), params.Limit, params.Offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get prediction history", "details": err.Error()})
+		common.ErrorResponse(c, http.StatusInternalServerError, "Failed to get prediction history: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success":     true,
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(len(predictions)))
+	common.SuccessResponseWithMeta(c, gin.H{
 		"predictions": predictions,
 		"count":       len(predictions),
-		"limit":       limit,
-		"offset":      offset,
-	})
+	}, meta)
 }
 
 // GetAccuracyTrends returns accuracy trends over time
@@ -222,13 +200,12 @@ func (h *Handler) GetAccuracyTrends(c *gin.Context) {
 
 	metrics, err := h.service.repo.GetAccuracyMetrics(c.Request.Context(), days)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get accuracy trends", "details": err.Error()})
+		common.ErrorResponse(c, http.StatusInternalServerError, "Failed to get accuracy trends: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"trends":  metrics,
+	common.SuccessResponse(c, gin.H{
+		"trends": metrics,
 	})
 }
 
@@ -245,8 +222,7 @@ func (h *Handler) GetFeatureImportance(c *gin.Context) {
 		"historical":  model.HistoricalWeight,
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success":       true,
+	common.SuccessResponse(c, gin.H{
 		"features":      features,
 		"model_version": "v1.0-ml",
 		"trained_at":    model.TrainedAt,

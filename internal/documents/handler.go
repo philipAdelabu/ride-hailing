@@ -11,6 +11,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	"github.com/richxcame/ride-hailing/pkg/models"
+	"github.com/richxcame/ride-hailing/pkg/pagination"
 )
 
 // Handler handles HTTP requests for documents
@@ -317,24 +318,18 @@ func (h *Handler) GetDocument(c *gin.Context) {
 // GetPendingReviews gets documents pending review
 // GET /api/v1/admin/documents/pending
 func (h *Handler) GetPendingReviews(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	params := pagination.ParseParams(c)
 
-	reviews, total, err := h.service.GetPendingReviews(c.Request.Context(), page, pageSize)
+	reviews, total, err := h.service.GetPendingReviews(c.Request.Context(), params.Limit, params.Offset)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get pending reviews")
 		return
 	}
 
-	totalPages := (total + pageSize - 1) / pageSize
-
-	common.SuccessResponse(c, gin.H{
-		"documents":   reviews,
-		"total":       total,
-		"page":        page,
-		"page_size":   pageSize,
-		"total_pages": totalPages,
-	})
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(total))
+	common.SuccessResponseWithMeta(c, gin.H{
+		"documents": reviews,
+	}, meta)
 }
 
 // GetExpiringDocuments gets documents expiring soon

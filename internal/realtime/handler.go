@@ -2,7 +2,6 @@ package realtime
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -11,6 +10,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/richxcame/ride-hailing/pkg/common"
 	ws "github.com/richxcame/ride-hailing/pkg/websocket"
+	"go.uber.org/zap"
 )
 
 var upgrader = websocket.Upgrader{
@@ -38,7 +38,7 @@ var upgrader = websocket.Upgrader{
 			}
 		}
 
-		log.Printf("WebSocket connection rejected from origin: %s", origin)
+		zap.L().Warn("WebSocket connection rejected from origin", zap.String("origin", origin))
 		return false
 	},
 }
@@ -46,12 +46,14 @@ var upgrader = websocket.Upgrader{
 // Handler handles HTTP requests for real-time service
 type Handler struct {
 	service *Service
+	logger  *zap.Logger
 }
 
 // NewHandler creates a new handler
-func NewHandler(service *Service) *Handler {
+func NewHandler(service *Service, logger *zap.Logger) *Handler {
 	return &Handler{
 		service: service,
+		logger:  logger,
 	}
 }
 
@@ -72,12 +74,12 @@ func (h *Handler) HandleWebSocket(c *gin.Context) {
 	// Upgrade HTTP connection to WebSocket
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		log.Printf("Failed to upgrade connection: %v", err)
+		h.logger.Error("failed to upgrade connection", zap.Error(err))
 		return
 	}
 
 	// Create new WebSocket client
-	client := ws.NewClient(userID.(string), conn, h.service.GetHub(), role.(string))
+	client := ws.NewClient(userID.(string), conn, h.service.GetHub(), role.(string), h.logger)
 
 	// Register client with hub
 	h.service.GetHub().Register <- client
@@ -86,7 +88,7 @@ func (h *Handler) HandleWebSocket(c *gin.Context) {
 	go client.WritePump()
 	go client.ReadPump()
 
-	log.Printf("WebSocket connection established for user %s (role: %s)", userID, role)
+	h.logger.Info("WebSocket connection established", zap.Any("user_id", userID), zap.Any("role", role))
 }
 
 // GetChatHistory retrieves chat history for a ride
@@ -189,7 +191,7 @@ func (h *Handler) GetDriverLocation(c *gin.Context) {
 // HealthCheck returns service health status
 func (h *Handler) HealthCheck(c *gin.Context) {
 	stats := h.service.GetStats()
-	c.JSON(http.StatusOK, gin.H{
+	common.SuccessResponse(c, gin.H{
 		"status":  "healthy",
 		"service": "realtime",
 		"stats":   stats,

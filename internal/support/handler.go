@@ -2,7 +2,6 @@ package support
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -10,6 +9,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	"github.com/richxcame/ride-hailing/pkg/models"
+	"github.com/richxcame/ride-hailing/pkg/pagination"
 )
 
 // Handler handles HTTP requests for support
@@ -63,8 +63,7 @@ func (h *Handler) GetMyTickets(c *gin.Context) {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	params := pagination.ParseParams(c)
 
 	var status *TicketStatus
 	if s := c.Query("status"); s != "" {
@@ -72,18 +71,16 @@ func (h *Handler) GetMyTickets(c *gin.Context) {
 		status = &st
 	}
 
-	tickets, total, err := h.service.GetMyTickets(c.Request.Context(), userID, status, page, pageSize)
+	tickets, total, err := h.service.GetMyTickets(c.Request.Context(), userID, status, params.Limit, params.Offset)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get tickets")
 		return
 	}
 
-	common.SuccessResponse(c, gin.H{
-		"tickets":   tickets,
-		"total":     total,
-		"page":      page,
-		"page_size": pageSize,
-	})
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(total))
+	common.SuccessResponseWithMeta(c, gin.H{
+		"tickets": tickets,
+	}, meta)
 }
 
 // GetTicket returns a specific ticket
@@ -253,8 +250,7 @@ func (h *Handler) GetFAQArticle(c *gin.Context) {
 // AdminGetTickets returns all tickets with filters
 // GET /api/v1/admin/support/tickets?status=open&priority=urgent&category=safety&page=1
 func (h *Handler) AdminGetTickets(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	params := pagination.ParseParams(c)
 
 	var status *TicketStatus
 	if s := c.Query("status"); s != "" {
@@ -272,18 +268,16 @@ func (h *Handler) AdminGetTickets(c *gin.Context) {
 		category = &tc
 	}
 
-	tickets, total, err := h.service.AdminGetTickets(c.Request.Context(), status, priority, category, page, pageSize)
+	tickets, total, err := h.service.AdminGetTickets(c.Request.Context(), status, priority, category, params.Limit, params.Offset)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get tickets")
 		return
 	}
 
-	common.SuccessResponse(c, gin.H{
-		"tickets":   tickets,
-		"total":     total,
-		"page":      page,
-		"page_size": pageSize,
-	})
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(total))
+	common.SuccessResponseWithMeta(c, gin.H{
+		"tickets": tickets,
+	}, meta)
 }
 
 // AdminGetTicket returns a specific ticket (admin view)

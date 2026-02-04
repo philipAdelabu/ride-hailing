@@ -2,7 +2,6 @@ package ratings
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -10,6 +9,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	"github.com/richxcame/ride-hailing/pkg/models"
+	"github.com/richxcame/ride-hailing/pkg/pagination"
 )
 
 // Handler handles HTTP requests for ratings
@@ -107,19 +107,18 @@ func (h *Handler) GetMyRatingsGiven(c *gin.Context) {
 		return
 	}
 
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	params := pagination.ParseParams(c)
 
-	ratings, total, err := h.service.GetRatingsGiven(c.Request.Context(), userID, limit, offset)
+	ratings, total, err := h.service.GetRatingsGiven(c.Request.Context(), userID, params.Limit, params.Offset)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get ratings")
 		return
 	}
 
-	common.SuccessResponse(c, gin.H{
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(total))
+	common.SuccessResponseWithMeta(c, gin.H{
 		"ratings": ratings,
-		"total":   total,
-	})
+	}, meta)
 }
 
 // RespondToRating responds to a received rating

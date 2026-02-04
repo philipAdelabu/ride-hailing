@@ -6,8 +6,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/richxcame/ride-hailing/pkg/common"
 	"github.com/richxcame/ride-hailing/pkg/logger"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
+	"github.com/richxcame/ride-hailing/pkg/pagination"
 	"go.uber.org/zap"
 )
 
@@ -88,24 +90,24 @@ func (h *Handler) RegisterPublicRoutes(rg *gin.RouterGroup) {
 func (h *Handler) TriggerSOS(c *gin.Context) {
 	userID, err := getUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	var req TriggerSOSRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
 		return
 	}
 
 	resp, err := h.service.TriggerSOS(c.Request.Context(), userID, &req)
 	if err != nil {
 		logger.Error("Failed to trigger SOS", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to trigger emergency alert"})
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to trigger emergency alert")
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	common.SuccessResponse(c, resp)
 }
 
 // CancelSOS cancels an emergency alert
@@ -121,43 +123,43 @@ func (h *Handler) TriggerSOS(c *gin.Context) {
 func (h *Handler) CancelSOS(c *gin.Context) {
 	userID, err := getUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	alertID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid alert ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid alert ID")
 		return
 	}
 
 	if err := h.service.CancelSOS(c.Request.Context(), userID, alertID); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "emergency alert cancelled"})
+	common.SuccessResponse(c, gin.H{"message": "emergency alert cancelled"})
 }
 
 // GetEmergency retrieves a specific emergency alert
 func (h *Handler) GetEmergency(c *gin.Context) {
 	alertID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid alert ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid alert ID")
 		return
 	}
 
 	alert, err := h.service.repo.GetEmergencyAlert(c.Request.Context(), alertID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get alert"})
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get alert")
 		return
 	}
 	if alert == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "alert not found"})
+		common.ErrorResponse(c, http.StatusNotFound, "alert not found")
 		return
 	}
 
-	c.JSON(http.StatusOK, alert)
+	common.SuccessResponse(c, alert)
 }
 
 // GetUserEmergencies retrieves emergency alerts for the current user
@@ -173,20 +175,20 @@ func (h *Handler) GetEmergency(c *gin.Context) {
 func (h *Handler) GetUserEmergencies(c *gin.Context) {
 	userID, err := getUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
-	limit := getQueryInt(c, "limit", 20)
-	offset := getQueryInt(c, "offset", 0)
+	params := pagination.ParseParams(c)
 
-	alerts, err := h.service.GetUserEmergencies(c.Request.Context(), userID, limit, offset)
+	alerts, err := h.service.GetUserEmergencies(c.Request.Context(), userID, params.Limit, params.Offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get emergencies"})
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get emergencies")
 		return
 	}
 
-	c.JSON(http.StatusOK, alerts)
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(len(alerts)))
+	common.SuccessResponseWithMeta(c, alerts, meta)
 }
 
 // ========================================
@@ -207,23 +209,23 @@ func (h *Handler) GetUserEmergencies(c *gin.Context) {
 func (h *Handler) CreateEmergencyContact(c *gin.Context) {
 	userID, err := getUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	var req CreateEmergencyContactRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
 		return
 	}
 
 	contact, err := h.service.CreateEmergencyContact(c.Request.Context(), userID, &req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusCreated, contact)
+	common.CreatedResponse(c, contact)
 }
 
 // GetEmergencyContacts retrieves all emergency contacts for a user
@@ -237,17 +239,17 @@ func (h *Handler) CreateEmergencyContact(c *gin.Context) {
 func (h *Handler) GetEmergencyContacts(c *gin.Context) {
 	userID, err := getUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	contacts, err := h.service.GetEmergencyContacts(c.Request.Context(), userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get contacts"})
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get contacts")
 		return
 	}
 
-	c.JSON(http.StatusOK, contacts)
+	common.SuccessResponse(c, contacts)
 }
 
 // UpdateEmergencyContact updates an emergency contact
@@ -265,29 +267,29 @@ func (h *Handler) GetEmergencyContacts(c *gin.Context) {
 func (h *Handler) UpdateEmergencyContact(c *gin.Context) {
 	userID, err := getUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	contactID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid contact ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid contact ID")
 		return
 	}
 
 	var req CreateEmergencyContactRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
 		return
 	}
 
 	contact, err := h.service.UpdateEmergencyContact(c.Request.Context(), userID, contactID, &req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, contact)
+	common.SuccessResponse(c, contact)
 }
 
 // DeleteEmergencyContact deletes an emergency contact
@@ -302,22 +304,22 @@ func (h *Handler) UpdateEmergencyContact(c *gin.Context) {
 func (h *Handler) DeleteEmergencyContact(c *gin.Context) {
 	userID, err := getUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	contactID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid contact ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid contact ID")
 		return
 	}
 
 	if err := h.service.DeleteEmergencyContact(c.Request.Context(), userID, contactID); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "contact deleted"})
+	common.SuccessResponse(c, gin.H{"message": "contact deleted"})
 }
 
 // VerifyEmergencyContact verifies an emergency contact's phone
@@ -334,7 +336,7 @@ func (h *Handler) DeleteEmergencyContact(c *gin.Context) {
 func (h *Handler) VerifyEmergencyContact(c *gin.Context) {
 	contactID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid contact ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid contact ID")
 		return
 	}
 
@@ -342,16 +344,16 @@ func (h *Handler) VerifyEmergencyContact(c *gin.Context) {
 		Code string `json:"code" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
 		return
 	}
 
 	if err := h.service.VerifyEmergencyContact(c.Request.Context(), contactID, req.Code); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "contact verified"})
+	common.SuccessResponse(c, gin.H{"message": "contact verified"})
 }
 
 // ========================================
@@ -372,40 +374,40 @@ func (h *Handler) VerifyEmergencyContact(c *gin.Context) {
 func (h *Handler) CreateShareLink(c *gin.Context) {
 	userID, err := getUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	var req CreateShareLinkRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
 		return
 	}
 
 	resp, err := h.service.CreateShareLink(c.Request.Context(), userID, &req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusCreated, resp)
+	common.CreatedResponse(c, resp)
 }
 
 // GetShareLinks retrieves share links for a ride
 func (h *Handler) GetShareLinks(c *gin.Context) {
 	rideID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid ride ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid ride ID")
 		return
 	}
 
 	links, err := h.service.repo.GetRideShareLinks(c.Request.Context(), rideID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get share links"})
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get share links")
 		return
 	}
 
-	c.JSON(http.StatusOK, links)
+	common.SuccessResponse(c, links)
 }
 
 // DeactivateShareLink deactivates a share link
@@ -420,22 +422,22 @@ func (h *Handler) GetShareLinks(c *gin.Context) {
 func (h *Handler) DeactivateShareLink(c *gin.Context) {
 	userID, err := getUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	linkID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid link ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid link ID")
 		return
 	}
 
 	if err := h.service.DeactivateShareLink(c.Request.Context(), userID, linkID); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "share link deactivated"})
+	common.SuccessResponse(c, gin.H{"message": "share link deactivated"})
 }
 
 // ViewSharedRide views a shared ride (public, no auth required)
@@ -450,17 +452,17 @@ func (h *Handler) DeactivateShareLink(c *gin.Context) {
 func (h *Handler) ViewSharedRide(c *gin.Context) {
 	token := c.Param("token")
 	if token == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "token required"})
+		common.ErrorResponse(c, http.StatusBadRequest, "token required")
 		return
 	}
 
 	view, err := h.service.GetSharedRide(c.Request.Context(), token)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusNotFound, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, view)
+	common.SuccessResponse(c, view)
 }
 
 // ========================================
@@ -478,17 +480,17 @@ func (h *Handler) ViewSharedRide(c *gin.Context) {
 func (h *Handler) GetSafetySettings(c *gin.Context) {
 	userID, err := getUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	settings, err := h.service.GetSafetySettings(c.Request.Context(), userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get settings"})
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get settings")
 		return
 	}
 
-	c.JSON(http.StatusOK, settings)
+	common.SuccessResponse(c, settings)
 }
 
 // UpdateSafetySettings updates safety settings
@@ -505,23 +507,23 @@ func (h *Handler) GetSafetySettings(c *gin.Context) {
 func (h *Handler) UpdateSafetySettings(c *gin.Context) {
 	userID, err := getUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	var req UpdateSafetySettingsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
 		return
 	}
 
 	settings, err := h.service.UpdateSafetySettings(c.Request.Context(), userID, &req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, settings)
+	common.SuccessResponse(c, settings)
 }
 
 // ========================================
@@ -541,39 +543,39 @@ func (h *Handler) UpdateSafetySettings(c *gin.Context) {
 func (h *Handler) RespondToSafetyCheck(c *gin.Context) {
 	userID, err := getUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	var req SafetyCheckResponse
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
 		return
 	}
 
 	if err := h.service.RespondToSafetyCheck(c.Request.Context(), userID, &req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "response recorded"})
+	common.SuccessResponse(c, gin.H{"message": "response recorded"})
 }
 
 // GetPendingSafetyChecks gets pending safety checks for the user
 func (h *Handler) GetPendingSafetyChecks(c *gin.Context) {
 	userID, err := getUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	checks, err := h.service.repo.GetPendingSafetyChecks(c.Request.Context(), userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get checks"})
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get checks")
 		return
 	}
 
-	c.JSON(http.StatusOK, checks)
+	common.SuccessResponse(c, checks)
 }
 
 // ========================================
@@ -593,7 +595,7 @@ func (h *Handler) GetPendingSafetyChecks(c *gin.Context) {
 func (h *Handler) AddTrustedDriver(c *gin.Context) {
 	userID, err := getUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
@@ -602,44 +604,44 @@ func (h *Handler) AddTrustedDriver(c *gin.Context) {
 		Note     string `json:"note"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
 		return
 	}
 
 	driverID, err := uuid.Parse(req.DriverID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid driver ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid driver ID")
 		return
 	}
 
 	if err := h.service.AddTrustedDriver(c.Request.Context(), userID, driverID, req.Note); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "driver added to trusted list"})
+	common.SuccessResponse(c, gin.H{"message": "driver added to trusted list"})
 }
 
 // RemoveTrustedDriver removes a driver from the trusted list
 func (h *Handler) RemoveTrustedDriver(c *gin.Context) {
 	userID, err := getUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	driverID, err := uuid.Parse(c.Param("driver_id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid driver ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid driver ID")
 		return
 	}
 
 	if err := h.service.RemoveTrustedDriver(c.Request.Context(), userID, driverID); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "driver removed from trusted list"})
+	common.SuccessResponse(c, gin.H{"message": "driver removed from trusted list"})
 }
 
 // BlockDriver blocks a driver
@@ -655,7 +657,7 @@ func (h *Handler) RemoveTrustedDriver(c *gin.Context) {
 func (h *Handler) BlockDriver(c *gin.Context) {
 	userID, err := getUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
@@ -664,61 +666,61 @@ func (h *Handler) BlockDriver(c *gin.Context) {
 		Reason   string `json:"reason"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
 		return
 	}
 
 	driverID, err := uuid.Parse(req.DriverID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid driver ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid driver ID")
 		return
 	}
 
 	if err := h.service.BlockDriver(c.Request.Context(), userID, driverID, req.Reason); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "driver blocked"})
+	common.SuccessResponse(c, gin.H{"message": "driver blocked"})
 }
 
 // UnblockDriver unblocks a driver
 func (h *Handler) UnblockDriver(c *gin.Context) {
 	userID, err := getUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	driverID, err := uuid.Parse(c.Param("driver_id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid driver ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid driver ID")
 		return
 	}
 
 	if err := h.service.UnblockDriver(c.Request.Context(), userID, driverID); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "driver unblocked"})
+	common.SuccessResponse(c, gin.H{"message": "driver unblocked"})
 }
 
 // GetBlockedDrivers gets the list of blocked drivers
 func (h *Handler) GetBlockedDrivers(c *gin.Context) {
 	userID, err := getUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	driverIDs, err := h.service.GetBlockedDrivers(c.Request.Context(), userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get blocked drivers"})
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get blocked drivers")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"blocked_drivers": driverIDs})
+	common.SuccessResponse(c, gin.H{"blocked_drivers": driverIDs})
 }
 
 // ========================================
@@ -739,23 +741,23 @@ func (h *Handler) GetBlockedDrivers(c *gin.Context) {
 func (h *Handler) ReportIncident(c *gin.Context) {
 	userID, err := getUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	var req ReportIncidentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
 		return
 	}
 
 	report, err := h.service.ReportIncident(c.Request.Context(), userID, &req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusCreated, report)
+	common.CreatedResponse(c, report)
 }
 
 // ========================================
@@ -786,46 +788,46 @@ func (h *Handler) RegisterAdminRoutes(rg *gin.RouterGroup, authMiddleware gin.Ha
 func (h *Handler) GetActiveEmergencies(c *gin.Context) {
 	alerts, err := h.service.GetActiveEmergencies(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get emergencies"})
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get emergencies")
 		return
 	}
 
-	c.JSON(http.StatusOK, alerts)
+	common.SuccessResponse(c, alerts)
 }
 
 // RespondToEmergency marks an emergency as responded (admin)
 func (h *Handler) RespondToEmergency(c *gin.Context) {
 	adminID, err := getUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	alertID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid alert ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid alert ID")
 		return
 	}
 
 	if err := h.service.repo.UpdateEmergencyAlertStatus(c.Request.Context(), alertID, EmergencyStatusResponded, &adminID, ""); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update alert"})
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to update alert")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "emergency marked as responded"})
+	common.SuccessResponse(c, gin.H{"message": "emergency marked as responded"})
 }
 
 // ResolveEmergency resolves an emergency (admin)
 func (h *Handler) ResolveEmergency(c *gin.Context) {
 	adminID, err := getUserID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	alertID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid alert ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid alert ID")
 		return
 	}
 
@@ -834,29 +836,29 @@ func (h *Handler) ResolveEmergency(c *gin.Context) {
 		IsFalseAlarm bool   `json:"is_false_alarm"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
 		return
 	}
 
 	if err := h.service.ResolveEmergencyAlert(c.Request.Context(), adminID, alertID, req.Resolution, req.IsFalseAlarm); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to resolve alert"})
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to resolve alert")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "emergency resolved"})
+	common.SuccessResponse(c, gin.H{"message": "emergency resolved"})
 }
 
 // AdminGetIncidents retrieves incident reports (admin)
 func (h *Handler) AdminGetIncidents(c *gin.Context) {
 	// Would implement pagination and filtering
-	c.JSON(http.StatusOK, gin.H{"incidents": []SafetyIncidentReport{}})
+	common.SuccessResponse(c, gin.H{"incidents": []SafetyIncidentReport{}})
 }
 
 // AdminUpdateIncident updates an incident report (admin)
 func (h *Handler) AdminUpdateIncident(c *gin.Context) {
 	incidentID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid incident ID"})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid incident ID")
 		return
 	}
 
@@ -866,23 +868,23 @@ func (h *Handler) AdminUpdateIncident(c *gin.Context) {
 		ActionTaken string `json:"action_taken"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
 		return
 	}
 
 	if err := h.service.repo.UpdateSafetyIncidentStatus(c.Request.Context(), incidentID, req.Status, req.Resolution, req.ActionTaken); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update incident"})
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to update incident")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "incident updated"})
+	common.SuccessResponse(c, gin.H{"message": "incident updated"})
 }
 
 // GetSafetyStats retrieves safety statistics (admin)
 func (h *Handler) GetSafetyStats(c *gin.Context) {
 	// Get stats for last 30 days
 	// stats, err := h.service.repo.GetEmergencyAlertStats(c.Request.Context(), time.Now().AddDate(0, 0, -30))
-	c.JSON(http.StatusOK, gin.H{
+	common.SuccessResponse(c, gin.H{
 		"message": "stats endpoint",
 	})
 }
@@ -907,17 +909,3 @@ func getUserID(c *gin.Context) (uuid.UUID, error) {
 	}
 }
 
-func getQueryInt(c *gin.Context, key string, defaultVal int) int {
-	if val := c.Query(key); val != "" {
-		if i, err := parseInt(val); err == nil {
-			return i
-		}
-	}
-	return defaultVal
-}
-
-func parseInt(s string) (int, error) {
-	var i int
-	_, err := fmt.Sscanf(s, "%d", &i)
-	return i, err
-}

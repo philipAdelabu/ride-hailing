@@ -2,7 +2,6 @@ package cancellation
 
 import (
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -11,6 +10,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	"github.com/richxcame/ride-hailing/pkg/models"
+	"github.com/richxcame/ride-hailing/pkg/pagination"
 )
 
 // Handler handles HTTP requests for cancellations
@@ -144,21 +144,18 @@ func (h *Handler) GetMyCancellationHistory(c *gin.Context) {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	params := pagination.ParseParams(c)
 
-	records, total, err := h.service.GetMyCancellationHistory(c.Request.Context(), userID, page, pageSize)
+	records, total, err := h.service.GetMyCancellationHistory(c.Request.Context(), userID, params.Limit, params.Offset)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get cancellation history")
 		return
 	}
 
-	common.SuccessResponse(c, gin.H{
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(total))
+	common.SuccessResponseWithMeta(c, gin.H{
 		"cancellations": records,
-		"total":         total,
-		"page":          page,
-		"page_size":     pageSize,
-	})
+	}, meta)
 }
 
 // GetCancellationReasons returns available cancellation reasons

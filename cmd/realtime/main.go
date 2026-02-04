@@ -126,8 +126,9 @@ func main() {
 	logger.Info("WebSocket hub started")
 
 	// Create service and handler
-	service := realtime.NewService(hub, db, redisClient)
-	handler := realtime.NewHandler(service)
+	log := logger.Get()
+	service := realtime.NewService(hub, db, redisClient, log)
+	handler := realtime.NewHandler(service, log)
 
 	// Set up Gin router with proper middleware stack
 	if cfg.Server.Environment == "production" {

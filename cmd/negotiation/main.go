@@ -100,7 +100,7 @@ func main() {
 	// Initialize database
 	db, err := database.NewPostgresPool(&cfg.Database, cfg.Timeout.DatabaseQueryTimeout)
 	if err != nil {
-		log.Fatal("Failed to connect to database", zap.Error(err))
+		logger.Fatal("Failed to connect to database", zap.Error(err))
 	}
 	defer database.Close(db)
 
@@ -177,7 +177,7 @@ func main() {
 
 	jwtProvider, err := jwtkeys.NewManagerFromConfig(rootCtx, cfg.JWT, true)
 	if err != nil {
-		log.Fatal("Failed to initialize JWT key manager", zap.Error(err))
+		logger.Fatal("Failed to initialize JWT key manager", zap.Error(err))
 	}
 	jwtProvider.StartAutoRefresh(rootCtx, time.Duration(cfg.JWT.RefreshMinutes)*time.Minute)
 
@@ -274,7 +274,7 @@ func main() {
 	go func() {
 		log.Info("Server starting", zap.String("port", cfg.Server.Port), zap.String("environment", cfg.Server.Environment))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal("Server failed to start", zap.Error(err))
+			logger.Fatal("Server failed to start", zap.Error(err))
 		}
 	}()
 
@@ -290,7 +290,7 @@ func main() {
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatal("Server forced to shutdown", zap.Error(err))
+		logger.Fatal("Server forced to shutdown", zap.Error(err))
 	}
 
 	log.Info("Server stopped")

@@ -325,5 +325,5 @@ func (h *Handler) HandleStripeWebhook(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"received": true})
+	common.SuccessResponse(c, gin.H{"received": true})
 }

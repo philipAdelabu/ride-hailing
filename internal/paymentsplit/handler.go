@@ -2,13 +2,13 @@ package paymentsplit
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/richxcame/ride-hailing/pkg/common"
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
+	"github.com/richxcame/ride-hailing/pkg/pagination"
 )
 
 // Handler handles HTTP requests for payment splitting
@@ -306,10 +306,9 @@ func (h *Handler) GetHistory(c *gin.Context) {
 		return
 	}
 
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	params := pagination.ParseParams(c)
 
-	history, err := h.service.GetHistory(c.Request.Context(), userID, limit, offset)
+	history, err := h.service.GetHistory(c.Request.Context(), userID, params.Limit, params.Offset)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get history")
 		return

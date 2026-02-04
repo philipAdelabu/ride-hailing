@@ -1,7 +1,6 @@
 package websocket
 
 import (
-	"log"
 	"net/http"
 	"strings"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/models"
+	"go.uber.org/zap"
 )
 
 // Claims represents JWT claims for WebSocket authentication
@@ -68,7 +68,7 @@ func HandleWebSocket(c *gin.Context, hub *Hub, jwtProvider jwtkeys.KeyProvider) 
 	// Upgrade to WebSocket
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		log.Printf("Failed to upgrade WebSocket: %v", err)
+		zap.L().Error("failed to upgrade WebSocket", zap.Error(err))
 		return
 	}
 
@@ -79,7 +79,7 @@ func HandleWebSocket(c *gin.Context, hub *Hub, jwtProvider jwtkeys.KeyProvider) 
 	}
 
 	// Create client
-	client := NewClient(claims.UserID.String(), conn, hub, role)
+	client := NewClient(claims.UserID.String(), conn, hub, role, zap.L())
 
 	// Register client with hub
 	hub.Register <- client

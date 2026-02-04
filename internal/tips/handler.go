@@ -10,6 +10,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	"github.com/richxcame/ride-hailing/pkg/models"
+	"github.com/richxcame/ride-hailing/pkg/pagination"
 )
 
 // Handler handles HTTP requests for tips
@@ -84,10 +85,9 @@ func (h *Handler) GetMyTipHistory(c *gin.Context) {
 		return
 	}
 
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	params := pagination.ParseParams(c)
 
-	history, err := h.service.GetRiderTipHistory(c.Request.Context(), riderID, limit, offset)
+	history, err := h.service.GetRiderTipHistory(c.Request.Context(), riderID, params.Limit, params.Offset)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get tip history")
 		return
@@ -129,19 +129,18 @@ func (h *Handler) GetDriverTips(c *gin.Context) {
 		return
 	}
 
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	params := pagination.ParseParams(c)
 
-	tips, total, err := h.service.GetDriverTips(c.Request.Context(), driverID, limit, offset)
+	tips, total, err := h.service.GetDriverTips(c.Request.Context(), driverID, params.Limit, params.Offset)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get tips")
 		return
 	}
 
-	common.SuccessResponse(c, gin.H{
-		"tips":  tips,
-		"total": total,
-	})
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(total))
+	common.SuccessResponseWithMeta(c, gin.H{
+		"tips": tips,
+	}, meta)
 }
 
 // ========================================

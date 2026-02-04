@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 )
 
 // TestNewHub tests hub creation
@@ -27,7 +28,7 @@ func TestRegisterClient(t *testing.T) {
 	go hub.Run()
 
 	conn := createTestWebSocketConn(t)
-	client := NewClient("user-123", conn, hub, "rider")
+	client := NewClient("user-123", conn, hub, "rider", zap.NewNop())
 
 	hub.Register <- client
 	time.Sleep(10 * time.Millisecond)
@@ -46,14 +47,14 @@ func TestRegisterDuplicateClient(t *testing.T) {
 
 	// Register first client
 	conn1 := createTestWebSocketConn(t)
-	client1 := NewClient("user-123", conn1, hub, "rider")
+	client1 := NewClient("user-123", conn1, hub, "rider", zap.NewNop())
 
 	hub.Register <- client1
 	time.Sleep(10 * time.Millisecond)
 
 	// Register second client with same ID
 	conn2 := createTestWebSocketConn(t)
-	client2 := NewClient("user-123", conn2, hub, "rider")
+	client2 := NewClient("user-123", conn2, hub, "rider", zap.NewNop())
 
 	hub.Register <- client2
 	time.Sleep(10 * time.Millisecond)
@@ -72,7 +73,7 @@ func TestUnregisterClient(t *testing.T) {
 	go hub.Run()
 
 	conn := createTestWebSocketConn(t)
-	client := NewClient("user-123", conn, hub, "rider")
+	client := NewClient("user-123", conn, hub, "rider", zap.NewNop())
 
 	// Register client
 	hub.Register <- client
@@ -96,7 +97,7 @@ func TestUnregisterClientFromRide(t *testing.T) {
 	go hub.Run()
 
 	conn := createTestWebSocketConn(t)
-	client := NewClient("user-123", conn, hub, "rider")
+	client := NewClient("user-123", conn, hub, "rider", zap.NewNop())
 
 	// Register client and add to ride
 	hub.Register <- client
@@ -124,7 +125,7 @@ func TestAddClientToRide(t *testing.T) {
 	go hub.Run()
 
 	conn := createTestWebSocketConn(t)
-	client := NewClient("user-123", conn, hub, "rider")
+	client := NewClient("user-123", conn, hub, "rider", zap.NewNop())
 
 	// Register client
 	hub.Register <- client
@@ -149,10 +150,10 @@ func TestAddMultipleClientsToRide(t *testing.T) {
 
 	// Create two clients
 	conn1 := createTestWebSocketConn(t)
-	client1 := NewClient("rider-123", conn1, hub, "rider")
+	client1 := NewClient("rider-123", conn1, hub, "rider", zap.NewNop())
 
 	conn2 := createTestWebSocketConn(t)
-	client2 := NewClient("driver-456", conn2, hub, "driver")
+	client2 := NewClient("driver-456", conn2, hub, "driver", zap.NewNop())
 
 	// Register clients
 	hub.Register <- client1
@@ -177,7 +178,7 @@ func TestRemoveClientFromRide(t *testing.T) {
 	go hub.Run()
 
 	conn := createTestWebSocketConn(t)
-	client := NewClient("user-123", conn, hub, "rider")
+	client := NewClient("user-123", conn, hub, "rider", zap.NewNop())
 
 	// Register client and add to ride
 	hub.Register <- client
@@ -204,10 +205,10 @@ func TestRemoveLastClientFromRide(t *testing.T) {
 
 	// Create two clients
 	conn1 := createTestWebSocketConn(t)
-	client1 := NewClient("rider-123", conn1, hub, "rider")
+	client1 := NewClient("rider-123", conn1, hub, "rider", zap.NewNop())
 
 	conn2 := createTestWebSocketConn(t)
-	client2 := NewClient("driver-456", conn2, hub, "driver")
+	client2 := NewClient("driver-456", conn2, hub, "driver", zap.NewNop())
 
 	// Register and add to ride
 	hub.Register <- client1
@@ -242,7 +243,7 @@ func TestSendToUser(t *testing.T) {
 	go hub.Run()
 
 	conn := createTestWebSocketConn(t)
-	client := NewClient("user-123", conn, hub, "rider")
+	client := NewClient("user-123", conn, hub, "rider", zap.NewNop())
 
 	hub.Register <- client
 	time.Sleep(10 * time.Millisecond)
@@ -292,10 +293,10 @@ func TestSendToRide(t *testing.T) {
 
 	// Create two clients
 	conn1 := createTestWebSocketConn(t)
-	client1 := NewClient("rider-123", conn1, hub, "rider")
+	client1 := NewClient("rider-123", conn1, hub, "rider", zap.NewNop())
 
 	conn2 := createTestWebSocketConn(t)
-	client2 := NewClient("driver-456", conn2, hub, "driver")
+	client2 := NewClient("driver-456", conn2, hub, "driver", zap.NewNop())
 
 	// Register and add to ride
 	hub.Register <- client1
@@ -344,7 +345,7 @@ func TestSendToAll(t *testing.T) {
 	clients := make([]*Client, 3)
 	for i := 0; i < 3; i++ {
 		conn := createTestWebSocketConn(t)
-		client := NewClient("user-"+string(rune(i)), conn, hub, "rider")
+		client := NewClient("user-"+string(rune(i)), conn, hub, "rider", zap.NewNop())
 		clients[i] = client
 		hub.Register <- client
 	}
@@ -389,7 +390,7 @@ func TestRegisterHandler(t *testing.T) {
 
 	// Test handler is called
 	conn := createTestWebSocketConn(t)
-	client := NewClient("user-123", conn, hub, "rider")
+	client := NewClient("user-123", conn, hub, "rider", zap.NewNop())
 
 	msg := &Message{
 		Type: "test_message",
@@ -406,7 +407,7 @@ func TestHandleMessageUnknownType(t *testing.T) {
 	hub := NewHub()
 
 	conn := createTestWebSocketConn(t)
-	client := NewClient("user-123", conn, hub, "rider")
+	client := NewClient("user-123", conn, hub, "rider", zap.NewNop())
 
 	msg := &Message{
 		Type: "unknown_type",
@@ -432,7 +433,7 @@ func TestConcurrentAccess(t *testing.T) {
 			defer wg.Done()
 
 			conn := createTestWebSocketConn(t)
-			client := NewClient("user-"+string(rune(id)), conn, hub, "rider")
+			client := NewClient("user-"+string(rune(id)), conn, hub, "rider", zap.NewNop())
 
 			hub.Register <- client
 			time.Sleep(1 * time.Millisecond)
@@ -471,7 +472,7 @@ func TestGetClient(t *testing.T) {
 	go hub.Run()
 
 	conn := createTestWebSocketConn(t)
-	client := NewClient("user-123", conn, hub, "rider")
+	client := NewClient("user-123", conn, hub, "rider", zap.NewNop())
 
 	hub.Register <- client
 	time.Sleep(10 * time.Millisecond)
@@ -495,7 +496,7 @@ func TestGetClientsInRide(t *testing.T) {
 	clients := make([]*Client, 3)
 	for i := 0; i < 3; i++ {
 		conn := createTestWebSocketConn(t)
-		client := NewClient("user-"+string(rune(i)), conn, hub, "rider")
+		client := NewClient("user-"+string(rune(i)), conn, hub, "rider", zap.NewNop())
 		clients[i] = client
 		hub.Register <- client
 	}
@@ -528,7 +529,7 @@ func TestGetClientCount(t *testing.T) {
 	// Register clients
 	for i := 0; i < 5; i++ {
 		conn := createTestWebSocketConn(t)
-		client := NewClient("user-"+string(rune(i)), conn, hub, "rider")
+		client := NewClient("user-"+string(rune(i)), conn, hub, "rider", zap.NewNop())
 		hub.Register <- client
 	}
 
@@ -548,7 +549,7 @@ func TestGetRideCount(t *testing.T) {
 	clients := make([]*Client, 6)
 	for i := 0; i < 6; i++ {
 		conn := createTestWebSocketConn(t)
-		client := NewClient("user-"+string(rune(i)), conn, hub, "rider")
+		client := NewClient("user-"+string(rune(i)), conn, hub, "rider", zap.NewNop())
 		clients[i] = client
 		hub.Register <- client
 	}
@@ -573,7 +574,7 @@ func TestBroadcastChannelCapacity(t *testing.T) {
 	go hub.Run()
 
 	conn := createTestWebSocketConn(t)
-	client := NewClient("user-123", conn, hub, "rider")
+	client := NewClient("user-123", conn, hub, "rider", zap.NewNop())
 
 	hub.Register <- client
 	time.Sleep(10 * time.Millisecond)
@@ -608,7 +609,7 @@ func TestMessageRouting(t *testing.T) {
 	})
 
 	conn := createTestWebSocketConn(t)
-	client := NewClient("user-123", conn, hub, "rider")
+	client := NewClient("user-123", conn, hub, "rider", zap.NewNop())
 
 	hub.Register <- client
 	time.Sleep(10 * time.Millisecond)
@@ -635,7 +636,7 @@ func TestClientChannelOverflow(t *testing.T) {
 	go hub.Run()
 
 	conn := createTestWebSocketConn(t)
-	client := NewClient("user-123", conn, hub, "rider")
+	client := NewClient("user-123", conn, hub, "rider", zap.NewNop())
 
 	// Use small channel for testing
 	client.Send = make(chan *Message, 2)

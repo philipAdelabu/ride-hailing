@@ -2,13 +2,13 @@ package chat
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/richxcame/ride-hailing/pkg/common"
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
+	"github.com/richxcame/ride-hailing/pkg/pagination"
 )
 
 // Handler handles HTTP requests for chat
@@ -74,10 +74,9 @@ func (h *Handler) GetConversation(c *gin.Context) {
 		return
 	}
 
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	params := pagination.ParseParams(c)
 
-	conversation, err := h.service.GetConversation(c.Request.Context(), userID, rideID, limit, offset)
+	conversation, err := h.service.GetConversation(c.Request.Context(), userID, rideID, params.Limit, params.Offset)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get conversation")
 		return

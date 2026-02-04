@@ -2,7 +2,6 @@ package earnings
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -10,6 +9,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	"github.com/richxcame/ride-hailing/pkg/models"
+	"github.com/richxcame/ride-hailing/pkg/pagination"
 )
 
 // Handler handles HTTP requests for driver earnings
@@ -87,10 +87,9 @@ func (h *Handler) GetHistory(c *gin.Context) {
 	}
 
 	period := c.DefaultQuery("period", "this_month")
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	params := pagination.ParseParams(c)
 
-	resp, err := h.service.GetEarningsHistory(c.Request.Context(), driverID, period, page, pageSize)
+	resp, err := h.service.GetEarningsHistory(c.Request.Context(), driverID, period, params.Limit, params.Offset)
 	if err != nil {
 		if appErr, ok := err.(*common.AppError); ok {
 			common.AppErrorResponse(c, appErr)
@@ -165,10 +164,9 @@ func (h *Handler) GetPayoutHistory(c *gin.Context) {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	params := pagination.ParseParams(c)
 
-	resp, err := h.service.GetPayoutHistory(c.Request.Context(), driverID, page, pageSize)
+	resp, err := h.service.GetPayoutHistory(c.Request.Context(), driverID, params.Limit, params.Offset)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get payout history")
 		return
