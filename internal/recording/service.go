@@ -14,7 +14,7 @@ import (
 
 // Service handles recording business logic
 type Service struct {
-	repo          *Repository
+	repo          RepositoryInterface
 	storageClient storage.Storage
 	bucketName    string
 	maxDuration   int   // Maximum recording duration in seconds
@@ -29,7 +29,7 @@ type Config struct {
 }
 
 // NewService creates a new recording service
-func NewService(repo *Repository, storageClient storage.Storage, cfg Config) *Service {
+func NewService(repo RepositoryInterface, storageClient storage.Storage, cfg Config) *Service {
 	maxDuration := cfg.MaxDuration
 	if maxDuration == 0 {
 		maxDuration = 7200 // 2 hours default

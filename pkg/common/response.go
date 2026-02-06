@@ -4,14 +4,16 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/richxcame/ride-hailing/pkg/logger"
 )
 
 // Response represents a standard API response
 type Response struct {
-	Success bool        `json:"success"`
-	Data    interface{} `json:"data,omitempty"`
-	Error   *ErrorInfo  `json:"error,omitempty"`
-	Meta    *Meta       `json:"meta,omitempty"`
+	Success       bool        `json:"success"`
+	Data          interface{} `json:"data,omitempty"`
+	Error         *ErrorInfo  `json:"error,omitempty"`
+	Meta          *Meta       `json:"meta,omitempty"`
+	CorrelationID string      `json:"correlation_id,omitempty"`
 }
 
 // ErrorInfo contains error details
@@ -82,6 +84,7 @@ func ErrorResponse(c *gin.Context, statusCode int, message string) {
 			Code:    statusCode,
 			Message: message,
 		},
+		CorrelationID: logger.CorrelationIDFromContext(c.Request.Context()),
 	})
 }
 
@@ -94,5 +97,6 @@ func AppErrorResponse(c *gin.Context, err *AppError) {
 			ErrorCode: err.ErrorCode,
 			Message:   err.Message,
 		},
+		CorrelationID: logger.CorrelationIDFromContext(c.Request.Context()),
 	})
 }

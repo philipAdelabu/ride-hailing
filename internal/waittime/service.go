@@ -19,11 +19,11 @@ const (
 
 // Service handles wait time business logic
 type Service struct {
-	repo *Repository
+	repo RepositoryInterface
 }
 
 // NewService creates a new wait time service
-func NewService(repo *Repository) *Service {
+func NewService(repo RepositoryInterface) *Service {
 	return &Service{repo: repo}
 }
 

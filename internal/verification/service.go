@@ -18,13 +18,13 @@ import (
 
 // Service handles verification business logic
 type Service struct {
-	repo       *Repository
+	repo       RepositoryInterface
 	cfg        *config.Config
 	httpClient *http.Client
 }
 
 // NewService creates a new verification service
-func NewService(repo *Repository, cfg *config.Config) *Service {
+func NewService(repo RepositoryInterface, cfg *config.Config) *Service {
 	return &Service{
 		repo: repo,
 		cfg:  cfg,

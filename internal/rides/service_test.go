@@ -7,7 +7,17 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// testService creates a Service with nil repo for testing helper methods
+func testService() *Service {
+	return &Service{
+		pricingConfig: DefaultPricingConfig(),
+	}
+}
+
 func TestCalculateFare(t *testing.T) {
+	svc := testService()
+	cfg := DefaultPricingConfig()
+
 	tests := []struct {
 		name            string
 		distance        float64
@@ -47,10 +57,10 @@ func TestCalculateFare(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fare := calculateFare(tt.distance, tt.duration, tt.surgeMultiplier)
+			fare := svc.calculateFare(tt.distance, tt.duration, tt.surgeMultiplier)
 
 			// Fare should never be less than minimum fare
-			assert.GreaterOrEqual(t, fare, minimumFare)
+			assert.GreaterOrEqual(t, fare, cfg.MinimumFare)
 
 			// Fare should be at least the expected minimum
 			assert.GreaterOrEqual(t, fare, tt.expectedMinimum)
@@ -117,9 +127,10 @@ func TestCalculateSurgeMultiplier(t *testing.T) {
 }
 
 func TestFareWithSurge(t *testing.T) {
+	svc := testService()
 	distance := 10.0
 	duration := 20
-	baseFare := calculateFare(distance, duration, 1.0)
+	baseFare := svc.calculateFare(distance, duration, 1.0)
 
 	tests := []struct {
 		name             string
@@ -142,7 +153,7 @@ func TestFareWithSurge(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			testTime := time.Date(2025, 1, 1, tt.hour, 0, 0, 0, time.UTC)
 			multiplier := calculateSurgeMultiplier(testTime)
-			finalFare := calculateFare(distance, duration, multiplier)
+			finalFare := svc.calculateFare(distance, duration, multiplier)
 
 			if tt.expectedIncrease {
 				assert.Greater(t, finalFare, baseFare)
@@ -154,6 +165,8 @@ func TestFareWithSurge(t *testing.T) {
 }
 
 func TestCommissionCalculation(t *testing.T) {
+	cfg := DefaultPricingConfig()
+
 	tests := []struct {
 		name                   string
 		totalFare              float64
@@ -182,7 +195,7 @@ func TestCommissionCalculation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			commission := tt.totalFare * commissionRate
+			commission := tt.totalFare * cfg.CommissionRate
 			driverEarnings := tt.totalFare - commission
 
 			assert.InDelta(t, tt.expectedCommission, commission, 0.01)

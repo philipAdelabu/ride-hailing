@@ -19,12 +19,23 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	baseFarePerKm     = 1.5  // Base fare per kilometer
-	baseFarePerMinute = 0.25 // Base fare per minute
-	minimumFare       = 5.0  // Minimum fare
-	commissionRate    = 0.20 // 20% commission
-)
+// PricingConfig holds pricing configuration for rides
+type PricingConfig struct {
+	BaseFarePerKm     float64 // Base fare per kilometer
+	BaseFarePerMinute float64 // Base fare per minute
+	MinimumFare       float64 // Minimum fare
+	CommissionRate    float64 // Commission rate (e.g., 0.20 for 20%)
+}
+
+// DefaultPricingConfig returns default pricing configuration
+func DefaultPricingConfig() *PricingConfig {
+	return &PricingConfig{
+		BaseFarePerKm:     1.5,
+		BaseFarePerMinute: 0.25,
+		MinimumFare:       5.0,
+		CommissionRate:    0.20,
+	}
+}
 
 // Service handles ride business logic
 type Service struct {
@@ -36,6 +47,7 @@ type Service struct {
 	mlEtaBreaker    *resilience.CircuitBreaker
 	matcher         *Matcher
 	eventBus        *eventbus.Bus
+	pricingConfig   *PricingConfig
 }
 
 // SurgeCalculator defines the interface for surge pricing calculation
@@ -54,6 +66,14 @@ func NewService(repo *Repository, promosServiceURL string, breaker *resilience.C
 		promosClient:    httpclient.NewClient(promosServiceURL, httpClientTimeout...),
 		promosBreaker:   breaker,
 		surgeCalculator: nil, // Will be set via SetSurgeCalculator
+		pricingConfig:   DefaultPricingConfig(),
+	}
+}
+
+// SetPricingConfig sets custom pricing configuration
+func (s *Service) SetPricingConfig(config *PricingConfig) {
+	if config != nil {
+		s.pricingConfig = config
 	}
 }
 
@@ -149,13 +169,13 @@ func (s *Service) RequestRide(ctx context.Context, riderID uuid.UUID, req *model
 		calculatedFare, err := s.calculateFareWithRideType(ctx, *req.RideTypeID, distance, duration, surgeMultiplier)
 		if err != nil {
 			// Fall back to default pricing if ride type calculation fails
-			fare = calculateFare(distance, duration, surgeMultiplier)
+			fare = s.calculateFare(distance, duration, surgeMultiplier)
 		} else {
 			fare = calculatedFare
 		}
 	} else {
 		// Use default fare calculation
-		fare = calculateFare(distance, duration, surgeMultiplier)
+		fare = s.calculateFare(distance, duration, surgeMultiplier)
 	}
 
 	// Apply promo code if provided
@@ -348,7 +368,7 @@ func (s *Service) CompleteRide(ctx context.Context, rideID, driverID uuid.UUID, 
 	actualDuration := int(time.Since(*ride.StartedAt).Minutes())
 
 	// Calculate final fare based on actual distance and duration
-	finalFare := calculateFare(actualDistance, actualDuration, ride.SurgeMultiplier)
+	finalFare := s.calculateFare(actualDistance, actualDuration, ride.SurgeMultiplier)
 
 	tracing.AddSpanAttributes(ctx,
 		tracing.DurationKey.Int(actualDuration),
@@ -515,13 +535,18 @@ func estimateDuration(distance float64) int {
 	return int(math.Round(duration))
 }
 
-// calculateFare calculates ride fare
-func calculateFare(distance float64, duration int, surgeMultiplier float64) float64 {
-	baseFare := (distance * baseFarePerKm) + (float64(duration) * baseFarePerMinute)
+// calculateFare calculates ride fare using service pricing config
+func (s *Service) calculateFare(distance float64, duration int, surgeMultiplier float64) float64 {
+	cfg := s.pricingConfig
+	if cfg == nil {
+		cfg = DefaultPricingConfig()
+	}
+
+	baseFare := (distance * cfg.BaseFarePerKm) + (float64(duration) * cfg.BaseFarePerMinute)
 	fare := baseFare * surgeMultiplier
 
-	if fare < minimumFare {
-		fare = minimumFare
+	if fare < cfg.MinimumFare {
+		fare = cfg.MinimumFare
 	}
 
 	return math.Round(fare*100) / 100 // Round to 2 decimal places

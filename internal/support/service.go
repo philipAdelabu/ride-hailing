@@ -14,11 +14,11 @@ import (
 
 // Service handles support business logic
 type Service struct {
-	repo *Repository
+	repo RepositoryInterface
 }
 
 // NewService creates a new support service
-func NewService(repo *Repository) *Service {
+func NewService(repo RepositoryInterface) *Service {
 	return &Service{repo: repo}
 }
 

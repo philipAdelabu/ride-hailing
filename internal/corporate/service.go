@@ -12,9 +12,32 @@ import (
 	"go.uber.org/zap"
 )
 
+// EmailSender is a local interface for sending emails to avoid import cycles
+type EmailSender interface {
+	SendEmail(to, subject, body string) error
+}
+
+// Config holds corporate account configuration
+type Config struct {
+	DefaultPaymentTermDays int     // Default payment terms (Net X days)
+	DefaultCreditLimit     float64 // Default credit limit for new accounts
+	DefaultDiscountPercent float64 // Default corporate discount percentage
+}
+
+// DefaultConfig returns default configuration
+func DefaultConfig() *Config {
+	return &Config{
+		DefaultPaymentTermDays: 30,
+		DefaultCreditLimit:     10000,
+		DefaultDiscountPercent: 10,
+	}
+}
+
 // Service handles corporate account business logic
 type Service struct {
-	repo RepositoryInterface
+	repo        RepositoryInterface
+	config      *Config
+	emailClient EmailSender
 }
 
 // NewService creates a new corporate service
@@ -22,7 +45,30 @@ func NewService(repo RepositoryInterface) *Service {
 	if repo == nil {
 		panic("corporate: repository cannot be nil")
 	}
-	return &Service{repo: repo}
+	return &Service{
+		repo:   repo,
+		config: DefaultConfig(),
+	}
+}
+
+// SetEmailClient sets the email client for sending invitations
+func (s *Service) SetEmailClient(client EmailSender) {
+	s.emailClient = client
+}
+
+// SetConfig sets custom configuration
+func (s *Service) SetConfig(config *Config) {
+	if config != nil {
+		s.config = config
+	}
+}
+
+// getConfig returns current config with nil safety
+func (s *Service) getConfig() *Config {
+	if s.config == nil {
+		return DefaultConfig()
+	}
+	return s.config
 }
 
 // ========================================
@@ -31,10 +77,12 @@ func NewService(repo RepositoryInterface) *Service {
 
 // CreateAccount creates a new corporate account
 func (s *Service) CreateAccount(ctx context.Context, req *CreateAccountRequest) (*CorporateAccount, error) {
+	cfg := s.getConfig()
+
 	// Set defaults
 	paymentTermDays := req.PaymentTermDays
 	if paymentTermDays == 0 {
-		paymentTermDays = 30 // Net 30 default
+		paymentTermDays = cfg.DefaultPaymentTermDays
 	}
 
 	account := &CorporateAccount{
@@ -49,9 +97,9 @@ func (s *Service) CreateAccount(ctx context.Context, req *CreateAccountRequest) 
 		Address:          req.Address,
 		BillingCycle:     req.BillingCycle,
 		PaymentTermDays:  paymentTermDays,
-		CreditLimit:      10000, // Default credit limit
+		CreditLimit:      cfg.DefaultCreditLimit,
 		CurrentBalance:   0,
-		DiscountPercent:  10, // Default 10% corporate discount
+		DiscountPercent:  cfg.DefaultDiscountPercent,
 		CustomRates:      false,
 		RequireApproval:  false,
 		RequireCostCenter: false,
@@ -210,7 +258,48 @@ func (s *Service) InviteEmployee(ctx context.Context, accountID uuid.UUID, req *
 		return nil, common.NewInternalServerError("failed to invite employee")
 	}
 
-	// TODO: Send invitation email
+	// Send invitation email
+	if s.emailClient != nil {
+		// Get account name for the email
+		account, err := s.repo.GetAccount(ctx, accountID)
+		accountName := "your company"
+		if err == nil && account != nil {
+			accountName = account.Name
+		}
+
+		subject := fmt.Sprintf("You've been invited to join %s on RideHailing", accountName)
+		body := fmt.Sprintf(
+			"Hello %s,\n\n"+
+				"You have been invited to join %s's corporate account on RideHailing.\n\n"+
+				"With this account, you can:\n"+
+				"- Book rides charged to your company account\n"+
+				"- Track your business travel expenses\n"+
+				"- Access corporate discounts\n\n"+
+				"To accept this invitation, please download the RideHailing app and sign up with this email address (%s).\n\n"+
+				"If you have any questions, please contact your company administrator.\n\n"+
+				"Best regards,\n"+
+				"The RideHailing Team",
+			req.FirstName,
+			accountName,
+			req.Email,
+		)
+
+		if err := s.emailClient.SendEmail(req.Email, subject, body); err != nil {
+			logger.Warn("failed to send employee invitation email",
+				zap.String("employee_id", emp.ID.String()),
+				zap.String("email", req.Email),
+				zap.Error(err))
+			// Don't fail the invitation if email fails - employee record is already created
+		} else {
+			logger.Info("Employee invitation email sent",
+				zap.String("employee_id", emp.ID.String()),
+				zap.String("email", req.Email))
+		}
+	} else {
+		logger.Warn("email client not configured, skipping invitation email",
+			zap.String("employee_id", emp.ID.String()),
+			zap.String("email", req.Email))
+	}
 
 	logger.Info("Employee invited",
 		zap.String("employee_id", emp.ID.String()),

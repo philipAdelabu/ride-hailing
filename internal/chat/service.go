@@ -19,12 +19,12 @@ const (
 
 // Service handles chat business logic
 type Service struct {
-	repo *Repository
-	hub  *ws.Hub
+	repo RepositoryInterface
+	hub  HubInterface
 }
 
 // NewService creates a new chat service
-func NewService(repo *Repository, hub *ws.Hub) *Service {
+func NewService(repo RepositoryInterface, hub HubInterface) *Service {
 	return &Service{repo: repo, hub: hub}
 }
 

@@ -50,7 +50,7 @@ func DefaultConfig() *Config {
 
 // Service handles demand forecasting
 type Service struct {
-	repo           *Repository
+	repo           RepositoryInterface
 	weatherSvc     WeatherService
 	driverSvc      DriverLocationService
 	config         *Config
@@ -83,7 +83,7 @@ func DefaultModelWeights() *ModelWeights {
 }
 
 // NewService creates a new demand forecast service
-func NewService(repo *Repository, weatherSvc WeatherService, driverSvc DriverLocationService, config *Config) *Service {
+func NewService(repo RepositoryInterface, weatherSvc WeatherService, driverSvc DriverLocationService, config *Config) *Service {
 	if config == nil {
 		config = DefaultConfig()
 	}

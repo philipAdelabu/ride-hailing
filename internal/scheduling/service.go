@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/richxcame/ride-hailing/pkg/common"
+	"github.com/richxcame/ride-hailing/pkg/httpclient"
 	"github.com/richxcame/ride-hailing/pkg/logger"
 	"go.uber.org/zap"
 )
@@ -18,8 +19,9 @@ type PricingService interface {
 
 // Service handles scheduling business logic
 type Service struct {
-	repo           *Repository
-	pricingService PricingService
+	repo               *Repository
+	pricingService     PricingService
+	notificationClient *httpclient.Client
 }
 
 // NewService creates a new scheduling service
@@ -28,6 +30,11 @@ func NewService(repo *Repository, pricingService PricingService) *Service {
 		repo:           repo,
 		pricingService: pricingService,
 	}
+}
+
+// SetNotificationClient sets the notification client for sending reminders
+func (s *Service) SetNotificationClient(client *httpclient.Client) {
+	s.notificationClient = client
 }
 
 // ========================================
@@ -505,13 +512,57 @@ func (s *Service) SendReminders(ctx context.Context) error {
 	}
 
 	for _, instance := range instances {
-		// TODO: Send notification via notification service
 		logger.Info("Sending reminder",
 			zap.String("instance_id", instance.ID.String()),
 			zap.String("rider_id", instance.RiderID.String()),
 		)
 
-		_ = s.repo.MarkReminderSent(ctx, instance.ID)
+		// Send push notification via notification service
+		if s.notificationClient != nil {
+			// Format pickup time for display
+			pickupTimeStr := instance.PickupAt.Format("3:04 PM")
+			pickupDateStr := instance.PickupAt.Format("Mon, Jan 2")
+
+			title := "Upcoming Ride Reminder"
+			body := fmt.Sprintf("Your ride from %s is scheduled for %s at %s",
+				instance.PickupAddress,
+				pickupDateStr,
+				pickupTimeStr,
+			)
+
+			payload := map[string]interface{}{
+				"type":        "push",
+				"user_id":     instance.RiderID.String(),
+				"title":       title,
+				"body":        body,
+				"data": map[string]interface{}{
+					"instance_id":     instance.ID.String(),
+					"pickup_address":  instance.PickupAddress,
+					"dropoff_address": instance.DropoffAddress,
+					"pickup_time":     instance.PickupAt.Format(time.RFC3339),
+					"action":          "ride_reminder",
+				},
+			}
+
+			if _, err := s.notificationClient.Post(ctx, "/api/v1/notifications/send", payload, nil); err != nil {
+				logger.Warn("failed to send ride reminder notification",
+					zap.String("instance_id", instance.ID.String()),
+					zap.String("rider_id", instance.RiderID.String()),
+					zap.Error(err))
+				// Continue with other reminders, don't fail the entire batch
+			}
+		} else {
+			logger.Warn("notification client not configured, skipping push notification",
+				zap.String("instance_id", instance.ID.String()))
+		}
+
+		// Mark reminder as sent regardless of notification success
+		// This prevents repeated attempts for the same instance
+		if err := s.repo.MarkReminderSent(ctx, instance.ID); err != nil {
+			logger.Warn("failed to mark reminder as sent",
+				zap.String("instance_id", instance.ID.String()),
+				zap.Error(err))
+		}
 	}
 
 	return nil

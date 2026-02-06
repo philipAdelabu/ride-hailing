@@ -16,32 +16,52 @@ import (
 	"go.uber.org/zap"
 )
 
-// Pricing constants for delivery
-const (
-	deliveryBaseFarePerKm = 1.2  // Base fare per km (slightly lower than rides)
-	deliveryMinimumFare   = 3.0  // Minimum delivery fare
-	expressPremium        = 1.5  // 50% premium for express
-	commissionRate        = 0.20 // 20% platform commission
-)
+// PricingConfig holds pricing configuration for deliveries
+type PricingConfig struct {
+	BaseFarePerKm  float64            // Base fare per km
+	MinimumFare    float64            // Minimum delivery fare
+	ExpressPremium float64            // Multiplier for express (e.g., 1.5 = 50% premium)
+	CommissionRate float64            // Platform commission rate
+	SizeSurcharges map[PackageSize]float64 // Surcharges by package size
+}
 
-// Size surcharges on top of base fare
-var sizeSurcharges = map[PackageSize]float64{
-	PackageSizeEnvelope: 0.0,
-	PackageSizeSmall:    1.0,
-	PackageSizeMedium:   3.0,
-	PackageSizeLarge:    8.0,
-	PackageSizeXLarge:   15.0,
+// DefaultPricingConfig returns default pricing configuration
+func DefaultPricingConfig() *PricingConfig {
+	return &PricingConfig{
+		BaseFarePerKm:  1.2,
+		MinimumFare:    3.0,
+		ExpressPremium: 1.5,
+		CommissionRate: 0.20,
+		SizeSurcharges: map[PackageSize]float64{
+			PackageSizeEnvelope: 0.0,
+			PackageSizeSmall:    1.0,
+			PackageSizeMedium:   3.0,
+			PackageSizeLarge:    8.0,
+			PackageSizeXLarge:   15.0,
+		},
+	}
 }
 
 // Service handles delivery business logic
 type Service struct {
-	repo     *Repository
-	eventBus *eventbus.Bus
+	repo          RepositoryInterface
+	eventBus      *eventbus.Bus
+	pricingConfig *PricingConfig
 }
 
 // NewService creates a new delivery service
-func NewService(repo *Repository) *Service {
-	return &Service{repo: repo}
+func NewService(repo RepositoryInterface) *Service {
+	return &Service{
+		repo:          repo,
+		pricingConfig: DefaultPricingConfig(),
+	}
+}
+
+// SetPricingConfig sets custom pricing configuration
+func (s *Service) SetPricingConfig(config *PricingConfig) {
+	if config != nil {
+		s.pricingConfig = config
+	}
 }
 
 // SetEventBus sets the NATS event bus for publishing delivery events
@@ -96,12 +116,17 @@ func (s *Service) GetEstimate(ctx context.Context, req *DeliveryEstimateRequest)
 	// Add pickup/dropoff buffer (5 min each + 3 min per stop)
 	durationMin += 10 + len(req.Stops)*3
 
-	baseFare := math.Max(distance*deliveryBaseFarePerKm, deliveryMinimumFare)
-	sizeSurcharge := sizeSurcharges[req.PackageSize]
+	cfg := s.pricingConfig
+	if cfg == nil {
+		cfg = DefaultPricingConfig()
+	}
+
+	baseFare := math.Max(distance*cfg.BaseFarePerKm, cfg.MinimumFare)
+	sizeSurcharge := cfg.SizeSurcharges[req.PackageSize]
 
 	prioritySurcharge := 0.0
 	if req.Priority == DeliveryPriorityExpress {
-		prioritySurcharge = baseFare * (expressPremium - 1.0) // 50% of base
+		prioritySurcharge = baseFare * (cfg.ExpressPremium - 1.0) // 50% of base
 	}
 
 	surgeMultiplier := 1.0 // Could integrate with surge calculator

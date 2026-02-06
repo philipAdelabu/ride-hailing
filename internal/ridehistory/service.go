@@ -14,11 +14,11 @@ import (
 
 // Service handles ride history business logic
 type Service struct {
-	repo *Repository
+	repo RepositoryInterface
 }
 
 // NewService creates a new ride history service
-func NewService(repo *Repository) *Service {
+func NewService(repo RepositoryInterface) *Service {
 	return &Service{repo: repo}
 }
 

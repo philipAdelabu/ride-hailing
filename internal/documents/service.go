@@ -15,7 +15,7 @@ import (
 
 // Service handles document verification business logic
 type Service struct {
-	repo    *Repository
+	repo    RepositoryInterface
 	storage storage.Storage
 	config  ServiceConfig
 }
@@ -29,7 +29,7 @@ type ServiceConfig struct {
 }
 
 // NewService creates a new documents service
-func NewService(repo *Repository, storage storage.Storage, config ServiceConfig) *Service {
+func NewService(repo RepositoryInterface, storage storage.Storage, config ServiceConfig) *Service {
 	if config.MaxFileSizeMB == 0 {
 		config.MaxFileSizeMB = 10
 	}

@@ -11,7 +11,7 @@ import (
 
 // Service handles currency business logic
 type Service struct {
-	repo         *Repository
+	repo         RepositoryInterface
 	converter    *Converter
 	baseCurrency string
 	cache        *rateCache
@@ -25,7 +25,7 @@ type rateCache struct {
 }
 
 // NewService creates a new currency service
-func NewService(repo *Repository, baseCurrency string) *Service {
+func NewService(repo RepositoryInterface, baseCurrency string) *Service {
 	if baseCurrency == "" {
 		baseCurrency = CurrencyUSD
 	}

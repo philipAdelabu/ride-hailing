@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/richxcame/ride-hailing/pkg/httpclient"
 	"go.uber.org/zap"
 )
@@ -25,7 +24,7 @@ const (
 
 // Worker handles scheduled ride processing and maintenance tasks
 type Worker struct {
-	db                     *pgxpool.Pool
+	db                     Database
 	logger                 *zap.Logger
 	notificationsClient    *httpclient.Client
 	done                   chan struct{}
@@ -35,7 +34,7 @@ type Worker struct {
 }
 
 // NewWorker creates a new scheduler worker
-func NewWorker(db *pgxpool.Pool, logger *zap.Logger, notificationsServiceURL string, httpClientTimeout ...time.Duration) *Worker {
+func NewWorker(db Database, logger *zap.Logger, notificationsServiceURL string, httpClientTimeout ...time.Duration) *Worker {
 	var notificationsClient *httpclient.Client
 	if notificationsServiceURL != "" {
 		notificationsClient = httpclient.NewClient(notificationsServiceURL, httpClientTimeout...)

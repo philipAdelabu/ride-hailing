@@ -12,21 +12,51 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	maxPaymentMethods = 10
-	minTopUpAmount    = 5.0
-	maxTopUpAmount    = 500.0
-	defaultCurrency   = "USD"
-)
+// Config holds payment methods configuration
+type Config struct {
+	MaxPaymentMethods int     // Maximum number of payment methods per user
+	MinTopUpAmount    float64 // Minimum wallet top-up amount
+	MaxTopUpAmount    float64 // Maximum wallet top-up amount
+	DefaultCurrency   string  // Default currency code
+}
+
+// DefaultConfig returns default configuration
+func DefaultConfig() *Config {
+	return &Config{
+		MaxPaymentMethods: 10,
+		MinTopUpAmount:    5.0,
+		MaxTopUpAmount:    500.0,
+		DefaultCurrency:   "USD",
+	}
+}
 
 // Service handles payment method business logic
 type Service struct {
-	repo *Repository
+	repo   RepositoryInterface
+	config *Config
 }
 
 // NewService creates a new payment methods service
-func NewService(repo *Repository) *Service {
-	return &Service{repo: repo}
+func NewService(repo RepositoryInterface) *Service {
+	return &Service{
+		repo:   repo,
+		config: DefaultConfig(),
+	}
+}
+
+// SetConfig sets custom configuration
+func (s *Service) SetConfig(config *Config) {
+	if config != nil {
+		s.config = config
+	}
+}
+
+// getConfig returns current config with nil safety
+func (s *Service) getConfig() *Config {
+	if s.config == nil {
+		return DefaultConfig()
+	}
+	return s.config
 }
 
 // ========================================
@@ -40,9 +70,10 @@ func (s *Service) AddCard(ctx context.Context, userID uuid.UUID, req *AddCardReq
 	if err != nil {
 		return nil, err
 	}
-	if len(methods) >= maxPaymentMethods {
+	cfg := s.getConfig()
+	if len(methods) >= cfg.MaxPaymentMethods {
 		return nil, common.NewBadRequestError(
-			fmt.Sprintf("maximum %d payment methods allowed", maxPaymentMethods), nil,
+			fmt.Sprintf("maximum %d payment methods allowed", cfg.MaxPaymentMethods), nil,
 		)
 	}
 
@@ -70,7 +101,7 @@ func (s *Service) AddCard(ctx context.Context, userID uuid.UUID, req *AddCardReq
 		CardHolderName: &holder,
 		ProviderID:     &req.Token,
 		Nickname:       req.Nickname,
-		Currency:       defaultCurrency,
+		Currency:       s.getConfig().DefaultCurrency,
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}
@@ -100,7 +131,7 @@ func (s *Service) AddDigitalWallet(ctx context.Context, userID uuid.UUID, req *A
 		IsActive:   true,
 		ProviderID: &req.Token,
 		Nickname:   req.Nickname,
-		Currency:   defaultCurrency,
+		Currency:   s.getConfig().DefaultCurrency,
 		CreatedAt:  now,
 		UpdatedAt:  now,
 	}
@@ -132,7 +163,7 @@ func (s *Service) EnableCash(ctx context.Context, userID uuid.UUID) (*PaymentMet
 		Type:      PaymentMethodCash,
 		IsDefault: false,
 		IsActive:  true,
-		Currency:  defaultCurrency,
+		Currency:  s.getConfig().DefaultCurrency,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
@@ -174,7 +205,7 @@ func (s *Service) GetPaymentMethods(ctx context.Context, userID uuid.UUID) (*Pay
 		Methods:       methods,
 		DefaultMethod: defaultID,
 		WalletBalance: walletBalance,
-		Currency:      defaultCurrency,
+		Currency:      s.getConfig().DefaultCurrency,
 	}, nil
 }
 
@@ -222,9 +253,10 @@ func (s *Service) RemovePaymentMethod(ctx context.Context, userID uuid.UUID, met
 
 // TopUpWallet adds funds to the user's wallet
 func (s *Service) TopUpWallet(ctx context.Context, userID uuid.UUID, req *TopUpWalletRequest) (*WalletSummary, error) {
-	if req.Amount < minTopUpAmount || req.Amount > maxTopUpAmount {
+	cfg := s.getConfig()
+	if req.Amount < cfg.MinTopUpAmount || req.Amount > cfg.MaxTopUpAmount {
 		return nil, common.NewBadRequestError(
-			fmt.Sprintf("top up amount must be between %.2f and %.2f", minTopUpAmount, maxTopUpAmount), nil,
+			fmt.Sprintf("top up amount must be between %.2f and %.2f", cfg.MinTopUpAmount, cfg.MaxTopUpAmount), nil,
 		)
 	}
 
@@ -299,7 +331,7 @@ func (s *Service) GetWalletSummary(ctx context.Context, userID uuid.UUID) (*Wall
 
 	return &WalletSummary{
 		Balance:            balance,
-		Currency:           defaultCurrency,
+		Currency:           s.getConfig().DefaultCurrency,
 		RecentTransactions: txns,
 	}, nil
 }

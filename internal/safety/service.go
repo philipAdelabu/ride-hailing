@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -18,14 +19,15 @@ import (
 
 // Service handles safety business logic
 type Service struct {
-	repo            RepositoryInterface
-	eventBus        *eventbus.Bus
-	wsHub           *websocket.Hub
-	redis           redisclient.ClientInterface
+	repo               RepositoryInterface
+	eventBus           *eventbus.Bus
+	wsHub              *websocket.Hub
+	redis              redisclient.ClientInterface
 	notificationClient *httpclient.Client
-	mapsClient      *httpclient.Client
-	baseShareURL    string
-	emergencyNumber string // Local emergency number (e.g., "911", "112")
+	mapsClient         *httpclient.Client
+	ridesClient        *httpclient.Client
+	baseShareURL       string
+	emergencyNumber    string // Local emergency number (e.g., "911", "112")
 }
 
 // Config holds service configuration
@@ -34,6 +36,7 @@ type Config struct {
 	EmergencyNumber string
 	NotificationURL string
 	MapsServiceURL  string
+	RidesServiceURL string
 }
 
 // NewService creates a new safety service
@@ -41,13 +44,17 @@ func NewService(repo RepositoryInterface, cfg Config) *Service {
 	if repo == nil {
 		panic("safety: repository cannot be nil")
 	}
-	return &Service{
+	s := &Service{
 		repo:               repo,
 		baseShareURL:       cfg.BaseShareURL,
 		emergencyNumber:    cfg.EmergencyNumber,
 		notificationClient: httpclient.NewClient(cfg.NotificationURL),
 		mapsClient:         httpclient.NewClient(cfg.MapsServiceURL),
 	}
+	if cfg.RidesServiceURL != "" {
+		s.ridesClient = httpclient.NewClient(cfg.RidesServiceURL)
+	}
+	return s
 }
 
 // SetEventBus sets the NATS event bus
@@ -357,6 +364,25 @@ func (s *Service) CreateShareLink(ctx context.Context, userID uuid.UUID, req *Cr
 	}, nil
 }
 
+// rideDataResponse represents the response from the rides service
+type rideDataResponse struct {
+	ID              string  `json:"id"`
+	Status          string  `json:"status"`
+	CurrentLat      float64 `json:"current_lat"`
+	CurrentLng      float64 `json:"current_lng"`
+	DriverFirstName string  `json:"driver_first_name"`
+	DriverPhoto     string  `json:"driver_photo"`
+	VehicleMake     string  `json:"vehicle_make"`
+	VehicleModel    string  `json:"vehicle_model"`
+	VehicleColor    string  `json:"vehicle_color"`
+	LicensePlate    string  `json:"license_plate"`
+	PickupAddress   string  `json:"pickup_address"`
+	DropoffAddress  string  `json:"dropoff_address"`
+	RoutePolyline   string  `json:"route_polyline"`
+	ETAMinutes      int     `json:"eta_minutes"`
+	EstimatedArrival *time.Time `json:"estimated_arrival"`
+}
+
 // GetSharedRide retrieves the shared ride view for a token
 func (s *Service) GetSharedRide(ctx context.Context, token string) (*SharedRideView, error) {
 	link, err := s.repo.GetRideShareLinkByToken(ctx, token)
@@ -370,8 +396,7 @@ func (s *Service) GetSharedRide(ctx context.Context, token string) (*SharedRideV
 	// Increment view count
 	go s.repo.IncrementShareLinkViewCount(context.Background(), link.ID)
 
-	// Get ride details (this would call the rides service)
-	// For now, return a placeholder
+	// Initialize the view with base data
 	view := &SharedRideView{
 		RideID:           link.RideID,
 		Status:           "in_progress",
@@ -380,12 +405,68 @@ func (s *Service) GetSharedRide(ctx context.Context, token string) (*SharedRideV
 		LastUpdated:      time.Now(),
 	}
 
-	// TODO: Fetch actual ride data from rides service based on link permissions
-	// if link.ShareLocation { ... }
-	// if link.ShareDriver { ... }
-	// etc.
+	// Fetch ride data from rides service if client is configured
+	if s.ridesClient != nil {
+		rideData, err := s.fetchRideData(ctx, link.RideID)
+		if err != nil {
+			logger.WithContext(ctx).Warn("failed to fetch ride data for shared view",
+				zap.String("ride_id", link.RideID.String()),
+				zap.Error(err))
+			// Continue with partial data - don't fail the request
+		} else if rideData != nil {
+			// Update status from actual ride data
+			view.Status = rideData.Status
+
+			// Conditionally include data based on link permissions
+			if link.ShareLocation && rideData.CurrentLat != 0 && rideData.CurrentLng != 0 {
+				view.CurrentLocation = &Coordinate{
+					Latitude:  rideData.CurrentLat,
+					Longitude: rideData.CurrentLng,
+				}
+			}
+
+			if link.ShareDriver {
+				view.DriverFirstName = rideData.DriverFirstName
+				view.DriverPhoto = rideData.DriverPhoto
+				view.VehicleMake = rideData.VehicleMake
+				view.VehicleModel = rideData.VehicleModel
+				view.VehicleColor = rideData.VehicleColor
+				view.LicensePlate = rideData.LicensePlate
+			}
+
+			if link.ShareRoute {
+				view.PickupAddress = rideData.PickupAddress
+				view.DropoffAddress = rideData.DropoffAddress
+				view.RoutePolyline = rideData.RoutePolyline
+			}
+
+			if link.ShareETA {
+				view.ETAMinutes = rideData.ETAMinutes
+				view.EstimatedArrival = rideData.EstimatedArrival
+			}
+		}
+	} else {
+		logger.WithContext(ctx).Warn("rides client not configured, returning partial shared ride view",
+			zap.String("ride_id", link.RideID.String()))
+	}
 
 	return view, nil
+}
+
+// fetchRideData fetches ride data from the rides service
+func (s *Service) fetchRideData(ctx context.Context, rideID uuid.UUID) (*rideDataResponse, error) {
+	path := fmt.Sprintf("/api/v1/rides/%s", rideID.String())
+	respBody, err := s.ridesClient.Get(ctx, path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch ride data: %w", err)
+	}
+
+	var rideData rideDataResponse
+	if err := json.Unmarshal(respBody, &rideData); err != nil {
+		return nil, fmt.Errorf("failed to parse ride data: %w", err)
+	}
+
+	return &rideData, nil
 }
 
 // DeactivateShareLink deactivates a share link
@@ -808,8 +889,46 @@ func (s *Service) notifySafetyTeam(ctx context.Context, report *SafetyIncidentRe
 }
 
 func (s *Service) notifyRiderOfDeviation(ctx context.Context, alert *RouteDeviationAlert) {
-	// TODO: Get rider ID from ride
-	// Send notification about route deviation
+	logger.Info("Notifying rider of route deviation",
+		zap.String("alert_id", alert.ID.String()),
+		zap.String("ride_id", alert.RideID.String()),
+		zap.Int("deviation_meters", alert.DeviationMeters))
+
+	// Build notification message
+	message := fmt.Sprintf(
+		"Route Alert: Your driver has deviated from the expected route by %d meters. "+
+			"If you feel unsafe, use the SOS button or contact us.",
+		alert.DeviationMeters,
+	)
+
+	// Send push notification via notification service
+	payload := map[string]interface{}{
+		"type":             "push",
+		"ride_id":          alert.RideID.String(),
+		"alert_type":       "route_deviation",
+		"deviation_meters": alert.DeviationMeters,
+		"title":            "Route Deviation Detected",
+		"body":             message,
+	}
+
+	if _, err := s.notificationClient.Post(ctx, "/api/v1/notifications/send", payload, nil); err != nil {
+		logger.WithContext(ctx).Warn("failed to send route deviation notification",
+			zap.String("alert_id", alert.ID.String()),
+			zap.String("ride_id", alert.RideID.String()),
+			zap.Error(err))
+		return
+	}
+
+	// Mark rider as notified in the alert
+	if err := s.repo.UpdateRouteDeviationAcknowledgement(ctx, alert.ID, ""); err != nil {
+		logger.WithContext(ctx).Warn("failed to update route deviation alert notification status",
+			zap.String("alert_id", alert.ID.String()),
+			zap.Error(err))
+	}
+
+	logger.Info("Route deviation notification sent successfully",
+		zap.String("alert_id", alert.ID.String()),
+		zap.String("ride_id", alert.RideID.String()))
 }
 
 // haversineDistance calculates the distance between two points in km

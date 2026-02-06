@@ -80,7 +80,7 @@ type DocumentRequirement struct {
 
 // Service handles driver onboarding logic
 type Service struct {
-	repo            *Repository
+	repo            RepositoryInterface
 	documentService DocumentServiceInterface
 	notifService    NotificationServiceInterface
 }
@@ -127,7 +127,7 @@ type NotificationServiceInterface interface {
 }
 
 // NewService creates a new onboarding service
-func NewService(repo *Repository, docService DocumentServiceInterface, notifService NotificationServiceInterface) *Service {
+func NewService(repo RepositoryInterface, docService DocumentServiceInterface, notifService NotificationServiceInterface) *Service {
 	return &Service{
 		repo:            repo,
 		documentService: docService,

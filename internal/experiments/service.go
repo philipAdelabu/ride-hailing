@@ -16,7 +16,7 @@ import (
 
 // Service handles feature flags and A/B experiments
 type Service struct {
-	repo      *Repository
+	repo      RepositoryInterface
 	flagCache map[string]*FeatureFlag
 	cacheMu   sync.RWMutex
 	cacheAt   time.Time
@@ -24,7 +24,7 @@ type Service struct {
 }
 
 // NewService creates a new experiments service
-func NewService(repo *Repository) *Service {
+func NewService(repo RepositoryInterface) *Service {
 	return &Service{
 		repo:      repo,
 		flagCache: make(map[string]*FeatureFlag),
