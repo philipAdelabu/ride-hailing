@@ -2,11 +2,11 @@ package websocket
 
 import (
 	"encoding/json"
-	"log"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"go.uber.org/zap"
 )
 
 const (
@@ -40,19 +40,21 @@ type Client struct {
 	Conn      *websocket.Conn // WebSocket connection
 	Send      chan *Message   // Buffered channel of outbound messages
 	Hub       *Hub            // Reference to hub
+	logger    *zap.Logger     // Structured logger
 	mu        sync.RWMutex    // Protects concurrent access
 	closeOnce sync.Once       // Ensures channel is closed only once
 	closed    bool            // Tracks if channel is closed
 }
 
 // NewClient creates a new WebSocket client
-func NewClient(id string, conn *websocket.Conn, hub *Hub, role string) *Client {
+func NewClient(id string, conn *websocket.Conn, hub *Hub, role string, logger *zap.Logger) *Client {
 	return &Client{
-		ID:   id,
-		Conn: conn,
-		Send: make(chan *Message, 256),
-		Hub:  hub,
-		Role: role,
+		ID:     id,
+		Conn:   conn,
+		Send:   make(chan *Message, 256),
+		Hub:    hub,
+		Role:   role,
+		logger: logger,
 	}
 }
 
@@ -75,7 +77,7 @@ func (c *Client) ReadPump() {
 		err := c.Conn.ReadJSON(&msg)
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("WebSocket error: %v", err)
+				c.logger.Error("WebSocket error", zap.Error(err))
 			}
 			break
 		}
@@ -132,7 +134,7 @@ func (c *Client) SendMessage(msg *Message) {
 	select {
 	case c.Send <- msg:
 	default:
-		log.Printf("Client %s channel full, closing connection", c.ID)
+		c.logger.Warn("client channel full, closing connection", zap.String("client_id", c.ID))
 		c.mu.Lock()
 		c.closed = true
 		c.mu.Unlock()

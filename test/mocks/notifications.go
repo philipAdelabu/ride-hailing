@@ -51,6 +51,14 @@ func (m *MockNotificationsRepository) GetUserNotifications(ctx context.Context, 
 	return args.Get(0).([]*models.Notification), args.Error(1)
 }
 
+func (m *MockNotificationsRepository) GetUserNotificationsWithTotal(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*models.Notification, int64, error) {
+	args := m.Called(ctx, userID, limit, offset)
+	if args.Get(0) == nil {
+		return nil, 0, args.Error(2)
+	}
+	return args.Get(0).([]*models.Notification), args.Get(1).(int64), args.Error(2)
+}
+
 func (m *MockNotificationsRepository) MarkNotificationAsRead(ctx context.Context, notificationID uuid.UUID) error {
 	args := m.Called(ctx, notificationID)
 	return args.Error(0)

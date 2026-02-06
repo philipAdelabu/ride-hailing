@@ -19,6 +19,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/logger"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
+	"github.com/richxcame/ride-hailing/pkg/swagger"
 	"github.com/richxcame/ride-hailing/pkg/tracing"
 	"go.uber.org/zap"
 )
@@ -29,6 +30,10 @@ const (
 )
 
 func main() {
+	// Set default port for auth service if not set
+	if os.Getenv("PORT") == "" {
+		os.Setenv("PORT", "8081")
+	}
 	// Load configuration
 	cfg, err := config.Load(serviceName)
 	if err != nil {
@@ -120,6 +125,7 @@ func main() {
 	router.Use(middleware.RequestLogger(serviceName))
 	router.Use(middleware.CORS())
 	router.Use(middleware.SecurityHeaders())
+	router.Use(middleware.MaxBodySize(10 << 20)) // 10MB request body limit
 	router.Use(middleware.SanitizeRequest())
 	router.Use(middleware.Metrics(serviceName))
 
@@ -154,6 +160,7 @@ func main() {
 
 	// Metrics endpoint
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+	swagger.RegisterRoutes(router)
 
 	// Register routes
 	handler.RegisterRoutes(router, keyManager)

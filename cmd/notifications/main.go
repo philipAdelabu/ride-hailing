@@ -14,6 +14,7 @@ import (
 	"github.com/richxcame/ride-hailing/internal/notifications"
 	"github.com/richxcame/ride-hailing/pkg/common"
 	"github.com/richxcame/ride-hailing/pkg/config"
+	"github.com/richxcame/ride-hailing/pkg/eventbus"
 	"github.com/richxcame/ride-hailing/pkg/database"
 	"github.com/richxcame/ride-hailing/pkg/errors"
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
@@ -21,6 +22,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	"github.com/richxcame/ride-hailing/pkg/tracing"
 	"github.com/richxcame/ride-hailing/pkg/resilience"
+	"github.com/richxcame/ride-hailing/pkg/swagger"
 	"go.uber.org/zap"
 )
 
@@ -30,6 +32,10 @@ const (
 )
 
 func main() {
+	// Set default port for notifications service if not set
+	if os.Getenv("PORT") == "" {
+		os.Setenv("PORT", "8085")
+	}
 	// Load configuration
 	cfg, err := config.Load(serviceName)
 	if err != nil {
@@ -90,7 +96,7 @@ func main() {
 	// Initialize database
 	db, err := database.NewPostgresPool(&cfg.Database, cfg.Timeout.DatabaseQueryTimeout)
 	if err != nil {
-		log.Fatal("Failed to connect to database", zap.Error(err))
+		logger.Fatal("Failed to connect to database", zap.Error(err))
 	}
 	defer database.Close(db)
 
@@ -159,6 +165,27 @@ func main() {
 	notificationRepo := notifications.NewRepository(db)
 	notificationService := notifications.NewServiceWithClients(notificationRepo, firebaseClient, twilioClient, emailClient)
 	notificationService.SetCircuitBreakers(firebaseBreaker, twilioBreaker, smtpBreaker)
+
+	// Initialize NATS event bus for receiving ride lifecycle events
+	if cfg.NATS.Enabled {
+		bus, err := eventbus.New(eventbus.Config{
+			URL:        cfg.NATS.URL,
+			Name:       serviceName,
+			StreamName: cfg.NATS.StreamName,
+		})
+		if err != nil {
+			log.Warn("Failed to connect to NATS - event-driven notifications disabled", zap.Error(err))
+		} else {
+			defer bus.Close()
+			eventHandler := notifications.NewEventHandler(notificationService)
+			if err := eventHandler.RegisterSubscriptions(context.Background(), bus); err != nil {
+				log.Warn("Failed to register event subscriptions", zap.Error(err))
+			} else {
+				log.Info("NATS event subscriptions active", zap.String("url", cfg.NATS.URL))
+			}
+		}
+	}
+
 	notificationHandler := notifications.NewHandler(notificationService)
 
 	// Start background worker for processing scheduled notifications
@@ -189,6 +216,7 @@ func main() {
 	router.Use(middleware.RequestLogger(serviceName))
 	router.Use(middleware.CORS())
 	router.Use(middleware.SecurityHeaders())
+	router.Use(middleware.MaxBodySize(10 << 20)) // 10MB request body limit
 	router.Use(middleware.SanitizeRequest())
 	router.Use(middleware.Metrics(serviceName))
 
@@ -216,11 +244,12 @@ func main() {
 
 	// Metrics endpoint
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+	swagger.RegisterRoutes(router)
 
 	// Register notification routes
 	jwtProvider, err := jwtkeys.NewManagerFromConfig(rootCtx, cfg.JWT, true)
 	if err != nil {
-		log.Fatal("Failed to initialize JWT key manager", zap.Error(err))
+		logger.Fatal("Failed to initialize JWT key manager", zap.Error(err))
 	}
 	jwtProvider.StartAutoRefresh(rootCtx, time.Duration(cfg.JWT.RefreshMinutes)*time.Minute)
 
@@ -239,7 +268,7 @@ func main() {
 	go func() {
 		log.Info("Server starting", zap.String("port", cfg.Server.Port), zap.String("environment", cfg.Server.Environment))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal("Server failed to start", zap.Error(err))
+			logger.Fatal("Server failed to start", zap.Error(err))
 		}
 	}()
 
@@ -255,7 +284,7 @@ func main() {
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatal("Server forced to shutdown", zap.Error(err))
+		logger.Fatal("Server forced to shutdown", zap.Error(err))
 	}
 
 	log.Info("Server stopped")
@@ -264,6 +293,6 @@ func main() {
 func buildBreaker(name string, cbCfg config.CircuitBreakerSettings) *resilience.CircuitBreaker {
 	return resilience.NewCircuitBreaker(
 		resilience.BuildSettings(name, cbCfg.IntervalSeconds, cbCfg.TimeoutSeconds, cbCfg.FailureThreshold, cbCfg.SuccessThreshold),
-		nil,
+		resilience.GracefulDegradation(name),
 	)
 }

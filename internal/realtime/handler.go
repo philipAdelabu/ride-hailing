@@ -2,14 +2,15 @@ package realtime
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/richxcame/ride-hailing/pkg/common"
 	ws "github.com/richxcame/ride-hailing/pkg/websocket"
+	"go.uber.org/zap"
 )
 
 var upgrader = websocket.Upgrader{
@@ -37,7 +38,7 @@ var upgrader = websocket.Upgrader{
 			}
 		}
 
-		log.Printf("WebSocket connection rejected from origin: %s", origin)
+		zap.L().Warn("WebSocket connection rejected from origin", zap.String("origin", origin))
 		return false
 	},
 }
@@ -45,25 +46,27 @@ var upgrader = websocket.Upgrader{
 // Handler handles HTTP requests for real-time service
 type Handler struct {
 	service *Service
+	logger  *zap.Logger
 }
 
 // NewHandler creates a new handler
-func NewHandler(service *Service) *Handler {
+func NewHandler(service *Service, logger *zap.Logger) *Handler {
 	return &Handler{
 		service: service,
+		logger:  logger,
 	}
 }
 
 // HandleWebSocket handles WebSocket connection upgrades
 func (h *Handler) HandleWebSocket(c *gin.Context) {
-	// Extract user ID and role from JWT token
+	// Extract user ID and role from JWT token (set by auth middleware)
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		common.ErrorResponse(c, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
 
-	role, exists := c.Get("role")
+	role, exists := c.Get("user_role")
 	if !exists {
 		role = "rider" // Default to rider
 	}
@@ -71,12 +74,12 @@ func (h *Handler) HandleWebSocket(c *gin.Context) {
 	// Upgrade HTTP connection to WebSocket
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		log.Printf("Failed to upgrade connection: %v", err)
+		h.logger.Error("failed to upgrade connection", zap.Error(err))
 		return
 	}
 
 	// Create new WebSocket client
-	client := ws.NewClient(userID.(string), conn, h.service.GetHub(), role.(string))
+	client := ws.NewClient(userID.(string), conn, h.service.GetHub(), role.(string), h.logger)
 
 	// Register client with hub
 	h.service.GetHub().Register <- client
@@ -85,14 +88,14 @@ func (h *Handler) HandleWebSocket(c *gin.Context) {
 	go client.WritePump()
 	go client.ReadPump()
 
-	log.Printf("WebSocket connection established for user %s (role: %s)", userID, role)
+	h.logger.Info("WebSocket connection established", zap.Any("user_id", userID), zap.Any("role", role))
 }
 
 // GetChatHistory retrieves chat history for a ride
 func (h *Handler) GetChatHistory(c *gin.Context) {
 	rideID := c.Param("ride_id")
 	if rideID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "ride_id is required"})
+		common.ErrorResponse(c, http.StatusBadRequest, "ride_id is required")
 		return
 	}
 
@@ -107,18 +110,18 @@ func (h *Handler) GetChatHistory(c *gin.Context) {
 	`
 	err := h.service.db.QueryRow(query, rideID, userID).Scan(&count)
 	if err != nil || count == 0 {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Not authorized for this ride"})
+		common.ErrorResponse(c, http.StatusForbidden, "Not authorized for this ride")
 		return
 	}
 
 	// Get chat history
 	history, err := h.service.GetChatHistory(rideID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve chat history"})
+		common.ErrorResponse(c, http.StatusInternalServerError, "Failed to retrieve chat history")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	common.SuccessResponse(c, gin.H{
 		"ride_id":  rideID,
 		"messages": history,
 	})
@@ -132,13 +135,13 @@ func (h *Handler) BroadcastRideUpdate(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	h.service.BroadcastRideUpdate(req.RideID, req.Data)
 
-	c.JSON(http.StatusOK, gin.H{"message": "Broadcast sent"})
+	common.SuccessResponse(c, gin.H{"message": "Broadcast sent"})
 }
 
 // BroadcastToUser broadcasts a message to a specific user (called by other services)
@@ -150,26 +153,26 @@ func (h *Handler) BroadcastToUser(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	h.service.BroadcastToUser(req.UserID, req.Type, req.Data)
 
-	c.JSON(http.StatusOK, gin.H{"message": "Broadcast sent"})
+	common.SuccessResponse(c, gin.H{"message": "Broadcast sent"})
 }
 
 // GetStats returns connection statistics
 func (h *Handler) GetStats(c *gin.Context) {
 	stats := h.service.GetStats()
-	c.JSON(http.StatusOK, stats)
+	common.SuccessResponse(c, stats)
 }
 
 // GetDriverLocation gets a driver's current location from Redis
 func (h *Handler) GetDriverLocation(c *gin.Context) {
 	driverID := c.Param("driver_id")
 	if driverID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "driver_id is required"})
+		common.ErrorResponse(c, http.StatusBadRequest, "driver_id is required")
 		return
 	}
 
@@ -177,7 +180,7 @@ func (h *Handler) GetDriverLocation(c *gin.Context) {
 	key := "driver:location:" + driverID
 	location, err := h.service.redis.Get(ctx, key).Result()
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Driver location not found"})
+		common.ErrorResponse(c, http.StatusNotFound, "Driver location not found")
 		return
 	}
 
@@ -188,7 +191,7 @@ func (h *Handler) GetDriverLocation(c *gin.Context) {
 // HealthCheck returns service health status
 func (h *Handler) HealthCheck(c *gin.Context) {
 	stats := h.service.GetStats()
-	c.JSON(http.StatusOK, gin.H{
+	common.SuccessResponse(c, gin.H{
 		"status":  "healthy",
 		"service": "realtime",
 		"stats":   stats,

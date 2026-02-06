@@ -15,11 +15,18 @@ type FraudRepository interface {
 	UpdateUserRiskProfile(ctx context.Context, profile *UserRiskProfile) error
 	GetPaymentFraudIndicators(ctx context.Context, userID uuid.UUID) (*PaymentFraudIndicators, error)
 	GetRideFraudIndicators(ctx context.Context, userID uuid.UUID) (*RideFraudIndicators, error)
+	GetAccountFraudIndicators(ctx context.Context, userID uuid.UUID) (*AccountFraudIndicators, error)
 	CreateFraudAlert(ctx context.Context, alert *FraudAlert) error
 	GetFraudAlertByID(ctx context.Context, alertID uuid.UUID) (*FraudAlert, error)
 	GetAlertsByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*FraudAlert, error)
+	GetAlertsByUserWithTotal(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*FraudAlert, int64, error)
 	GetPendingAlerts(ctx context.Context, limit, offset int) ([]*FraudAlert, error)
+	GetPendingAlertsWithTotal(ctx context.Context, limit, offset int) ([]*FraudAlert, int64, error)
 	UpdateAlertStatus(ctx context.Context, alertID uuid.UUID, status FraudAlertStatus, investigatorID *uuid.UUID, notes, actionTaken string) error
+	GetFraudStatistics(ctx context.Context, startDate, endDate time.Time) (*FraudStatistics, error)
+	GetFraudPatterns(ctx context.Context, limit int) ([]*FraudPattern, error)
+	CreateFraudPattern(ctx context.Context, pattern *FraudPattern) error
+	UpdateFraudPattern(ctx context.Context, pattern *FraudPattern) error
 }
 
 // Service handles fraud detection business logic
@@ -170,23 +177,27 @@ func (s *Service) GetAlert(ctx context.Context, alertID uuid.UUID) (*FraudAlert,
 }
 
 // GetUserAlerts retrieves all fraud alerts for a user
-func (s *Service) GetUserAlerts(ctx context.Context, userID uuid.UUID, page, perPage int) ([]*FraudAlert, error) {
-	offset := (page - 1) * perPage
-	alerts, err := s.repo.GetAlertsByUser(ctx, userID, perPage, offset)
+func (s *Service) GetUserAlerts(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*FraudAlert, int64, error) {
+	alerts, total, err := s.repo.GetAlertsByUserWithTotal(ctx, userID, limit, offset)
 	if err != nil {
-		return nil, common.NewInternalServerError("failed to get fraud alerts")
+		return nil, 0, common.NewInternalServerError("failed to get fraud alerts")
 	}
-	return alerts, nil
+	if alerts == nil {
+		alerts = []*FraudAlert{}
+	}
+	return alerts, total, nil
 }
 
 // GetPendingAlerts retrieves all pending fraud alerts
-func (s *Service) GetPendingAlerts(ctx context.Context, page, perPage int) ([]*FraudAlert, error) {
-	offset := (page - 1) * perPage
-	alerts, err := s.repo.GetPendingAlerts(ctx, perPage, offset)
+func (s *Service) GetPendingAlerts(ctx context.Context, limit, offset int) ([]*FraudAlert, int64, error) {
+	alerts, total, err := s.repo.GetPendingAlertsWithTotal(ctx, limit, offset)
 	if err != nil {
-		return nil, common.NewInternalServerError("failed to get pending alerts")
+		return nil, 0, common.NewInternalServerError("failed to get pending alerts")
 	}
-	return alerts, nil
+	if alerts == nil {
+		alerts = []*FraudAlert{}
+	}
+	return alerts, total, nil
 }
 
 // InvestigateAlert marks an alert as under investigation
@@ -373,6 +384,58 @@ func (s *Service) DetectRideFraud(ctx context.Context, userID uuid.UUID) error {
 				"fake_gps":                indicators.FakeGPSDetected,
 				"collision":               indicators.CollisionWithDriver,
 				"promo_abuse":             indicators.PromoAbuse,
+			},
+			RiskScore:  indicators.RiskScore,
+			DetectedAt: time.Now(),
+		}
+		return s.CreateAlert(ctx, alert)
+	}
+
+	return nil
+}
+
+// GetFraudStatistics retrieves fraud statistics for a time period
+func (s *Service) GetFraudStatistics(ctx context.Context, startDate, endDate time.Time) (*FraudStatistics, error) {
+	stats, err := s.repo.GetFraudStatistics(ctx, startDate, endDate)
+	if err != nil {
+		return nil, common.NewInternalServerError("failed to get fraud statistics")
+	}
+	return stats, nil
+}
+
+// GetFraudPatterns retrieves detected fraud patterns
+func (s *Service) GetFraudPatterns(ctx context.Context, limit int) ([]*FraudPattern, error) {
+	patterns, err := s.repo.GetFraudPatterns(ctx, limit)
+	if err != nil {
+		return nil, common.NewInternalServerError("failed to get fraud patterns")
+	}
+	if patterns == nil {
+		patterns = []*FraudPattern{}
+	}
+	return patterns, nil
+}
+
+// DetectAccountFraud analyzes account patterns and creates alerts if needed
+func (s *Service) DetectAccountFraud(ctx context.Context, userID uuid.UUID) error {
+	indicators, err := s.repo.GetAccountFraudIndicators(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	if indicators.RiskScore >= 70 {
+		alert := &FraudAlert{
+			ID:          uuid.New(),
+			UserID:      userID,
+			AlertType:   AlertTypeAccountFraud,
+			AlertLevel:  s.determineAlertLevel(indicators.RiskScore),
+			Status:      AlertStatusPending,
+			Description: fmt.Sprintf("Account fraud risk score: %.1f", indicators.RiskScore),
+			Details: map[string]interface{}{
+				"multiple_accounts": indicators.MultipleAccountsSameDevice,
+				"rapid_creation":    indicators.RapidAccountCreation,
+				"suspicious_email":  indicators.SuspiciousEmailPattern,
+				"fake_phone":        indicators.FakePhoneNumber,
+				"vpn_usage":         indicators.VPNUsage,
 			},
 			RiskScore:  indicators.RiskScore,
 			DetectedAt: time.Now(),

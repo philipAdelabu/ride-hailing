@@ -119,3 +119,80 @@ type DemandZone struct {
 	AvgSurge   float64 `json:"avg_surge_multiplier"`
 	PeakHours  string  `json:"peak_hours"`
 }
+
+// RevenueTimeSeries represents time-series revenue data for charts
+type RevenueTimeSeries struct {
+	Date    string  `json:"date"`
+	Revenue float64 `json:"revenue"`
+	Rides   int     `json:"rides"`
+	AvgFare float64 `json:"avg_fare"`
+}
+
+// HourlyDistribution represents ride distribution by hour
+type HourlyDistribution struct {
+	Hour        int     `json:"hour"`
+	Rides       int     `json:"rides"`
+	AvgFare     float64 `json:"avg_fare"`
+	AvgWaitTime float64 `json:"avg_wait_time_minutes"`
+}
+
+// DriverAnalytics represents overall driver performance analytics
+type DriverAnalytics struct {
+	TotalActiveDrivers   int     `json:"total_active_drivers"`
+	AvgRidesPerDriver    float64 `json:"avg_rides_per_driver"`
+	AvgOnlineHours       float64 `json:"avg_online_hours"`
+	AvgAcceptanceRate    float64 `json:"avg_acceptance_rate"`
+	AvgCancellationRate  float64 `json:"avg_cancellation_rate"`
+	AvgRating            float64 `json:"avg_rating"`
+	NewDrivers           int     `json:"new_drivers"`
+	ChurnedDrivers       int     `json:"churned_drivers"`
+}
+
+// RiderGrowth represents rider growth and retention metrics
+type RiderGrowth struct {
+	NewRiders          int     `json:"new_riders"`
+	ReturningRiders    int     `json:"returning_riders"`
+	ChurnedRiders      int     `json:"churned_riders"`
+	RetentionRate      float64 `json:"retention_rate"`
+	AvgRidesPerRider   float64 `json:"avg_rides_per_rider"`
+	FirstTimeRidersToday int   `json:"first_time_riders_today"`
+	LifetimeValueAvg   float64 `json:"lifetime_value_avg"`
+}
+
+// RideMetrics represents quality of service metrics
+type RideMetrics struct {
+	AvgWaitTimeMinutes      float64 `json:"avg_wait_time_minutes"`
+	AvgRideDurationMinutes  float64 `json:"avg_ride_duration_minutes"`
+	AvgDistanceKm           float64 `json:"avg_distance_km"`
+	CancellationRate        float64 `json:"cancellation_rate"`
+	RiderCancellationRate   float64 `json:"rider_cancellation_rate"`
+	DriverCancellationRate  float64 `json:"driver_cancellation_rate"`
+	SurgeRidesPercentage    float64 `json:"surge_rides_percentage"`
+	AvgSurgeMultiplier      float64 `json:"avg_surge_multiplier"`
+}
+
+// TopDriver represents a top performing driver with detailed metrics
+type TopDriver struct {
+	DriverID       uuid.UUID `json:"driver_id"`
+	Name           string    `json:"name"`
+	TotalRides     int       `json:"total_rides"`
+	TotalRevenue   float64   `json:"total_revenue"`
+	AvgRating      float64   `json:"avg_rating"`
+	AcceptanceRate float64   `json:"acceptance_rate"`
+	OnlineHours    float64   `json:"online_hours"`
+}
+
+// ComparisonMetric represents a metric with comparison to previous period
+type ComparisonMetric struct {
+	Current       float64 `json:"current"`
+	Previous      float64 `json:"previous"`
+	ChangePercent float64 `json:"change_percent"`
+}
+
+// PeriodComparison represents comparison between two periods
+type PeriodComparison struct {
+	Revenue   ComparisonMetric `json:"revenue"`
+	Rides     ComparisonMetric `json:"rides"`
+	NewRiders ComparisonMetric `json:"new_riders"`
+	AvgRating ComparisonMetric `json:"avg_rating"`
+}

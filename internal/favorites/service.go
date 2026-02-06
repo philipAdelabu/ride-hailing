@@ -8,11 +8,11 @@ import (
 
 // Service handles business logic for favorite locations
 type Service struct {
-	repo *Repository
+	repo RepositoryInterface
 }
 
 // NewService creates a new favorite locations service
-func NewService(repo *Repository) *Service {
+func NewService(repo RepositoryInterface) *Service {
 	return &Service{repo: repo}
 }
 

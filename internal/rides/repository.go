@@ -122,7 +122,7 @@ func (r *Repository) GetRideByID(ctx context.Context, id uuid.UUID) (*models.Rid
 	return ride, nil
 }
 
-// UpdateRideStatus updates ride status and related fields
+// UpdateRideStatus updates ride status and related fields.
 func (r *Repository) UpdateRideStatus(ctx context.Context, id uuid.UUID, status models.RideStatus, driverID *uuid.UUID) error {
 	now := time.Now()
 	var query string
@@ -154,6 +154,25 @@ func (r *Repository) UpdateRideStatus(ctx context.Context, id uuid.UUID, status 
 	return nil
 }
 
+// AtomicAcceptRide atomically transitions a ride from "requested" to "accepted"
+// in a single UPDATE with a WHERE status guard. Returns false if the ride was
+// already accepted by another driver (prevents double-accept race condition).
+func (r *Repository) AtomicAcceptRide(ctx context.Context, rideID, driverID uuid.UUID) (bool, error) {
+	now := time.Now()
+	query := `
+		UPDATE rides
+		SET status = $1, driver_id = $2, accepted_at = $3, updated_at = $3
+		WHERE id = $4 AND status = $5
+	`
+	tag, err := r.db.Exec(ctx, query,
+		models.RideStatusAccepted, driverID, now, rideID, models.RideStatusRequested,
+	)
+	if err != nil {
+		return false, fmt.Errorf("failed to accept ride: %w", err)
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
 // UpdateRideCompletion updates ride with actual data upon completion
 func (r *Repository) UpdateRideCompletion(ctx context.Context, id uuid.UUID, actualDistance float64, actualDuration int, finalFare float64) error {
 	query := `
@@ -168,6 +187,27 @@ func (r *Repository) UpdateRideCompletion(ctx context.Context, id uuid.UUID, act
 	}
 
 	return nil
+}
+
+// AtomicCompleteRide atomically sets completion data and status in a single UPDATE
+// with a status+driver guard. Returns false if the ride was not in_progress or
+// the driver doesn't match (prevents inconsistent state on partial failure).
+func (r *Repository) AtomicCompleteRide(ctx context.Context, rideID, driverID uuid.UUID, actualDistance float64, actualDuration int, finalFare float64) (bool, error) {
+	now := time.Now()
+	query := `
+		UPDATE rides
+		SET status = $1, actual_distance = $2, actual_duration = $3,
+		    final_fare = $4, completed_at = $5, updated_at = $5
+		WHERE id = $6 AND status = $7 AND driver_id = $8
+	`
+	tag, err := r.db.Exec(ctx, query,
+		models.RideStatusCompleted, actualDistance, actualDuration, finalFare,
+		now, rideID, models.RideStatusInProgress, driverID,
+	)
+	if err != nil {
+		return false, fmt.Errorf("failed to complete ride: %w", err)
+	}
+	return tag.RowsAffected() == 1, nil
 }
 
 // UpdateRideRating updates ride rating and feedback
@@ -208,7 +248,7 @@ func (r *Repository) GetRidesByRider(ctx context.Context, riderID uuid.UUID, lim
 	}
 	defer rows.Close()
 
-	var rides []*models.Ride
+	rides := make([]*models.Ride, 0)
 	for rows.Next() {
 		ride := &models.Ride{}
 		err := rows.Scan(
@@ -277,7 +317,7 @@ func (r *Repository) GetRidesByDriver(ctx context.Context, driverID uuid.UUID, l
 	}
 	defer rows.Close()
 
-	var rides []*models.Ride
+	rides := make([]*models.Ride, 0)
 	for rows.Next() {
 		ride := &models.Ride{}
 		err := rows.Scan(
@@ -324,6 +364,44 @@ func (r *Repository) GetRidesByDriver(ctx context.Context, driverID uuid.UUID, l
 	return rides, nil
 }
 
+// GetRidesByRiderWithTotal retrieves rides for a specific rider with total count
+func (r *Repository) GetRidesByRiderWithTotal(ctx context.Context, riderID uuid.UUID, limit, offset int) ([]*models.Ride, int64, error) {
+	// Get total count
+	var total int64
+	countQuery := `SELECT COUNT(*) FROM rides WHERE rider_id = $1`
+	err := r.db.QueryRow(ctx, countQuery, riderID).Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count rides: %w", err)
+	}
+
+	// Get paginated rides
+	rides, err := r.GetRidesByRider(ctx, riderID, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return rides, total, nil
+}
+
+// GetRidesByDriverWithTotal retrieves rides for a specific driver with total count
+func (r *Repository) GetRidesByDriverWithTotal(ctx context.Context, driverID uuid.UUID, limit, offset int) ([]*models.Ride, int64, error) {
+	// Get total count
+	var total int64
+	countQuery := `SELECT COUNT(*) FROM rides WHERE driver_id = $1`
+	err := r.db.QueryRow(ctx, countQuery, driverID).Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count rides: %w", err)
+	}
+
+	// Get paginated rides
+	rides, err := r.GetRidesByDriver(ctx, driverID, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return rides, total, nil
+}
+
 // GetPendingRides retrieves all pending ride requests
 func (r *Repository) GetPendingRides(ctx context.Context) ([]*models.Ride, error) {
 	query := `
@@ -345,7 +423,7 @@ func (r *Repository) GetPendingRides(ctx context.Context) ([]*models.Ride, error
 	}
 	defer rows.Close()
 
-	var rides []*models.Ride
+	rides := make([]*models.Ride, 0)
 	for rows.Next() {
 		ride := &models.Ride{}
 		err := rows.Scan(
@@ -459,7 +537,7 @@ func (r *Repository) GetRidesByRiderWithFilters(ctx context.Context, riderID uui
 	}
 	defer rows.Close()
 
-	var rides []*models.Ride
+	rides := make([]*models.Ride, 0)
 	for rows.Next() {
 		ride := &models.Ride{}
 		err := rows.Scan(
@@ -555,6 +633,69 @@ func (r *Repository) UpdateUserProfile(ctx context.Context, userID uuid.UUID, fi
 	}
 
 	return nil
+}
+
+// DriverMatchStats holds aggregated stats used by the matching algorithm.
+type DriverMatchStats struct {
+	DriverID       uuid.UUID
+	Rating         float64
+	AcceptanceRate float64
+	IdleMinutes    float64
+}
+
+// GetDriverMatchStats returns acceptance rate and idle time for a list of driver IDs.
+func (r *Repository) GetDriverMatchStats(ctx context.Context, driverIDs []uuid.UUID) (map[uuid.UUID]*DriverMatchStats, error) {
+	if len(driverIDs) == 0 {
+		return make(map[uuid.UUID]*DriverMatchStats), nil
+	}
+
+	query := `
+		SELECT
+			u.id,
+			COALESCE(u.rating, 4.0) AS rating,
+			COALESCE(
+				CAST(SUM(CASE WHEN r.status IN ('accepted','started','completed') THEN 1 ELSE 0 END) AS FLOAT) /
+				NULLIF(COUNT(r.id), 0),
+				0.8
+			) AS acceptance_rate,
+			COALESCE(
+				EXTRACT(EPOCH FROM (NOW() - MAX(r.completed_at))) / 60.0,
+				30.0
+			) AS idle_minutes
+		FROM users u
+		LEFT JOIN rides r ON r.driver_id = u.id AND r.created_at > NOW() - INTERVAL '30 days'
+		WHERE u.id = ANY($1)
+		GROUP BY u.id, u.rating
+	`
+
+	rows, err := r.db.Query(ctx, query, driverIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get driver match stats: %w", err)
+	}
+	defer rows.Close()
+
+	stats := make(map[uuid.UUID]*DriverMatchStats, len(driverIDs))
+	for rows.Next() {
+		s := &DriverMatchStats{}
+		if err := rows.Scan(&s.DriverID, &s.Rating, &s.AcceptanceRate, &s.IdleMinutes); err != nil {
+			return nil, fmt.Errorf("failed to scan driver stats: %w", err)
+		}
+		stats[s.DriverID] = s
+	}
+
+	// Fill in defaults for drivers not in DB (new drivers)
+	for _, id := range driverIDs {
+		if _, ok := stats[id]; !ok {
+			stats[id] = &DriverMatchStats{
+				DriverID:       id,
+				Rating:         4.0,
+				AcceptanceRate: 0.8,
+				IdleMinutes:    30.0,
+			}
+		}
+	}
+
+	return stats, nil
 }
 
 // GetPaymentByRideID retrieves payment information for a ride

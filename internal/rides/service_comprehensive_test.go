@@ -211,8 +211,9 @@ func TestService_RequestRide_Success(t *testing.T) {
 	surgeMultiplier := calculateSurgeMultiplier(time.Now())
 	assert.GreaterOrEqual(t, surgeMultiplier, 1.0, "Surge multiplier should be at least 1.0")
 
-	fare := calculateFare(distance, duration, surgeMultiplier)
-	assert.GreaterOrEqual(t, fare, minimumFare, "Fare should be at least minimum fare")
+	svc := &Service{pricingConfig: DefaultPricingConfig()}
+	fare := svc.calculateFare(distance, duration, surgeMultiplier)
+	assert.GreaterOrEqual(t, fare, DefaultPricingConfig().MinimumFare, "Fare should be at least minimum fare")
 
 	// Test ride creation in repo
 	ride := &models.Ride{
@@ -378,7 +379,8 @@ func TestService_CompleteRide_Success(t *testing.T) {
 	// Complete it
 	actualDistance := 12.5
 	actualDuration := 15
-	finalFare := calculateFare(actualDistance, actualDuration, 1.0)
+	svc := &Service{pricingConfig: DefaultPricingConfig()}
+	finalFare := svc.calculateFare(actualDistance, actualDuration, 1.0)
 
 	err = repo.UpdateRideCompletion(ctx, rideID, actualDistance, actualDuration, finalFare)
 	assert.NoError(t, err)

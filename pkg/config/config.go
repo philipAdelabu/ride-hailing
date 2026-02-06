@@ -23,11 +23,45 @@ type Config struct {
 	PubSub        PubSubConfig
 	Firebase      FirebaseConfig
 	Payments      PaymentsConfig
+	Business      BusinessConfig
 	Notifications NotificationsConfig
 	RateLimit     RateLimitConfig
+	NATS          NATSConfig
 	Resilience    ResilienceConfig
 	Timeout       TimeoutConfig
 	Secrets       SecretsSettings
+	Maps          MapsConfig
+	Checkr        CheckrConfig
+	Onfido        OnfidoConfig
+}
+
+// CheckrConfig holds Checkr background check configuration
+type CheckrConfig struct {
+	APIKey     string
+	WebhookKey string
+	Package    string // e.g., "driver_standard"
+	Enabled    bool
+}
+
+// OnfidoConfig holds Onfido identity verification configuration
+type OnfidoConfig struct {
+	APIKey     string
+	WebhookKey string
+	WorkflowID string
+	Enabled    bool
+}
+
+// MapsConfig holds maps service configuration
+type MapsConfig struct {
+	Enabled              bool   `json:"enabled"`
+	PrimaryProvider      string `json:"primary_provider"` // google, here
+	GoogleAPIKey         string `json:"google_api_key"`
+	HEREAPIKey           string `json:"here_api_key"`
+	CacheEnabled         bool   `json:"cache_enabled"`
+	CacheTTLSeconds      int    `json:"cache_ttl_seconds"`
+	TrafficEnabled       bool   `json:"traffic_enabled"`
+	TrafficRefreshSecs   int    `json:"traffic_refresh_seconds"`
+	FallbackToHaversine  bool   `json:"fallback_to_haversine"`
 }
 
 // ServerConfig holds server-specific configuration
@@ -112,6 +146,13 @@ type PubSubConfig struct {
 	Enabled   bool
 }
 
+// NATSConfig holds NATS event bus configuration.
+type NATSConfig struct {
+	URL        string
+	StreamName string
+	Enabled    bool
+}
+
 // FirebaseConfig holds Firebase configuration
 type FirebaseConfig struct {
 	ProjectID       string
@@ -123,6 +164,12 @@ type FirebaseConfig struct {
 // PaymentsConfig holds payment provider configuration.
 type PaymentsConfig struct {
 	StripeAPIKey string
+}
+
+// BusinessConfig holds configurable business logic parameters.
+type BusinessConfig struct {
+	CommissionRate      float64 // Platform commission rate (default: 0.20 = 20%)
+	CancellationFeeRate float64 // Cancellation fee rate (default: 0.10 = 10%)
 }
 
 // NotificationsConfig stores third-party notification credentials.
@@ -321,7 +368,7 @@ func Load(serviceName string) (*Config, error) {
 			DB:       getEnvAsInt("REDIS_DB", 0),
 		},
 		JWT: JWTConfig{
-			Secret:         getEnv("JWT_SECRET", "your-secret-key-change-in-production"),
+			Secret:         getEnv("JWT_SECRET", ""),
 			Expiration:     getEnvAsInt("JWT_EXPIRATION", 24),
 			KeyFile:        getEnv("JWT_KEYS_FILE", "config/jwt_keys.json"),
 			RotationHours:  getEnvAsInt("JWT_ROTATION_HOURS", 24*30),
@@ -336,6 +383,11 @@ func Load(serviceName string) (*Config, error) {
 			ProjectID: getEnv("PUBSUB_PROJECT_ID", ""),
 			Enabled:   getEnvAsBool("PUBSUB_ENABLED", false),
 		},
+		NATS: NATSConfig{
+			URL:        getEnv("NATS_URL", "nats://localhost:4222"),
+			StreamName: getEnv("NATS_STREAM_NAME", "RIDEHAILING"),
+			Enabled:    getEnvAsBool("NATS_ENABLED", false),
+		},
 		Firebase: FirebaseConfig{
 			ProjectID:       getEnv("FIREBASE_PROJECT_ID", ""),
 			CredentialsPath: getEnv("FIREBASE_CREDENTIALS_PATH", ""),
@@ -344,6 +396,10 @@ func Load(serviceName string) (*Config, error) {
 		},
 		Payments: PaymentsConfig{
 			StripeAPIKey: getEnv("STRIPE_API_KEY", ""),
+		},
+		Business: BusinessConfig{
+			CommissionRate:      getEnvAsFloat("COMMISSION_RATE", 0.20),
+			CancellationFeeRate: getEnvAsFloat("CANCELLATION_FEE_RATE", 0.10),
 		},
 		Notifications: NotificationsConfig{
 			TwilioAccountSID: getEnv("TWILIO_ACCOUNT_SID", ""),
@@ -364,6 +420,15 @@ func Load(serviceName string) (*Config, error) {
 			AnonymousLimit: getEnvAsInt("RATE_LIMIT_ANON_LIMIT", 60),
 			AnonymousBurst: getEnvAsInt("RATE_LIMIT_ANON_BURST", 20),
 			RedisPrefix:    getEnv("RATE_LIMIT_REDIS_PREFIX", "rate-limit"),
+			EndpointOverrides: map[string]EndpointRateLimitConfig{
+				// Auth endpoints - strict limits to prevent brute force
+				"POST:/api/v1/auth/login":    {AuthenticatedLimit: 10, AuthenticatedBurst: 3, AnonymousLimit: 5, AnonymousBurst: 2, WindowSeconds: 60},
+				"POST:/api/v1/auth/register": {AuthenticatedLimit: 5, AuthenticatedBurst: 2, AnonymousLimit: 3, AnonymousBurst: 1, WindowSeconds: 60},
+				// Payment endpoints - moderate limits
+				"POST:/api/v1/payments/process": {AuthenticatedLimit: 30, AuthenticatedBurst: 5, AnonymousLimit: 0, AnonymousBurst: 0, WindowSeconds: 60},
+				// Location updates - high frequency allowed for drivers
+				"POST:/api/v1/geo/location": {AuthenticatedLimit: 600, AuthenticatedBurst: 100, AnonymousLimit: 0, AnonymousBurst: 0, WindowSeconds: 60},
+			},
 		},
 		Resilience: ResilienceConfig{
 			CircuitBreaker: CircuitBreakerConfig{
@@ -383,6 +448,29 @@ func Load(serviceName string) (*Config, error) {
 			WebSocketConnectionTimeout: getEnvAsInt("WS_CONNECTION_TIMEOUT", DefaultWebSocketConnectionTimeout),
 			DefaultRequestTimeout:      getEnvAsInt("DEFAULT_REQUEST_TIMEOUT", DefaultRequestTimeout),
 			RouteOverrides:             make(map[string]int),
+		},
+		Maps: MapsConfig{
+			Enabled:             getEnvAsBool("MAPS_ENABLED", false),
+			PrimaryProvider:     getEnv("MAPS_PRIMARY_PROVIDER", "google"),
+			GoogleAPIKey:        getEnv("GOOGLE_MAPS_API_KEY", ""),
+			HEREAPIKey:          getEnv("HERE_API_KEY", ""),
+			CacheEnabled:        getEnvAsBool("MAPS_CACHE_ENABLED", true),
+			CacheTTLSeconds:     getEnvAsInt("MAPS_CACHE_TTL_SECONDS", 300),
+			TrafficEnabled:      getEnvAsBool("MAPS_TRAFFIC_ENABLED", true),
+			TrafficRefreshSecs:  getEnvAsInt("MAPS_TRAFFIC_REFRESH_SECONDS", 60),
+			FallbackToHaversine: getEnvAsBool("MAPS_FALLBACK_HAVERSINE", true),
+		},
+		Checkr: CheckrConfig{
+			APIKey:     getEnv("CHECKR_API_KEY", ""),
+			WebhookKey: getEnv("CHECKR_WEBHOOK_KEY", ""),
+			Package:    getEnv("CHECKR_PACKAGE", "driver_standard"),
+			Enabled:    getEnvAsBool("CHECKR_ENABLED", false),
+		},
+		Onfido: OnfidoConfig{
+			APIKey:     getEnv("ONFIDO_API_KEY", ""),
+			WebhookKey: getEnv("ONFIDO_WEBHOOK_KEY", ""),
+			WorkflowID: getEnv("ONFIDO_WORKFLOW_ID", ""),
+			Enabled:    getEnvAsBool("ONFIDO_ENABLED", false),
 		},
 		Secrets: SecretsSettings{
 			Provider:        secrets.ProviderType(getEnv("SECRETS_PROVIDER", "")),
@@ -424,7 +512,9 @@ func Load(serviceName string) (*Config, error) {
 		if err := json.Unmarshal([]byte(overrides), &endpointConfig); err != nil {
 			return nil, fmt.Errorf("invalid RATE_LIMIT_ENDPOINTS value: %w", err)
 		}
-		cfg.RateLimit.EndpointOverrides = endpointConfig
+		for k, v := range endpointConfig {
+			cfg.RateLimit.EndpointOverrides[k] = v
+		}
 	}
 
 	if breakerOverrides := getEnv("CB_SERVICE_OVERRIDES", ""); breakerOverrides != "" {
@@ -806,6 +896,14 @@ func getEnvAsInt(key string, defaultValue int) int {
 func getEnvAsBool(key string, defaultValue bool) bool {
 	valueStr := getEnv(key, "")
 	if value, err := strconv.ParseBool(valueStr); err == nil {
+		return value
+	}
+	return defaultValue
+}
+
+func getEnvAsFloat(key string, defaultValue float64) float64 {
+	valueStr := getEnv(key, "")
+	if value, err := strconv.ParseFloat(valueStr, 64); err == nil {
 		return value
 	}
 	return defaultValue

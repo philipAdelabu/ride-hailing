@@ -18,6 +18,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/logger"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
+	"github.com/richxcame/ride-hailing/pkg/swagger"
 	"github.com/richxcame/ride-hailing/pkg/tracing"
 	"go.uber.org/zap"
 )
@@ -28,6 +29,10 @@ const (
 )
 
 func main() {
+	// Set default port for analytics service if not set
+	if os.Getenv("PORT") == "" {
+		os.Setenv("PORT", "8091")
+	}
 	cfg, err := config.Load(serviceName)
 	if err != nil {
 		panic(fmt.Sprintf("failed to load config: %v", err))
@@ -115,6 +120,7 @@ func main() {
 	router.Use(middleware.RequestLogger(serviceName))
 	router.Use(middleware.CORS())
 	router.Use(middleware.SecurityHeaders())
+	router.Use(middleware.MaxBodySize(10 << 20)) // 10MB request body limit
 	router.Use(middleware.SanitizeRequest())
 	router.Use(middleware.Metrics(serviceName))
 
@@ -161,21 +167,44 @@ func main() {
 		})
 	})
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+	swagger.RegisterRoutes(router)
 
 	// Admin-only analytics endpoints
 	api := router.Group("/api/v1/analytics")
 	api.Use(middleware.AuthMiddlewareWithProvider(jwtProvider))
 	api.Use(middleware.RequireAdmin())
 	{
+		// Dashboard & Overview
 		api.GET("/dashboard", handler.GetDashboardMetrics)
 		api.GET("/revenue", handler.GetRevenueMetrics)
-		api.GET("/promo-codes", handler.GetPromoCodePerformance)
-		api.GET("/ride-types", handler.GetRideTypeStats)
-		api.GET("/referrals", handler.GetReferralMetrics)
-		api.GET("/top-drivers", handler.GetTopDrivers)
-		api.GET("/heat-map", handler.GetDemandHeatMap)
 		api.GET("/financial-report", handler.GetFinancialReport)
+
+		// Time-Series & Charts
+		api.GET("/revenue/timeseries", handler.GetRevenueTimeSeries)
+		api.GET("/rides/hourly", handler.GetHourlyDistribution)
+
+		// Driver Analytics
+		api.GET("/drivers/performance", handler.GetDriverAnalytics)
+		api.GET("/top-drivers", handler.GetTopDrivers)
+		api.GET("/top-drivers/detailed", handler.GetTopDriversDetailed)
+
+		// Rider Analytics
+		api.GET("/riders/growth", handler.GetRiderGrowth)
+
+		// Ride Metrics
+		api.GET("/rides/metrics", handler.GetRideMetrics)
+		api.GET("/ride-types", handler.GetRideTypeStats)
+
+		// Geographic
+		api.GET("/heat-map", handler.GetDemandHeatMap)
 		api.GET("/demand-zones", handler.GetDemandZones)
+
+		// Comparison
+		api.GET("/comparison", handler.GetPeriodComparison)
+
+		// Marketing
+		api.GET("/promo-codes", handler.GetPromoCodePerformance)
+		api.GET("/referrals", handler.GetReferralMetrics)
 	}
 
 	srv := &http.Server{

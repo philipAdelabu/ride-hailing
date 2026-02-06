@@ -16,11 +16,14 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/config"
 	"github.com/richxcame/ride-hailing/pkg/database"
 	"github.com/richxcame/ride-hailing/pkg/errors"
+	"github.com/richxcame/ride-hailing/pkg/eventbus"
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/logger"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
-	"github.com/richxcame/ride-hailing/pkg/tracing"
+	redisclient "github.com/richxcame/ride-hailing/pkg/redis"
 	"github.com/richxcame/ride-hailing/pkg/resilience"
+	"github.com/richxcame/ride-hailing/pkg/swagger"
+	"github.com/richxcame/ride-hailing/pkg/tracing"
 	"go.uber.org/zap"
 )
 
@@ -30,6 +33,10 @@ const (
 )
 
 func main() {
+	// Set default port for payments service if not set
+	if os.Getenv("PORT") == "" {
+		os.Setenv("PORT", "8084")
+	}
 	// Load configuration
 	cfg, err := config.Load(serviceName)
 	if err != nil {
@@ -90,7 +97,7 @@ func main() {
 	// Initialize database
 	db, err := database.NewPostgresPool(&cfg.Database, cfg.Timeout.DatabaseQueryTimeout)
 	if err != nil {
-		log.Fatal("Failed to connect to database", zap.Error(err))
+		logger.Fatal("Failed to connect to database", zap.Error(err))
 	}
 	defer database.Close(db)
 
@@ -99,8 +106,7 @@ func main() {
 	// Get Stripe API key from configuration / secrets manager
 	stripeAPIKey := cfg.Payments.StripeAPIKey
 	if stripeAPIKey == "" {
-		log.Warn("STRIPE_API_KEY not set, payment processing will be limited")
-		stripeAPIKey = "sk_test_dummy" // Dummy key for development
+		logger.Fatal("STRIPE_API_KEY is required - set via env var or configure secrets manager")
 	}
 
 	var stripeBreaker *resilience.CircuitBreaker
@@ -108,19 +114,48 @@ func main() {
 		cbCfg := cfg.Resilience.CircuitBreaker.SettingsFor("stripe-api")
 		stripeBreaker = resilience.NewCircuitBreaker(
 			resilience.BuildSettings(fmt.Sprintf("%s-stripe", serviceName), cbCfg.IntervalSeconds, cbCfg.TimeoutSeconds, cbCfg.FailureThreshold, cbCfg.SuccessThreshold),
-			nil,
+			resilience.GracefulDegradation("stripe-api"),
 		)
+	}
+
+	// Initialize Redis for idempotency
+	redisClient, redisErr := redisclient.NewRedisClient(&cfg.Redis)
+	if redisErr != nil {
+		logger.Warn("Failed to initialize Redis - idempotency disabled", zap.Error(redisErr))
+	} else {
+		defer redisClient.Close()
+		logger.Info("Redis connected for idempotency support")
 	}
 
 	// Initialize payment service
 	paymentRepo := payments.NewRepository(db)
 	stripeClient := payments.NewResilientStripeClient(stripeAPIKey, stripeBreaker)
-	paymentService := payments.NewService(paymentRepo, stripeClient)
+	paymentService := payments.NewService(paymentRepo, stripeClient, &cfg.Business)
 	paymentHandler := payments.NewHandler(paymentService)
+
+	// Initialize NATS event bus for driver payout on ride completion
+	if cfg.NATS.Enabled && cfg.NATS.URL != "" {
+		bus, err := eventbus.New(eventbus.Config{
+			URL:        cfg.NATS.URL,
+			Name:       serviceName,
+			StreamName: cfg.NATS.StreamName,
+		})
+		if err != nil {
+			logger.Warn("Failed to connect to NATS - driver payouts via events disabled", zap.Error(err))
+		} else {
+			defer bus.Close()
+			logger.Info("NATS event bus connected for payment events")
+
+			paymentEventHandler := payments.NewEventHandler(paymentService)
+			if err := paymentEventHandler.RegisterSubscriptions(rootCtx, bus); err != nil {
+				logger.Error("Failed to register payment event subscriptions", zap.Error(err))
+			}
+		}
+	}
 
 	jwtProvider, err := jwtkeys.NewManagerFromConfig(rootCtx, cfg.JWT, true)
 	if err != nil {
-		log.Fatal("Failed to initialize JWT key manager", zap.Error(err))
+		logger.Fatal("Failed to initialize JWT key manager", zap.Error(err))
 	}
 	jwtProvider.StartAutoRefresh(rootCtx, time.Duration(cfg.JWT.RefreshMinutes)*time.Minute)
 
@@ -139,8 +174,15 @@ func main() {
 	router.Use(middleware.RequestLogger(serviceName))
 	router.Use(middleware.CORS())
 	router.Use(middleware.SecurityHeaders())
+	router.Use(middleware.MaxBodySize(10 << 20)) // 10MB request body limit
 	router.Use(middleware.SanitizeRequest())
 	router.Use(middleware.Metrics(serviceName))
+
+	// Idempotency middleware - prevents duplicate payment processing
+	if redisClient != nil {
+		router.Use(middleware.Idempotency(redisClient))
+		logger.Info("Idempotency middleware enabled")
+	}
 
 	// Add tracing middleware if enabled
 	if tracerEnabled {
@@ -162,6 +204,14 @@ func main() {
 		return db.Ping(ctx)
 	}
 
+	if redisClient != nil {
+		healthChecks["redis"] = func() error {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			return redisClient.Client.Ping(ctx).Err()
+		}
+	}
+
 	router.GET("/health/ready", common.ReadinessProbe(serviceName, version, healthChecks))
 
 	router.GET("/version", func(c *gin.Context) {
@@ -170,6 +220,7 @@ func main() {
 
 	// Metrics endpoint
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+	swagger.RegisterRoutes(router)
 
 	// Register payment routes
 	paymentHandler.RegisterRoutes(router, jwtProvider)
@@ -187,7 +238,7 @@ func main() {
 	go func() {
 		log.Info("Server starting", zap.String("port", cfg.Server.Port), zap.String("environment", cfg.Server.Environment))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal("Server failed to start", zap.Error(err))
+			logger.Fatal("Server failed to start", zap.Error(err))
 		}
 	}()
 
@@ -203,7 +254,7 @@ func main() {
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatal("Server forced to shutdown", zap.Error(err))
+		logger.Fatal("Server forced to shutdown", zap.Error(err))
 	}
 
 	log.Info("Server stopped")

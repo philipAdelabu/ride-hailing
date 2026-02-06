@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/richxcame/ride-hailing/pkg/httpclient"
 	"go.uber.org/zap"
 )
@@ -19,11 +18,13 @@ const (
 	demandZonesRefreshInterval = 15 * time.Minute
 	driverPerfRefreshInterval  = 1 * time.Hour
 	revenueRefreshInterval     = 24 * time.Hour
+	// Expire rides stuck in "requested" status after this duration
+	rideExpiryThreshold = 5 * time.Minute
 )
 
 // Worker handles scheduled ride processing and maintenance tasks
 type Worker struct {
-	db                     *pgxpool.Pool
+	db                     Database
 	logger                 *zap.Logger
 	notificationsClient    *httpclient.Client
 	done                   chan struct{}
@@ -33,7 +34,7 @@ type Worker struct {
 }
 
 // NewWorker creates a new scheduler worker
-func NewWorker(db *pgxpool.Pool, logger *zap.Logger, notificationsServiceURL string, httpClientTimeout ...time.Duration) *Worker {
+func NewWorker(db Database, logger *zap.Logger, notificationsServiceURL string, httpClientTimeout ...time.Duration) *Worker {
 	var notificationsClient *httpclient.Client
 	if notificationsServiceURL != "" {
 		notificationsClient = httpclient.NewClient(notificationsServiceURL, httpClientTimeout...)
@@ -56,12 +57,14 @@ func (w *Worker) Start(ctx context.Context) {
 
 	// Run immediately on start
 	w.processScheduledRides(ctx)
+	w.expireStaleRides(ctx)
 	w.refreshMaterializedViews(ctx)
 
 	for {
 		select {
 		case <-ticker.C:
 			w.processScheduledRides(ctx)
+			w.expireStaleRides(ctx)
 			w.refreshMaterializedViews(ctx)
 		case <-ctx.Done():
 			w.logger.Info("Scheduler worker stopped")
@@ -261,6 +264,32 @@ func (w *Worker) sendUpcomingRideNotification(ctx context.Context, rideID, rider
 	}
 
 	return nil
+}
+
+// expireStaleRides cancels rides stuck in "requested" status beyond the expiry threshold
+func (w *Worker) expireStaleRides(ctx context.Context) {
+	query := `
+		UPDATE rides
+		SET status = 'cancelled',
+		    cancellation_reason = 'expired: no driver accepted within timeout',
+		    cancelled_at = NOW(),
+		    updated_at = NOW()
+		WHERE status = 'requested'
+		  AND is_scheduled = false
+		  AND requested_at < NOW() - make_interval(secs => $1)
+	`
+
+	result, err := w.db.Exec(ctx, query, rideExpiryThreshold.Seconds())
+	if err != nil {
+		w.logger.Error("Failed to expire stale rides", zap.Error(err))
+		return
+	}
+
+	if expired := result.RowsAffected(); expired > 0 {
+		w.logger.Info("Expired stale ride requests",
+			zap.Int64("count", expired),
+			zap.Duration("threshold", rideExpiryThreshold))
+	}
 }
 
 // refreshMaterializedViews refreshes analytics materialized views based on their schedules

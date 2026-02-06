@@ -17,6 +17,7 @@ import (
 	ws "github.com/richxcame/ride-hailing/pkg/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 // createTestWebSocketConn creates a test WebSocket connection
@@ -63,7 +64,7 @@ func TestNewService(t *testing.T) {
 	hub := ws.NewHub()
 
 	// Create service
-	service := NewService(hub, db, redisClient)
+	service := NewService(hub, db, redisClient, zap.NewNop())
 
 	// Assertions
 	assert.NotNil(t, service)
@@ -143,7 +144,7 @@ func TestHandleLocationUpdate(t *testing.T) {
 			redisClient := &redis.Client{Client: redisDB}
 
 			hub := ws.NewHub()
-			service := NewService(hub, db, redisClient)
+			service := NewService(hub, db, redisClient, zap.NewNop())
 
 			// Set expectations - skip checking since actual implementation adds timestamp
 			if tt.expectRedis {
@@ -172,14 +173,14 @@ func TestHandleLocationUpdateWithRide(t *testing.T) {
 	hub := ws.NewHub()
 	go hub.Run()
 
-	service := NewService(hub, db, redisClient)
+	service := NewService(hub, db, redisClient, zap.NewNop())
 
 	// Create driver and rider clients
 	driverConn := createTestWebSocketConn(t)
 	riderConn := createTestWebSocketConn(t)
 
-	driver := ws.NewClient("driver-123", driverConn, hub, "driver")
-	rider := ws.NewClient("rider-456", riderConn, hub, "rider")
+	driver := ws.NewClient("driver-123", driverConn, hub, "driver", zap.NewNop())
+	rider := ws.NewClient("rider-456", riderConn, hub, "rider", zap.NewNop())
 
 	// Register clients
 	hub.Register <- driver
@@ -264,10 +265,10 @@ func TestHandleRideStatus(t *testing.T) {
 			hub := ws.NewHub()
 			go hub.Run()
 
-			service := NewService(hub, db, redisClient)
+			service := NewService(hub, db, redisClient, zap.NewNop())
 
 			conn := createTestWebSocketConn(t)
-			client := ws.NewClient("user-123", conn, hub, "driver")
+			client := ws.NewClient("user-123", conn, hub, "driver", zap.NewNop())
 
 			// Execute
 			service.handleRideStatus(client, tt.message)
@@ -334,10 +335,10 @@ func TestHandleChatMessage(t *testing.T) {
 			hub := ws.NewHub()
 			go hub.Run()
 
-			service := NewService(hub, db, redisClient)
+			service := NewService(hub, db, redisClient, zap.NewNop())
 
 			conn := createTestWebSocketConn(t)
-			client := ws.NewClient("user-123", conn, hub, "rider")
+			client := ws.NewClient("user-123", conn, hub, "rider", zap.NewNop())
 
 			if tt.clientRide != "" {
 				client.SetRide(tt.clientRide)
@@ -375,14 +376,14 @@ func TestHandleTyping(t *testing.T) {
 	hub := ws.NewHub()
 	go hub.Run()
 
-	service := NewService(hub, db, redisClient)
+	service := NewService(hub, db, redisClient, zap.NewNop())
 
 	// Create two clients in same ride
 	conn1 := createTestWebSocketConn(t)
 	conn2 := createTestWebSocketConn(t)
 
-	client1 := ws.NewClient("user-123", conn1, hub, "rider")
-	client2 := ws.NewClient("user-456", conn2, hub, "driver")
+	client1 := ws.NewClient("user-123", conn1, hub, "rider", zap.NewNop())
+	client2 := ws.NewClient("user-456", conn2, hub, "driver", zap.NewNop())
 
 	rideID := "ride-789"
 	client1.SetRide(rideID)
@@ -474,10 +475,10 @@ func TestHandleJoinRide(t *testing.T) {
 			hub := ws.NewHub()
 			go hub.Run()
 
-			service := NewService(hub, db, redisClient)
+			service := NewService(hub, db, redisClient, zap.NewNop())
 
 			conn := createTestWebSocketConn(t)
-			client := ws.NewClient("user-123", conn, hub, "rider")
+			client := ws.NewClient("user-123", conn, hub, "rider", zap.NewNop())
 
 			hub.Register <- client
 			time.Sleep(10 * time.Millisecond)
@@ -509,11 +510,11 @@ func TestHandleLeaveRide(t *testing.T) {
 	hub := ws.NewHub()
 	go hub.Run()
 
-	service := NewService(hub, db, redisClient)
+	service := NewService(hub, db, redisClient, zap.NewNop())
 
 	// Create client
 	conn := createTestWebSocketConn(t)
-	client := ws.NewClient("user-123", conn, hub, "rider")
+	client := ws.NewClient("user-123", conn, hub, "rider", zap.NewNop())
 
 	rideID := "ride-789"
 	client.SetRide(rideID)
@@ -550,11 +551,11 @@ func TestBroadcastRideUpdate(t *testing.T) {
 	hub := ws.NewHub()
 	go hub.Run()
 
-	service := NewService(hub, db, redisClient)
+	service := NewService(hub, db, redisClient, zap.NewNop())
 
 	// Create client
 	conn := createTestWebSocketConn(t)
-	client := ws.NewClient("user-123", conn, hub, "rider")
+	client := ws.NewClient("user-123", conn, hub, "rider", zap.NewNop())
 
 	rideID := "ride-789"
 	hub.Register <- client
@@ -585,11 +586,11 @@ func TestBroadcastToUser(t *testing.T) {
 	hub := ws.NewHub()
 	go hub.Run()
 
-	service := NewService(hub, db, redisClient)
+	service := NewService(hub, db, redisClient, zap.NewNop())
 
 	// Create client
 	conn := createTestWebSocketConn(t)
-	client := ws.NewClient("user-123", conn, hub, "rider")
+	client := ws.NewClient("user-123", conn, hub, "rider", zap.NewNop())
 
 	hub.Register <- client
 	time.Sleep(10 * time.Millisecond)
@@ -616,7 +617,7 @@ func TestGetChatHistory(t *testing.T) {
 	redisClient := &redis.Client{Client: redisDB}
 
 	hub := ws.NewHub()
-	service := NewService(hub, db, redisClient)
+	service := NewService(hub, db, redisClient, zap.NewNop())
 
 	rideID := "ride-123"
 
@@ -663,7 +664,7 @@ func TestGetChatHistoryEmpty(t *testing.T) {
 	redisClient := &redis.Client{Client: redisDB}
 
 	hub := ws.NewHub()
-	service := NewService(hub, db, redisClient)
+	service := NewService(hub, db, redisClient, zap.NewNop())
 
 	rideID := "ride-123"
 
@@ -692,14 +693,14 @@ func TestGetStats(t *testing.T) {
 	hub := ws.NewHub()
 	go hub.Run()
 
-	service := NewService(hub, db, redisClient)
+	service := NewService(hub, db, redisClient, zap.NewNop())
 
 	// Create clients
 	conn1 := createTestWebSocketConn(t)
 	conn2 := createTestWebSocketConn(t)
 
-	client1 := ws.NewClient("user-123", conn1, hub, "rider")
-	client2 := ws.NewClient("user-456", conn2, hub, "driver")
+	client1 := ws.NewClient("user-123", conn1, hub, "rider", zap.NewNop())
+	client2 := ws.NewClient("user-456", conn2, hub, "driver", zap.NewNop())
 
 	hub.Register <- client1
 	hub.Register <- client2
@@ -729,7 +730,7 @@ func TestGetHub(t *testing.T) {
 	redisClient := &redis.Client{Client: redisDB}
 
 	hub := ws.NewHub()
-	service := NewService(hub, db, redisClient)
+	service := NewService(hub, db, redisClient, zap.NewNop())
 
 	// Get hub
 	retrievedHub := service.GetHub()
@@ -749,14 +750,14 @@ func TestRegisterHandlers(t *testing.T) {
 	redisClient := &redis.Client{Client: redisDB}
 
 	hub := ws.NewHub()
-	service := NewService(hub, db, redisClient)
+	service := NewService(hub, db, redisClient, zap.NewNop())
 
 	// Verify handlers are registered
 	assert.NotNil(t, service.hub)
 
 	// Test that handlers can be called without panicking
 	conn := createTestWebSocketConn(t)
-	client := ws.NewClient("test-user", conn, hub, "rider")
+	client := ws.NewClient("test-user", conn, hub, "rider", zap.NewNop())
 
 	// This should not panic
 	testMsg := &ws.Message{
@@ -780,7 +781,7 @@ func TestConcurrentClientOperations(t *testing.T) {
 	hub := ws.NewHub()
 	go hub.Run()
 
-	service := NewService(hub, db, redisClient)
+	service := NewService(hub, db, redisClient, zap.NewNop())
 
 	// Expect multiple Redis operations (use regex to match any value)
 	redisMock.MatchExpectationsInOrder(false)
@@ -794,7 +795,7 @@ func TestConcurrentClientOperations(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		go func(id int) {
 			conn := createTestWebSocketConn(t)
-			client := ws.NewClient("driver-"+string(rune(id)), conn, hub, "driver")
+			client := ws.NewClient("driver-"+string(rune(id)), conn, hub, "driver", zap.NewNop())
 
 			hub.Register <- client
 			time.Sleep(5 * time.Millisecond)
@@ -838,10 +839,10 @@ func TestDatabaseError(t *testing.T) {
 	hub := ws.NewHub()
 	go hub.Run()
 
-	service := NewService(hub, db, redisClient)
+	service := NewService(hub, db, redisClient, zap.NewNop())
 
 	conn := createTestWebSocketConn(t)
-	client := ws.NewClient("user-123", conn, hub, "rider")
+	client := ws.NewClient("user-123", conn, hub, "rider", zap.NewNop())
 
 	hub.Register <- client
 	time.Sleep(10 * time.Millisecond)
@@ -879,7 +880,7 @@ func TestRedisError(t *testing.T) {
 	redisClient := &redis.Client{Client: redisDB}
 
 	hub := ws.NewHub()
-	service := NewService(hub, db, redisClient)
+	service := NewService(hub, db, redisClient, zap.NewNop())
 
 	rideID := "ride-123"
 

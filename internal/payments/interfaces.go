@@ -19,6 +19,9 @@ type RepositoryInterface interface {
 	UpdateWalletBalance(ctx context.Context, walletID uuid.UUID, amount float64) error
 	CreateWalletTransaction(ctx context.Context, transaction *models.WalletTransaction) error
 	GetWalletTransactions(ctx context.Context, walletID uuid.UUID, limit, offset int) ([]*models.WalletTransaction, error)
+	GetWalletTransactionsWithTotal(ctx context.Context, walletID uuid.UUID, limit, offset int) ([]*models.WalletTransaction, int64, error)
+	GetRideDriverID(ctx context.Context, rideID uuid.UUID) (*uuid.UUID, error)
+	GetPaymentsByRideID(ctx context.Context, rideID uuid.UUID) ([]*models.Payment, error)
 }
 
 // StripeClientInterface defines the interface for Stripe operations

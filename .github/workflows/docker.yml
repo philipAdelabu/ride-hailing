@@ -18,7 +18,7 @@ jobs:
 
     strategy:
       matrix:
-        service: [auth, rides, geo]
+        service: [auth, rides, geo, payments, notifications, realtime, fraud, analytics, admin, promos, scheduler, ml-eta, mobile, negotiation]
 
     steps:
       - name: Checkout repository
@@ -44,7 +44,7 @@ jobs:
             type=sha
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile

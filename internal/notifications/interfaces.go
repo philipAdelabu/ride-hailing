@@ -17,6 +17,7 @@ type RepositoryInterface interface {
 	GetUserPhoneNumber(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserEmail(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserNotifications(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*models.Notification, error)
+	GetUserNotificationsWithTotal(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*models.Notification, int64, error)
 	MarkNotificationAsRead(ctx context.Context, notificationID uuid.UUID) error
 	GetUnreadNotificationCount(ctx context.Context, userID uuid.UUID) (int, error)
 	GetPendingNotifications(ctx context.Context, limit int) ([]*models.Notification, error)

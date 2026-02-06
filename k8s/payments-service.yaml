@@ -129,3 +129,14 @@ spec:
         value: 2
         periodSeconds: 30
       selectPolicy: Max
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: payments-service-pdb
+  namespace: ridehailing
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: payments-service

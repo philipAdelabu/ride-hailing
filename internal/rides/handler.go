@@ -1,7 +1,6 @@
 package rides
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	"github.com/richxcame/ride-hailing/pkg/models"
+	"github.com/richxcame/ride-hailing/pkg/pagination"
 	"github.com/richxcame/ride-hailing/pkg/ratelimit"
 )
 
@@ -246,22 +246,15 @@ func (h *Handler) GetMyRides(c *gin.Context) {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "10"))
-
-	if page < 1 {
-		page = 1
-	}
-	if perPage < 1 || perPage > 100 {
-		perPage = 10
-	}
+	params := pagination.ParseParams(c)
 
 	var rides []*models.Ride
+	var total int64
 
 	if role == models.RoleRider {
-		rides, err = h.service.GetRiderRides(c.Request.Context(), userID, page, perPage)
+		rides, total, err = h.service.GetRiderRides(c.Request.Context(), userID, params.Limit, params.Offset)
 	} else if role == models.RoleDriver {
-		rides, err = h.service.GetDriverRides(c.Request.Context(), userID, page, perPage)
+		rides, total, err = h.service.GetDriverRides(c.Request.Context(), userID, params.Limit, params.Offset)
 	} else {
 		common.ErrorResponse(c, http.StatusForbidden, "invalid role")
 		return
@@ -276,7 +269,13 @@ func (h *Handler) GetMyRides(c *gin.Context) {
 		return
 	}
 
-	common.SuccessResponse(c, rides)
+	// Ensure empty array instead of null when no rides
+	if rides == nil {
+		rides = []*models.Ride{}
+	}
+
+	meta := pagination.BuildMeta(params.Limit, params.Offset, total)
+	common.SuccessResponseWithMeta(c, rides, meta)
 }
 
 // GetAvailableRides lists ride requests that can be accepted by drivers.
@@ -291,6 +290,11 @@ func (h *Handler) GetAvailableRides(c *gin.Context) {
 		return
 	}
 
+	// Ensure empty array instead of null when no rides
+	if rides == nil {
+		rides = []*models.Ride{}
+	}
+
 	common.SuccessResponse(c, rides)
 }
 
@@ -303,13 +307,7 @@ func (h *Handler) GetRideHistory(c *gin.Context) {
 	status := c.Query("status")
 	startDate := c.Query("start_date")
 	endDate := c.Query("end_date")
-	limitStr := c.DefaultQuery("limit", "20")
-	offsetStr := c.DefaultQuery("offset", "0")
-
-	limit := 20
-	offset := 0
-	fmt.Sscanf(limitStr, "%d", &limit)
-	fmt.Sscanf(offsetStr, "%d", &offset)
+	params := pagination.ParseParams(c)
 
 	// Build filters
 	filters := &RideFilters{}
@@ -339,30 +337,33 @@ func (h *Handler) GetRideHistory(c *gin.Context) {
 			c.Request.Context(),
 			userID.(uuid.UUID),
 			filters,
-			limit,
-			offset,
+			params.Limit,
+			params.Offset,
 		)
 	} else {
 		ridesList, total, err = h.service.repo.GetRidesByRiderWithFilters(
 			c.Request.Context(),
 			userID.(uuid.UUID),
 			filters,
-			limit,
-			offset,
+			params.Limit,
+			params.Offset,
 		)
 	}
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch ride history"})
+		common.ErrorResponse(c, http.StatusInternalServerError, "Failed to fetch ride history")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"rides":  ridesList,
-		"total":  total,
-		"limit":  limit,
-		"offset": offset,
-	})
+	// Ensure empty array instead of null when no rides
+	if ridesList == nil {
+		ridesList = []*models.Ride{}
+	}
+
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(total))
+	common.SuccessResponseWithMeta(c, gin.H{
+		"rides": ridesList,
+	}, meta)
 }
 
 // GetRideReceipt generates a receipt for a completed ride
@@ -511,6 +512,42 @@ func (h *Handler) GetSurgeInfo(c *gin.Context) {
 	common.SuccessResponse(c, surgeInfo)
 }
 
+// MatchDrivers returns the best-scored drivers for a pickup location.
+func (h *Handler) MatchDrivers(c *gin.Context) {
+	latStr := c.Query("latitude")
+	lngStr := c.Query("longitude")
+	if latStr == "" || lngStr == "" {
+		common.ErrorResponse(c, http.StatusBadRequest, "latitude and longitude are required")
+		return
+	}
+
+	lat, err := strconv.ParseFloat(latStr, 64)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid latitude")
+		return
+	}
+	lng, err := strconv.ParseFloat(lngStr, 64)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusBadRequest, "invalid longitude")
+		return
+	}
+
+	candidates, err := h.service.MatchDrivers(c.Request.Context(), lat, lng)
+	if err != nil {
+		if appErr, ok := err.(*common.AppError); ok {
+			common.AppErrorResponse(c, appErr)
+			return
+		}
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to match drivers")
+		return
+	}
+
+	common.SuccessResponse(c, gin.H{
+		"drivers": candidates,
+		"count":   len(candidates),
+	})
+}
+
 // RegisterRoutes registers ride routes
 func (h *Handler) RegisterRoutes(r *gin.Engine, jwtProvider jwtkeys.KeyProvider, limiter *ratelimit.Limiter, rateCfg config.RateLimitConfig) {
 	api := r.Group("/api/v1")
@@ -527,9 +564,10 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, jwtProvider jwtkeys.KeyProvider,
 		riders.POST("", h.RequestRide)
 		riders.GET("/:id", h.GetRide)
 		riders.GET("", h.GetMyRides)
-		riders.GET("/surge-info", h.GetSurgeInfo) // New endpoint
+		riders.GET("/surge-info", h.GetSurgeInfo)
 		riders.POST("/:id/cancel", h.CancelRide)
 		riders.POST("/:id/rate", h.RateRide)
+		riders.GET("/match-drivers", h.MatchDrivers)
 	}
 
 	// Driver routes

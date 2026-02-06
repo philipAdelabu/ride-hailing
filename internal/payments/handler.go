@@ -2,7 +2,6 @@ package payments
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -10,6 +9,7 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	"github.com/richxcame/ride-hailing/pkg/models"
+	"github.com/richxcame/ride-hailing/pkg/pagination"
 )
 
 type Handler struct {
@@ -81,15 +81,22 @@ func (h *Handler) ProcessPayment(c *gin.Context) {
 		return
 	}
 
-	// In a real implementation, you would fetch the driver ID from the ride
-	// For now, we'll use a placeholder
-	driverID := uuid.New()
+	// Fetch the driver ID from the ride
+	driverIDPtr, err := h.service.GetRideDriverID(c.Request.Context(), rideID)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusBadRequest, "ride not found or has no driver assigned")
+		return
+	}
+	if driverIDPtr == nil {
+		common.ErrorResponse(c, http.StatusBadRequest, "ride has no driver assigned yet")
+		return
+	}
 
 	payment, err := h.service.ProcessRidePayment(
 		c.Request.Context(),
 		rideID,
 		userUUID,
-		driverID,
+		*driverIDPtr,
 		req.Amount,
 		req.PaymentMethod,
 	)
@@ -171,19 +178,13 @@ func (h *Handler) GetWalletTransactions(c *gin.Context) {
 		return
 	}
 
-	// Parse pagination parameters
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	params := pagination.ParseParams(c)
 
-	if limit > 100 {
-		limit = 100
-	}
-
-	transactions, err := h.service.GetWalletTransactions(
+	transactions, total, err := h.service.GetWalletTransactions(
 		c.Request.Context(),
 		userUUID,
-		limit,
-		offset,
+		params.Limit,
+		params.Offset,
 	)
 
 	if err != nil {
@@ -196,11 +197,8 @@ func (h *Handler) GetWalletTransactions(c *gin.Context) {
 		return
 	}
 
-	common.SuccessResponseWithMeta(c, transactions, &common.Meta{
-		Limit:  limit,
-		Offset: offset,
-		Total:  int64(len(transactions)),
-	})
+	meta := pagination.BuildMeta(params.Limit, params.Offset, total)
+	common.SuccessResponseWithMeta(c, transactions, meta)
 }
 
 // GetPayment retrieves payment details
@@ -327,5 +325,5 @@ func (h *Handler) HandleStripeWebhook(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"received": true})
+	common.SuccessResponse(c, gin.H{"received": true})
 }

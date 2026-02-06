@@ -3,9 +3,12 @@ package main
 import (
 	"context"
 	"database/sql"
-	"log"
+	stdlog "log"
+	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -16,19 +19,36 @@ import (
 	"github.com/richxcame/ride-hailing/pkg/config"
 	"github.com/richxcame/ride-hailing/pkg/errors"
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
+	"github.com/richxcame/ride-hailing/pkg/logger"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	"github.com/richxcame/ride-hailing/pkg/redis"
+	"github.com/richxcame/ride-hailing/pkg/swagger"
 	"github.com/richxcame/ride-hailing/pkg/tracing"
 	ws "github.com/richxcame/ride-hailing/pkg/websocket"
+	"go.uber.org/zap"
 )
 
 func main() {
+	// Set default port for realtime service if not set
+	if os.Getenv("PORT") == "" {
+		os.Setenv("PORT", "8086")
+	}
 	// Load configuration
 	cfg, err := config.Load("realtime")
 	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+		stdlog.Fatalf("Failed to load config: %v", err)
 	}
 	defer cfg.Close()
+
+	// Initialize logger
+	environment := os.Getenv("ENVIRONMENT")
+	if environment == "" {
+		environment = "development"
+	}
+	if err := logger.Init(environment); err != nil {
+		stdlog.Fatalf("Failed to initialize logger: %v", err)
+	}
+	defer logger.Sync()
 
 	port := cfg.Server.Port
 
@@ -37,7 +57,7 @@ func main() {
 
 	jwtProvider, err := jwtkeys.NewManagerFromConfig(rootCtx, cfg.JWT, true)
 	if err != nil {
-		log.Fatalf("Failed to initialize JWT key manager: %v", err)
+		logger.Fatal("Failed to initialize JWT key manager", zap.Error(err))
 	}
 	jwtProvider.StartAutoRefresh(rootCtx, time.Duration(cfg.JWT.RefreshMinutes)*time.Minute)
 
@@ -46,15 +66,26 @@ func main() {
 
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		logger.Fatal("Failed to connect to database", zap.Error(err))
 	}
 	defer db.Close()
 
 	// Test database connection
 	if err := db.Ping(); err != nil {
-		log.Fatalf("Failed to ping database: %v", err)
+		logger.Fatal("Failed to ping database", zap.Error(err))
 	}
-	log.Println("Connected to PostgreSQL database")
+	logger.Info("Connected to PostgreSQL database")
+
+	// Initialize Sentry for error tracking
+	sentryConfig := errors.DefaultSentryConfig()
+	sentryConfig.ServerName = "realtime-service"
+	sentryConfig.Release = "1.0.0"
+	if err := errors.InitSentry(sentryConfig); err != nil {
+		logger.Warn("Failed to initialize Sentry, continuing without error tracking", zap.Error(err))
+	} else {
+		defer errors.Flush(2 * time.Second)
+		logger.Info("Sentry error tracking initialized successfully")
+	}
 
 	// Initialize Sentry for error tracking
 	sentryConfig := errors.DefaultSentryConfig()
@@ -78,37 +109,37 @@ func main() {
 			Enabled:        true,
 		}
 
-		// Use a simple logger for tracing (since this service uses standard log)
-		tp, err := tracing.InitTracer(tracerCfg, nil)
+		tp, err := tracing.InitTracer(tracerCfg, logger.Get())
 		if err != nil {
-			log.Printf("Warning: Failed to initialize tracer: %v", err)
+			logger.Warn("Failed to initialize tracer", zap.Error(err))
 		} else {
 			defer func() {
 				shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
 				if err := tp.Shutdown(shutdownCtx); err != nil {
-					log.Printf("Warning: Failed to shutdown tracer: %v", err)
+					logger.Warn("Failed to shutdown tracer", zap.Error(err))
 				}
 			}()
-			log.Println("OpenTelemetry tracing initialized successfully")
+			logger.Info("OpenTelemetry tracing initialized successfully")
 		}
 	}
 
 	// Connect to Redis
 	redisClient, err := redis.NewRedisClient(&cfg.Redis)
 	if err != nil {
-		log.Fatalf("Failed to connect to Redis: %v", err)
+		logger.Fatal("Failed to connect to Redis", zap.Error(err))
 	}
-	log.Println("Connected to Redis")
+	logger.Info("Connected to Redis")
 
 	// Create WebSocket hub
 	hub := ws.NewHub()
 	go hub.Run()
-	log.Println("WebSocket hub started")
+	logger.Info("WebSocket hub started")
 
 	// Create service and handler
-	service := realtime.NewService(hub, db, redisClient)
-	handler := realtime.NewHandler(service)
+	log := logger.Get()
+	service := realtime.NewService(hub, db, redisClient, log)
+	handler := realtime.NewHandler(service, log)
 
 	// Set up Gin router with proper middleware stack
 	if cfg.Server.Environment == "production" {
@@ -124,6 +155,7 @@ func main() {
 	router.Use(middleware.RequestTimeout(&cfg.Timeout))
 	router.Use(middleware.RequestLogger("realtime-service"))
 	router.Use(middleware.SecurityHeaders())
+	router.Use(middleware.MaxBodySize(10 << 20)) // 10MB request body limit
 	router.Use(middleware.SanitizeRequest())
 	router.Use(middleware.Metrics("realtime-service"))
 
@@ -145,11 +177,11 @@ func main() {
 			origins[i] = strings.TrimSpace(origins[i])
 		}
 		corsConfig.AllowOrigins = origins
-		log.Printf("CORS configured with origins: %v", origins)
+		logger.Info("CORS configured with origins", zap.Strings("origins", origins))
 	} else {
 		// Development fallback
 		corsConfig.AllowOrigins = []string{"http://localhost:3000"}
-		log.Println("CORS configured for development (localhost:3000)")
+		logger.Info("CORS configured for development (localhost:3000)")
 	}
 	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
 	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "Authorization"}
@@ -190,6 +222,7 @@ func main() {
 	})
 
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+	swagger.RegisterRoutes(router)
 
 	// API routes
 	api := router.Group("/api/v1")
@@ -208,16 +241,43 @@ func main() {
 
 		// Internal endpoints (for other services to broadcast)
 		internal := api.Group("/internal")
+		internal.Use(middleware.InternalAPIKey())
 		{
 			internal.POST("/broadcast/ride", handler.BroadcastRideUpdate)
 			internal.POST("/broadcast/user", handler.BroadcastToUser)
 		}
 	}
 
-	// Start server
-	addr := ":" + port
-	log.Printf("Real-time service starting on port %s", port)
-	if err := router.Run(addr); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+	// Create HTTP server with timeouts
+	srv := &http.Server{
+		Addr:         ":" + port,
+		Handler:      router,
+		ReadTimeout:  time.Duration(cfg.Server.ReadTimeout) * time.Second,
+		WriteTimeout: time.Duration(cfg.Server.WriteTimeout) * time.Second,
 	}
+
+	// Start server in a goroutine
+	go func() {
+		logger.Info("Real-time service starting", zap.String("port", port))
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Fatal("Failed to start server", zap.Error(err))
+		}
+	}()
+
+	// Wait for interrupt signal to gracefully shutdown the server
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	logger.Info("Shutting down server...")
+
+	// Graceful shutdown with 5 second timeout
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		logger.Fatal("Server forced to shutdown", zap.Error(err))
+	}
+
+	logger.Info("Server stopped")
 }

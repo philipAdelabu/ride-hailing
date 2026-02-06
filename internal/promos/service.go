@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/richxcame/ride-hailing/pkg/cache"
 )
 
 const (
@@ -19,13 +20,21 @@ const (
 // PromosRepository defines the storage operations required by the service.
 type PromosRepository interface {
 	GetPromoCodeByCode(ctx context.Context, code string) (*PromoCode, error)
+	GetPromoCodeByID(ctx context.Context, promoID uuid.UUID) (*PromoCode, error)
 	GetPromoCodeUsesByUser(ctx context.Context, promoID uuid.UUID, userID uuid.UUID) (int, error)
 	CreatePromoCodeUse(ctx context.Context, use *PromoCodeUse) error
 	CreatePromoCode(ctx context.Context, promo *PromoCode) error
+	UpdatePromoCode(ctx context.Context, promo *PromoCode) error
+	DeactivatePromoCode(ctx context.Context, promoID uuid.UUID) error
+	GetAllPromoCodes(ctx context.Context, limit, offset int) ([]*PromoCode, int, error)
+	GetPromoCodeUsageStats(ctx context.Context, promoID uuid.UUID) (map[string]interface{}, error)
 	GetReferralCodeByUserID(ctx context.Context, userID uuid.UUID) (*ReferralCode, error)
 	CreateReferralCode(ctx context.Context, code *ReferralCode) error
 	GetReferralCodeByCode(ctx context.Context, code string) (*ReferralCode, error)
 	CreateReferral(ctx context.Context, referral *Referral) error
+	GetAllReferralCodes(ctx context.Context, limit, offset int) ([]*ReferralCode, int, error)
+	GetReferralByID(ctx context.Context, referralID uuid.UUID) (*Referral, error)
+	GetReferralEarnings(ctx context.Context, userID uuid.UUID) (map[string]interface{}, error)
 	GetAllRideTypes(ctx context.Context) ([]*RideType, error)
 	GetRideTypeByID(ctx context.Context, id uuid.UUID) (*RideType, error)
 	GetReferralByReferredID(ctx context.Context, userID uuid.UUID) (*Referral, error)
@@ -35,7 +44,8 @@ type PromosRepository interface {
 
 // Service handles promo code and referral business logic
 type Service struct {
-	repo PromosRepository
+	repo  PromosRepository
+	cache *cache.Manager
 }
 
 // NewService creates a new promos service
@@ -256,19 +266,54 @@ func (s *Service) ApplyReferralCode(ctx context.Context, referralCode string, ne
 	return nil
 }
 
-// GetAllRideTypes retrieves all available ride types
-func (s *Service) GetAllRideTypes(ctx context.Context) ([]*RideType, error) {
-	return s.repo.GetAllRideTypes(ctx)
+// SetCache sets an optional cache manager for read-heavy operations.
+func (s *Service) SetCache(cm *cache.Manager) {
+	s.cache = cm
 }
 
-// GetRideTypeByID retrieves a specific ride type
+// GetAllRideTypes retrieves all available ride types (cached for 15 minutes).
+func (s *Service) GetAllRideTypes(ctx context.Context) ([]*RideType, error) {
+	if s.cache != nil {
+		var cached []*RideType
+		err := s.cache.GetOrSet(ctx, "ride_types:all", cache.TTL.Medium(), &cached, func() (interface{}, error) {
+			return s.repo.GetAllRideTypes(ctx)
+		})
+		if err == nil {
+			if cached == nil {
+				cached = []*RideType{}
+			}
+			return cached, nil
+		}
+		// Fall through to DB on cache error
+	}
+
+	rideTypes, err := s.repo.GetAllRideTypes(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if rideTypes == nil {
+		rideTypes = []*RideType{}
+	}
+	return rideTypes, nil
+}
+
+// GetRideTypeByID retrieves a specific ride type (cached for 15 minutes).
 func (s *Service) GetRideTypeByID(ctx context.Context, id uuid.UUID) (*RideType, error) {
+	if s.cache != nil {
+		var cached RideType
+		err := s.cache.GetOrSet(ctx, cache.Keys.RideType(id.String()), cache.TTL.Medium(), &cached, func() (interface{}, error) {
+			return s.repo.GetRideTypeByID(ctx, id)
+		})
+		if err == nil {
+			return &cached, nil
+		}
+	}
 	return s.repo.GetRideTypeByID(ctx, id)
 }
 
 // CalculateFareForRideType calculates fare based on ride type
 func (s *Service) CalculateFareForRideType(ctx context.Context, rideTypeID uuid.UUID, distance float64, duration int, surgeMultiplier float64) (float64, error) {
-	rideType, err := s.repo.GetRideTypeByID(ctx, rideTypeID)
+	rideType, err := s.GetRideTypeByID(ctx, rideTypeID)
 	if err != nil {
 		return 0, err
 	}
@@ -348,4 +393,61 @@ func (s *Service) ProcessReferralBonus(ctx context.Context, userID uuid.UUID, ri
 	}
 
 	return result, nil
+}
+
+// GetAllPromoCodes retrieves all promo codes with pagination
+func (s *Service) GetAllPromoCodes(ctx context.Context, limit, offset int) ([]*PromoCode, int, error) {
+	return s.repo.GetAllPromoCodes(ctx, limit, offset)
+}
+
+// GetAllReferralCodes retrieves all referral codes with pagination
+func (s *Service) GetAllReferralCodes(ctx context.Context, limit, offset int) ([]*ReferralCode, int, error) {
+	return s.repo.GetAllReferralCodes(ctx, limit, offset)
+}
+
+// UpdatePromoCode updates an existing promo code
+func (s *Service) UpdatePromoCode(ctx context.Context, promo *PromoCode) error {
+	// Validate promo code
+	if promo.DiscountType != "percentage" && promo.DiscountType != "fixed_amount" {
+		return fmt.Errorf("discount type must be 'percentage' or 'fixed_amount'")
+	}
+
+	if promo.DiscountValue <= 0 {
+		return fmt.Errorf("discount value must be greater than 0")
+	}
+
+	if promo.DiscountType == "percentage" && promo.DiscountValue > 100 {
+		return fmt.Errorf("percentage discount cannot exceed 100%%")
+	}
+
+	if promo.ValidFrom.After(promo.ValidUntil) {
+		return fmt.Errorf("valid_from must be before valid_until")
+	}
+
+	return s.repo.UpdatePromoCode(ctx, promo)
+}
+
+// DeactivatePromoCode deactivates a promo code
+func (s *Service) DeactivatePromoCode(ctx context.Context, promoID uuid.UUID) error {
+	return s.repo.DeactivatePromoCode(ctx, promoID)
+}
+
+// GetPromoCodeByID retrieves a promo code by ID
+func (s *Service) GetPromoCodeByID(ctx context.Context, promoID uuid.UUID) (*PromoCode, error) {
+	return s.repo.GetPromoCodeByID(ctx, promoID)
+}
+
+// GetPromoCodeUsageStats retrieves usage statistics for a promo code
+func (s *Service) GetPromoCodeUsageStats(ctx context.Context, promoID uuid.UUID) (map[string]interface{}, error) {
+	return s.repo.GetPromoCodeUsageStats(ctx, promoID)
+}
+
+// GetReferralByID retrieves a referral by ID
+func (s *Service) GetReferralByID(ctx context.Context, referralID uuid.UUID) (*Referral, error) {
+	return s.repo.GetReferralByID(ctx, referralID)
+}
+
+// GetReferralEarnings retrieves referral earnings for a user
+func (s *Service) GetReferralEarnings(ctx context.Context, userID uuid.UUID) (map[string]interface{}, error) {
+	return s.repo.GetReferralEarnings(ctx, userID)
 }

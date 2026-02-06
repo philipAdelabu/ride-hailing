@@ -85,7 +85,7 @@ func (r *Repository) GetPromoCodePerformance(ctx context.Context, startDate, end
 	}
 	defer rows.Close()
 
-	var results []*PromoCodePerformance
+	results := make([]*PromoCodePerformance, 0)
 	for rows.Next() {
 		perf := &PromoCodePerformance{}
 		err := rows.Scan(
@@ -142,7 +142,7 @@ func (r *Repository) GetRideTypeStats(ctx context.Context, startDate, endDate ti
 	}
 	defer rows.Close()
 
-	var results []*RideTypeStats
+	results := make([]*RideTypeStats, 0)
 	for rows.Next() {
 		stats := &RideTypeStats{}
 		err := rows.Scan(
@@ -237,7 +237,7 @@ func (r *Repository) GetTopDrivers(ctx context.Context, startDate, endDate time.
 	}
 	defer rows.Close()
 
-	var results []*DriverPerformance
+	results := make([]*DriverPerformance, 0)
 	for rows.Next() {
 		perf := &DriverPerformance{}
 		err := rows.Scan(
@@ -335,13 +335,12 @@ func (r *Repository) GetDemandHeatMap(ctx context.Context, startDate, endDate ti
 			COALESCE(AVG(final_fare), 0) as avg_fare,
 			COALESCE(AVG(surge_multiplier), 1.0) as avg_surge
 		FROM rides
-		WHERE status = 'completed'
-		  AND completed_at >= $1
-		  AND completed_at <= $2
+		WHERE created_at >= $1
+		  AND created_at <= $2
 		  AND pickup_latitude IS NOT NULL
 		  AND pickup_longitude IS NOT NULL
 		GROUP BY grid_lat, grid_lon
-		HAVING COUNT(*) >= 3
+		HAVING COUNT(*) >= 1
 		ORDER BY ride_count DESC
 		LIMIT 100
 	`
@@ -352,7 +351,7 @@ func (r *Repository) GetDemandHeatMap(ctx context.Context, startDate, endDate ti
 	}
 	defer rows.Close()
 
-	var results []*DemandHeatMap
+	results := make([]*DemandHeatMap, 0)
 	for rows.Next() {
 		heatMap := &DemandHeatMap{}
 		var avgSurge float64
@@ -489,7 +488,7 @@ func (r *Repository) GetFinancialReport(ctx context.Context, startDate, endDate 
 // GetDemandZones identifies high-demand geographic zones
 func (r *Repository) GetDemandZones(ctx context.Context, startDate, endDate time.Time, minRides int) ([]*DemandZone, error) {
 	if minRides == 0 {
-		minRides = 20 // Default minimum rides to qualify as a zone
+		minRides = 1 // Default minimum rides to qualify as a zone
 	}
 
 	query := `
@@ -501,9 +500,10 @@ func (r *Repository) GetDemandZones(ctx context.Context, startDate, endDate time
 				COALESCE(AVG(surge_multiplier), 1.0) as avg_surge,
 				ARRAY_AGG(DISTINCT EXTRACT(HOUR FROM requested_at)::int ORDER BY EXTRACT(HOUR FROM requested_at)::int) as hours
 			FROM rides
-			WHERE status = 'completed'
-			  AND completed_at >= $1
-			  AND completed_at <= $2
+			WHERE created_at >= $1
+			  AND created_at <= $2
+			  AND pickup_latitude IS NOT NULL
+			  AND pickup_longitude IS NOT NULL
 			GROUP BY zone_lat, zone_lon
 			HAVING COUNT(*) >= $3
 		)
@@ -524,7 +524,7 @@ func (r *Repository) GetDemandZones(ctx context.Context, startDate, endDate time
 	}
 	defer rows.Close()
 
-	var results []*DemandZone
+	results := make([]*DemandZone, 0)
 	zoneNum := 1
 	for rows.Next() {
 		zone := &DemandZone{
@@ -561,4 +561,393 @@ func (r *Repository) GetDemandZones(ctx context.Context, startDate, endDate time
 	}
 
 	return results, nil
+}
+
+// GetRevenueTimeSeries retrieves time-series revenue data for charts
+func (r *Repository) GetRevenueTimeSeries(ctx context.Context, startDate, endDate time.Time, granularity string) ([]*RevenueTimeSeries, error) {
+	var dateFormat, groupBy string
+	switch granularity {
+	case "week":
+		dateFormat = "YYYY-WW"
+		groupBy = "DATE_TRUNC('week', completed_at)"
+	case "month":
+		dateFormat = "YYYY-MM"
+		groupBy = "DATE_TRUNC('month', completed_at)"
+	default: // day
+		dateFormat = "YYYY-MM-DD"
+		groupBy = "DATE(completed_at)"
+	}
+
+	query := fmt.Sprintf(`
+		SELECT
+			TO_CHAR(%s, '%s') as date,
+			COALESCE(SUM(final_fare), 0) as revenue,
+			COUNT(*) as rides,
+			COALESCE(AVG(final_fare), 0) as avg_fare
+		FROM rides
+		WHERE status = 'completed'
+		  AND completed_at >= $1
+		  AND completed_at <= $2
+		GROUP BY %s
+		ORDER BY %s ASC
+	`, groupBy, dateFormat, groupBy, groupBy)
+
+	rows, err := r.db.Query(ctx, query, startDate, endDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get revenue timeseries: %w", err)
+	}
+	defer rows.Close()
+
+	results := make([]*RevenueTimeSeries, 0)
+	for rows.Next() {
+		ts := &RevenueTimeSeries{}
+		err := rows.Scan(&ts.Date, &ts.Revenue, &ts.Rides, &ts.AvgFare)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan revenue timeseries: %w", err)
+		}
+		results = append(results, ts)
+	}
+
+	return results, nil
+}
+
+// GetHourlyDistribution retrieves ride distribution by hour
+func (r *Repository) GetHourlyDistribution(ctx context.Context, startDate, endDate time.Time) ([]*HourlyDistribution, error) {
+	query := `
+		SELECT
+			EXTRACT(HOUR FROM requested_at)::int as hour,
+			COUNT(*) as rides,
+			COALESCE(AVG(final_fare), 0) as avg_fare,
+			COALESCE(AVG(EXTRACT(EPOCH FROM (accepted_at - requested_at)) / 60), 0) as avg_wait_time
+		FROM rides
+		WHERE created_at >= $1
+		  AND created_at <= $2
+		GROUP BY hour
+		ORDER BY hour ASC
+	`
+
+	rows, err := r.db.Query(ctx, query, startDate, endDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get hourly distribution: %w", err)
+	}
+	defer rows.Close()
+
+	results := make([]*HourlyDistribution, 0)
+	for rows.Next() {
+		hd := &HourlyDistribution{}
+		err := rows.Scan(&hd.Hour, &hd.Rides, &hd.AvgFare, &hd.AvgWaitTime)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan hourly distribution: %w", err)
+		}
+		results = append(results, hd)
+	}
+
+	return results, nil
+}
+
+// GetDriverAnalytics retrieves overall driver performance analytics
+func (r *Repository) GetDriverAnalytics(ctx context.Context, startDate, endDate time.Time) (*DriverAnalytics, error) {
+	analytics := &DriverAnalytics{}
+
+	// Get total active drivers and avg rides per driver
+	query1 := `
+		SELECT
+			COUNT(DISTINCT d.id) as active_drivers,
+			COALESCE(COUNT(r.id)::float / NULLIF(COUNT(DISTINCT d.id), 0), 0) as avg_rides_per_driver,
+			COALESCE(AVG(d.rating), 0) as avg_rating
+		FROM drivers d
+		LEFT JOIN rides r ON d.id = r.driver_id
+			AND r.created_at >= $1
+			AND r.created_at <= $2
+		WHERE d.is_available = true
+	`
+
+	err := r.db.QueryRow(ctx, query1, startDate, endDate).Scan(
+		&analytics.TotalActiveDrivers,
+		&analytics.AvgRidesPerDriver,
+		&analytics.AvgRating,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get driver analytics: %w", err)
+	}
+
+	// Get cancellation rates
+	query2 := `
+		SELECT
+			COALESCE(COUNT(*) FILTER (WHERE status = 'cancelled')::float / NULLIF(COUNT(*), 0) * 100, 0) as cancellation_rate,
+			COALESCE(COUNT(*) FILTER (WHERE status IN ('accepted', 'in_progress', 'completed'))::float / NULLIF(COUNT(*), 0) * 100, 0) as acceptance_rate
+		FROM rides
+		WHERE driver_id IS NOT NULL
+		  AND created_at >= $1
+		  AND created_at <= $2
+	`
+
+	err = r.db.QueryRow(ctx, query2, startDate, endDate).Scan(
+		&analytics.AvgCancellationRate,
+		&analytics.AvgAcceptanceRate,
+	)
+	if err != nil {
+		analytics.AvgCancellationRate = 0
+		analytics.AvgAcceptanceRate = 0
+	}
+
+	// Get new drivers in period
+	err = r.db.QueryRow(ctx, `
+		SELECT COUNT(*) FROM drivers WHERE created_at >= $1 AND created_at <= $2
+	`, startDate, endDate).Scan(&analytics.NewDrivers)
+	if err != nil {
+		analytics.NewDrivers = 0
+	}
+
+	return analytics, nil
+}
+
+// GetRiderGrowth retrieves rider growth and retention metrics
+func (r *Repository) GetRiderGrowth(ctx context.Context, startDate, endDate time.Time) (*RiderGrowth, error) {
+	growth := &RiderGrowth{}
+	today := time.Now().Truncate(24 * time.Hour)
+
+	// New riders in period
+	err := r.db.QueryRow(ctx, `
+		SELECT COUNT(*) FROM users
+		WHERE role = 'rider'
+		  AND created_at >= $1
+		  AND created_at <= $2
+	`, startDate, endDate).Scan(&growth.NewRiders)
+	if err != nil {
+		growth.NewRiders = 0
+	}
+
+	// Returning riders (made more than 1 ride in period)
+	err = r.db.QueryRow(ctx, `
+		SELECT COUNT(DISTINCT rider_id) FROM (
+			SELECT rider_id FROM rides
+			WHERE created_at >= $1 AND created_at <= $2
+			GROUP BY rider_id
+			HAVING COUNT(*) > 1
+		) as returning
+	`, startDate, endDate).Scan(&growth.ReturningRiders)
+	if err != nil {
+		growth.ReturningRiders = 0
+	}
+
+	// Avg rides per rider
+	err = r.db.QueryRow(ctx, `
+		SELECT COALESCE(COUNT(*)::float / NULLIF(COUNT(DISTINCT rider_id), 0), 0)
+		FROM rides
+		WHERE created_at >= $1 AND created_at <= $2
+	`, startDate, endDate).Scan(&growth.AvgRidesPerRider)
+	if err != nil {
+		growth.AvgRidesPerRider = 0
+	}
+
+	// First time riders today
+	err = r.db.QueryRow(ctx, `
+		SELECT COUNT(*) FROM users
+		WHERE role = 'rider'
+		  AND created_at >= $1
+	`, today).Scan(&growth.FirstTimeRidersToday)
+	if err != nil {
+		growth.FirstTimeRidersToday = 0
+	}
+
+	// Calculate retention rate (riders who made a ride this period vs last period)
+	var totalRiders int
+	err = r.db.QueryRow(ctx, `SELECT COUNT(*) FROM users WHERE role = 'rider' AND is_active = true`).Scan(&totalRiders)
+	if err == nil && totalRiders > 0 {
+		growth.RetentionRate = float64(growth.ReturningRiders) / float64(totalRiders) * 100
+	}
+
+	// Lifetime value avg (total revenue / total riders)
+	err = r.db.QueryRow(ctx, `
+		SELECT COALESCE(SUM(final_fare) / NULLIF(COUNT(DISTINCT rider_id), 0), 0)
+		FROM rides
+		WHERE status = 'completed'
+	`).Scan(&growth.LifetimeValueAvg)
+	if err != nil {
+		growth.LifetimeValueAvg = 0
+	}
+
+	return growth, nil
+}
+
+// GetRideMetrics retrieves quality of service metrics
+func (r *Repository) GetRideMetrics(ctx context.Context, startDate, endDate time.Time) (*RideMetrics, error) {
+	metrics := &RideMetrics{}
+
+	query := `
+		SELECT
+			COALESCE(AVG(EXTRACT(EPOCH FROM (accepted_at - requested_at)) / 60) FILTER (WHERE accepted_at IS NOT NULL), 0) as avg_wait_time,
+			COALESCE(AVG(actual_duration) FILTER (WHERE actual_duration IS NOT NULL), 0) as avg_duration,
+			COALESCE(AVG(actual_distance) FILTER (WHERE actual_distance IS NOT NULL), 0) as avg_distance,
+			COALESCE(COUNT(*) FILTER (WHERE status = 'cancelled')::float / NULLIF(COUNT(*), 0) * 100, 0) as cancellation_rate,
+			COALESCE(COUNT(*) FILTER (WHERE status = 'cancelled' AND cancellation_reason LIKE '%rider%')::float / NULLIF(COUNT(*), 0) * 100, 0) as rider_cancel_rate,
+			COALESCE(COUNT(*) FILTER (WHERE status = 'cancelled' AND cancellation_reason LIKE '%driver%')::float / NULLIF(COUNT(*), 0) * 100, 0) as driver_cancel_rate,
+			COALESCE(COUNT(*) FILTER (WHERE surge_multiplier > 1.0)::float / NULLIF(COUNT(*), 0) * 100, 0) as surge_percentage,
+			COALESCE(AVG(surge_multiplier) FILTER (WHERE surge_multiplier > 1.0), 1.0) as avg_surge
+		FROM rides
+		WHERE created_at >= $1
+		  AND created_at <= $2
+	`
+
+	err := r.db.QueryRow(ctx, query, startDate, endDate).Scan(
+		&metrics.AvgWaitTimeMinutes,
+		&metrics.AvgRideDurationMinutes,
+		&metrics.AvgDistanceKm,
+		&metrics.CancellationRate,
+		&metrics.RiderCancellationRate,
+		&metrics.DriverCancellationRate,
+		&metrics.SurgeRidesPercentage,
+		&metrics.AvgSurgeMultiplier,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ride metrics: %w", err)
+	}
+
+	return metrics, nil
+}
+
+// GetTopDriversDetailed retrieves top performing drivers with detailed metrics
+func (r *Repository) GetTopDriversDetailed(ctx context.Context, startDate, endDate time.Time, limit int) ([]*TopDriver, error) {
+	query := `
+		SELECT
+			d.id,
+			COALESCE(u.first_name || ' ' || u.last_name, u.email) as name,
+			COUNT(r.id) as total_rides,
+			COALESCE(SUM(r.final_fare), 0) as total_revenue,
+			COALESCE(d.rating, 0) as avg_rating,
+			COALESCE(COUNT(*) FILTER (WHERE r.status IN ('accepted', 'in_progress', 'completed'))::float / NULLIF(COUNT(*), 0) * 100, 0) as acceptance_rate,
+			COALESCE(d.total_rides::float * 0.5, 0) as online_hours
+		FROM drivers d
+		JOIN users u ON d.user_id = u.id
+		LEFT JOIN rides r ON d.id = r.driver_id
+			AND r.created_at >= $1
+			AND r.created_at <= $2
+		GROUP BY d.id, u.first_name, u.last_name, u.email, d.rating, d.total_rides
+		HAVING COUNT(r.id) > 0
+		ORDER BY total_revenue DESC
+		LIMIT $3
+	`
+
+	rows, err := r.db.Query(ctx, query, startDate, endDate, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get top drivers: %w", err)
+	}
+	defer rows.Close()
+
+	results := make([]*TopDriver, 0)
+	for rows.Next() {
+		driver := &TopDriver{}
+		err := rows.Scan(
+			&driver.DriverID,
+			&driver.Name,
+			&driver.TotalRides,
+			&driver.TotalRevenue,
+			&driver.AvgRating,
+			&driver.AcceptanceRate,
+			&driver.OnlineHours,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan top driver: %w", err)
+		}
+		results = append(results, driver)
+	}
+
+	return results, nil
+}
+
+// GetPeriodComparison compares metrics between two periods
+func (r *Repository) GetPeriodComparison(ctx context.Context, currentStart, currentEnd, previousStart, previousEnd time.Time) (*PeriodComparison, error) {
+	comparison := &PeriodComparison{}
+
+	// Get current period metrics
+	var currentRevenue, currentRating float64
+	var currentRides, currentNewRiders int
+
+	err := r.db.QueryRow(ctx, `
+		SELECT
+			COALESCE(SUM(final_fare), 0),
+			COUNT(*),
+			COALESCE(AVG(rating), 0)
+		FROM rides
+		WHERE status = 'completed'
+		  AND completed_at >= $1
+		  AND completed_at <= $2
+	`, currentStart, currentEnd).Scan(&currentRevenue, &currentRides, &currentRating)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current period metrics: %w", err)
+	}
+
+	err = r.db.QueryRow(ctx, `
+		SELECT COUNT(*) FROM users
+		WHERE role = 'rider' AND created_at >= $1 AND created_at <= $2
+	`, currentStart, currentEnd).Scan(&currentNewRiders)
+	if err != nil {
+		currentNewRiders = 0
+	}
+
+	// Get previous period metrics
+	var previousRevenue, previousRating float64
+	var previousRides, previousNewRiders int
+
+	err = r.db.QueryRow(ctx, `
+		SELECT
+			COALESCE(SUM(final_fare), 0),
+			COUNT(*),
+			COALESCE(AVG(rating), 0)
+		FROM rides
+		WHERE status = 'completed'
+		  AND completed_at >= $1
+		  AND completed_at <= $2
+	`, previousStart, previousEnd).Scan(&previousRevenue, &previousRides, &previousRating)
+	if err != nil {
+		previousRevenue = 0
+		previousRides = 0
+		previousRating = 0
+	}
+
+	err = r.db.QueryRow(ctx, `
+		SELECT COUNT(*) FROM users
+		WHERE role = 'rider' AND created_at >= $1 AND created_at <= $2
+	`, previousStart, previousEnd).Scan(&previousNewRiders)
+	if err != nil {
+		previousNewRiders = 0
+	}
+
+	// Calculate comparisons
+	comparison.Revenue = ComparisonMetric{
+		Current:       currentRevenue,
+		Previous:      previousRevenue,
+		ChangePercent: calculateChangePercent(currentRevenue, previousRevenue),
+	}
+
+	comparison.Rides = ComparisonMetric{
+		Current:       float64(currentRides),
+		Previous:      float64(previousRides),
+		ChangePercent: calculateChangePercent(float64(currentRides), float64(previousRides)),
+	}
+
+	comparison.NewRiders = ComparisonMetric{
+		Current:       float64(currentNewRiders),
+		Previous:      float64(previousNewRiders),
+		ChangePercent: calculateChangePercent(float64(currentNewRiders), float64(previousNewRiders)),
+	}
+
+	comparison.AvgRating = ComparisonMetric{
+		Current:       currentRating,
+		Previous:      previousRating,
+		ChangePercent: calculateChangePercent(currentRating, previousRating),
+	}
+
+	return comparison, nil
+}
+
+func calculateChangePercent(current, previous float64) float64 {
+	if previous == 0 {
+		if current > 0 {
+			return 100
+		}
+		return 0
+	}
+	return ((current - previous) / previous) * 100
 }

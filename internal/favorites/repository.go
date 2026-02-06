@@ -104,7 +104,7 @@ func (r *Repository) GetFavoritesByUser(ctx context.Context, userID uuid.UUID) (
 	}
 	defer rows.Close()
 
-	var favorites []*FavoriteLocation
+	favorites := make([]*FavoriteLocation, 0)
 	for rows.Next() {
 		favorite := &FavoriteLocation{}
 		err := rows.Scan(

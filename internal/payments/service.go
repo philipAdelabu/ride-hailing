@@ -9,25 +9,48 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/richxcame/ride-hailing/pkg/common"
+	"github.com/richxcame/ride-hailing/pkg/config"
 	"github.com/richxcame/ride-hailing/pkg/logger"
 	"github.com/richxcame/ride-hailing/pkg/models"
 )
 
+// Default rates used when no config is provided
 const (
-	commissionRate      = 0.20 // 20% platform commission
-	cancellationFeeRate = 0.10 // 10% cancellation fee
+	defaultCommissionRate      = 0.20 // 20% platform commission
+	defaultCancellationFeeRate = 0.10 // 10% cancellation fee
 )
 
 type Service struct {
-	repo         RepositoryInterface
-	stripeClient StripeClientInterface
+	repo                RepositoryInterface
+	stripeClient        StripeClientInterface
+	commissionRate      float64
+	cancellationFeeRate float64
 }
 
-func NewService(repo RepositoryInterface, stripeClient StripeClientInterface) *Service {
-	return &Service{
-		repo:         repo,
-		stripeClient: stripeClient,
+func NewService(repo RepositoryInterface, stripeClient StripeClientInterface, cfg *config.BusinessConfig) *Service {
+	commissionRate := defaultCommissionRate
+	cancellationFeeRate := defaultCancellationFeeRate
+
+	if cfg != nil {
+		if cfg.CommissionRate > 0 {
+			commissionRate = cfg.CommissionRate
+		}
+		if cfg.CancellationFeeRate > 0 {
+			cancellationFeeRate = cfg.CancellationFeeRate
+		}
 	}
+
+	return &Service{
+		repo:                repo,
+		stripeClient:        stripeClient,
+		commissionRate:      commissionRate,
+		cancellationFeeRate: cancellationFeeRate,
+	}
+}
+
+// GetRideDriverID retrieves the driver ID for a given ride
+func (s *Service) GetRideDriverID(ctx context.Context, rideID uuid.UUID) (*uuid.UUID, error) {
+	return s.repo.GetRideDriverID(ctx, rideID)
 }
 
 // ProcessRidePayment processes payment for a completed ride
@@ -228,7 +251,7 @@ func (s *Service) PayoutToDriver(ctx context.Context, paymentID uuid.UUID) error
 	}
 
 	// Calculate driver earnings (total - commission)
-	commission := payment.Amount * commissionRate
+	commission := payment.Amount * s.commissionRate
 	driverEarnings := payment.Amount - commission
 
 	// Get driver's wallet
@@ -260,7 +283,7 @@ func (s *Service) PayoutToDriver(ctx context.Context, paymentID uuid.UUID) error
 		WalletID:      driverWallet.ID,
 		Type:          "credit",
 		Amount:        driverEarnings,
-		Description:   fmt.Sprintf("Earnings from ride %s (%.2f%% commission)", payment.RideID, commissionRate*100),
+		Description:   fmt.Sprintf("Earnings from ride %s (%.2f%% commission)", payment.RideID, s.commissionRate*100),
 		ReferenceType: "ride",
 		ReferenceID:   &payment.RideID,
 		BalanceBefore: driverWallet.Balance,
@@ -297,7 +320,7 @@ func (s *Service) ProcessRefund(ctx context.Context, paymentID uuid.UUID, reason
 
 	// Apply cancellation fee if applicable
 	if reason == "rider_cancelled" {
-		cancellationFee := payment.Amount * cancellationFeeRate
+		cancellationFee := payment.Amount * s.cancellationFeeRate
 		refundAmount = payment.Amount - cancellationFee
 		logger.Get().Info("Applying cancellation fee", zap.String("payment_id", paymentID.String()), zap.Float64("fee", cancellationFee))
 	}
@@ -363,13 +386,13 @@ func (s *Service) GetWallet(ctx context.Context, userID uuid.UUID) (*models.Wall
 }
 
 // GetWalletTransactions retrieves wallet transaction history
-func (s *Service) GetWalletTransactions(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*models.WalletTransaction, error) {
+func (s *Service) GetWalletTransactions(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*models.WalletTransaction, int64, error) {
 	wallet, err := s.repo.GetWalletByUserID(ctx, userID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	return s.repo.GetWalletTransactions(ctx, wallet.ID, limit, offset)
+	return s.repo.GetWalletTransactionsWithTotal(ctx, wallet.ID, limit, offset)
 }
 
 // HandleStripeWebhook handles Stripe webhook events

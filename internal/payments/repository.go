@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/richxcame/ride-hailing/pkg/common"
+	"github.com/richxcame/ride-hailing/pkg/database"
 	"github.com/richxcame/ride-hailing/pkg/models"
 )
 
@@ -86,12 +87,22 @@ func (r *Repository) UpdatePaymentStatus(ctx context.Context, id uuid.UUID, stat
 		SET status = $1, stripe_charge_id = COALESCE($2, stripe_charge_id), updated_at = NOW()
 		WHERE id = $3`
 
-	_, err := r.db.Exec(ctx, query, status, stripeChargeID, id)
+	_, err := database.RetryableExec(ctx, r.db, query, status, stripeChargeID, id)
 	if err != nil {
 		return common.NewInternalError("failed to update payment status", err)
 	}
 
 	return nil
+}
+
+// GetRideDriverID retrieves the driver ID for a given ride
+func (r *Repository) GetRideDriverID(ctx context.Context, rideID uuid.UUID) (*uuid.UUID, error) {
+	var driverID *uuid.UUID
+	err := r.db.QueryRow(ctx, "SELECT driver_id FROM rides WHERE id = $1", rideID).Scan(&driverID)
+	if err != nil {
+		return nil, common.NewNotFoundError("ride not found", err)
+	}
+	return driverID, nil
 }
 
 // GetPaymentsByRideID retrieves payments for a specific ride
@@ -110,7 +121,7 @@ func (r *Repository) GetPaymentsByRideID(ctx context.Context, rideID uuid.UUID) 
 	}
 	defer rows.Close()
 
-	var payments []*models.Payment
+	payments := make([]*models.Payment, 0)
 	for rows.Next() {
 		payment := &models.Payment{}
 		err := rows.Scan(
@@ -251,7 +262,7 @@ func (r *Repository) GetWalletTransactions(ctx context.Context, walletID uuid.UU
 	}
 	defer rows.Close()
 
-	var transactions []*models.WalletTransaction
+	transactions := make([]*models.WalletTransaction, 0)
 	for rows.Next() {
 		tx := &models.WalletTransaction{}
 		err := rows.Scan(
@@ -275,6 +286,25 @@ func (r *Repository) GetWalletTransactions(ctx context.Context, walletID uuid.UU
 	return transactions, nil
 }
 
+// GetWalletTransactionsWithTotal retrieves wallet transaction history with total count
+func (r *Repository) GetWalletTransactionsWithTotal(ctx context.Context, walletID uuid.UUID, limit, offset int) ([]*models.WalletTransaction, int64, error) {
+	// Get total count
+	var total int64
+	countQuery := `SELECT COUNT(*) FROM wallet_transactions WHERE wallet_id = $1`
+	err := r.db.QueryRow(ctx, countQuery, walletID).Scan(&total)
+	if err != nil {
+		return nil, 0, common.NewInternalError("failed to count wallet transactions", err)
+	}
+
+	// Get paginated transactions
+	transactions, err := r.GetWalletTransactions(ctx, walletID, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return transactions, total, nil
+}
+
 // ProcessPaymentWithWallet handles payment using wallet balance in a transaction
 func (r *Repository) ProcessPaymentWithWallet(ctx context.Context, payment *models.Payment, walletTx *models.WalletTransaction) error {
 	// Start database transaction
@@ -283,6 +313,19 @@ func (r *Repository) ProcessPaymentWithWallet(ctx context.Context, payment *mode
 		return common.NewInternalError("failed to start transaction", err)
 	}
 	defer tx.Rollback(ctx)
+
+	// Idempotency guard: skip if a completed payment already exists for this ride
+	var existingCount int
+	err = tx.QueryRow(ctx,
+		`SELECT COUNT(*) FROM payments WHERE ride_id = $1 AND status = 'completed'`,
+		payment.RideID,
+	).Scan(&existingCount)
+	if err != nil {
+		return common.NewInternalError("failed to check existing payment", err)
+	}
+	if existingCount > 0 {
+		return common.NewBadRequestError("payment already processed for this ride", nil)
+	}
 
 	// Get current wallet balance
 	var currentBalance float64

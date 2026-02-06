@@ -3,38 +3,57 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	stdlog "log"
+	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/richxcame/ride-hailing/internal/admin"
+	"github.com/richxcame/ride-hailing/pkg/common"
 	"github.com/richxcame/ride-hailing/pkg/config"
 	"github.com/richxcame/ride-hailing/pkg/errors"
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
+	"github.com/richxcame/ride-hailing/pkg/logger"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
+	"github.com/richxcame/ride-hailing/pkg/swagger"
 	"github.com/richxcame/ride-hailing/pkg/tracing"
+	"go.uber.org/zap"
 )
 
 func main() {
+	// Set default port for admin service if not set
+	if os.Getenv("PORT") == "" {
+		os.Setenv("PORT", "8088")
+	}
+
 	// Load configuration
 	cfg, err := config.Load("admin")
 	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+		stdlog.Fatalf("Failed to load config: %v", err)
 	}
 	defer cfg.Close()
 
+	// Initialize logger
+	environment := getEnv("ENVIRONMENT", "development")
+	if err := logger.Init(environment); err != nil {
+		stdlog.Fatalf("Failed to initialize logger: %v", err)
+	}
+	defer logger.Sync()
+
+	logger.Info("Starting admin service",
+		zap.String("service", "admin-service"),
+		zap.String("version", "1.0.0"),
+		zap.String("environment", environment),
+	)
+
 	// Load environment variables
-	dbHost := getEnv("DB_HOST", "localhost")
-	dbPort := getEnv("DB_PORT", "5432")
-	dbUser := getEnv("DB_USER", "postgres")
-	dbPassword := getEnv("DB_PASSWORD", "postgres")
-	dbName := getEnv("DB_NAME", "ride_hailing")
-	jwtSecret := getEnv("JWT_SECRET", "your-secret-key")
-	port := getEnv("PORT", "8088")
+	jwtSecret := getEnv("JWT_SECRET", "")
 	rootCtx, cancelKeys := context.WithCancel(context.Background())
 	defer cancelKeys()
 
@@ -46,18 +65,18 @@ func main() {
 		ReadOnly:         true,
 	})
 	if err != nil {
-		log.Fatalf("Failed to initialize JWT key manager: %v", err)
+		logger.Fatal("Failed to initialize JWT key manager", zap.Error(err))
 	}
 	jwtProvider.StartAutoRefresh(rootCtx, time.Duration(getEnvAsInt("JWT_KEY_REFRESH_MINUTES", 5))*time.Minute)
 
 	// Connect to PostgreSQL
-	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
-		dbUser, dbPassword, dbHost, dbPort, dbName)
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+		cfg.Database.User, cfg.Database.Password, cfg.Database.Host, cfg.Database.Port, cfg.Database.DBName, cfg.Database.SSLMode)
 
 	ctx := rootCtx
 	poolConfig, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
-		log.Fatalf("Failed to parse database config: %v", err)
+		logger.Fatal("Failed to parse database config", zap.Error(err))
 	}
 
 	poolConfig.MaxConns = 25
@@ -67,25 +86,25 @@ func main() {
 
 	db, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		logger.Fatal("Failed to connect to database", zap.Error(err))
 	}
 	defer db.Close()
 
 	// Test database connection
 	if err := db.Ping(ctx); err != nil {
-		log.Fatalf("Failed to ping database: %v", err)
+		logger.Fatal("Failed to ping database", zap.Error(err))
 	}
-	log.Println("Connected to PostgreSQL database")
+	logger.Info("Connected to PostgreSQL database")
 
 	// Initialize Sentry for error tracking
 	sentryConfig := errors.DefaultSentryConfig()
 	sentryConfig.ServerName = "admin-service"
 	sentryConfig.Release = "1.0.0"
 	if err := errors.InitSentry(sentryConfig); err != nil {
-		log.Printf("Warning: Failed to initialize Sentry, continuing without error tracking: %v", err)
+		logger.Warn("Failed to initialize Sentry, continuing without error tracking", zap.Error(err))
 	} else {
 		defer errors.Flush(2 * time.Second)
-		log.Println("Sentry error tracking initialized successfully")
+		logger.Info("Sentry error tracking initialized successfully")
 	}
 
 	// Initialize OpenTelemetry tracer
@@ -94,23 +113,23 @@ func main() {
 		tracerCfg := tracing.Config{
 			ServiceName:    os.Getenv("OTEL_SERVICE_NAME"),
 			ServiceVersion: os.Getenv("OTEL_SERVICE_VERSION"),
-			Environment:    getEnv("ENVIRONMENT", "development"),
+			Environment:    environment,
 			OTLPEndpoint:   os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
 			Enabled:        true,
 		}
 
-		tp, err := tracing.InitTracer(tracerCfg, nil)
+		tp, err := tracing.InitTracer(tracerCfg, logger.Get())
 		if err != nil {
-			log.Printf("Warning: Failed to initialize tracer: %v", err)
+			logger.Warn("Failed to initialize tracer, continuing without tracing", zap.Error(err))
 		} else {
 			defer func() {
 				shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
 				if err := tp.Shutdown(shutdownCtx); err != nil {
-					log.Printf("Warning: Failed to shutdown tracer: %v", err)
+					logger.Warn("Failed to shutdown tracer", zap.Error(err))
 				}
 			}()
-			log.Println("OpenTelemetry tracing initialized successfully")
+			logger.Info("OpenTelemetry tracing initialized successfully")
 		}
 	}
 
@@ -125,7 +144,9 @@ func main() {
 	router.Use(middleware.SentryMiddleware())   // Sentry integration
 	router.Use(middleware.CorrelationID())
 	router.Use(middleware.RequestTimeout(&cfg.Timeout))
+	router.Use(middleware.CORS())
 	router.Use(middleware.SecurityHeaders())
+	router.Use(middleware.MaxBodySize(10 << 20)) // 10MB request body limit
 	router.Use(middleware.SanitizeRequest())
 
 	// Add tracing middleware if enabled
@@ -139,7 +160,8 @@ func main() {
 	// Health check endpoints
 	router.GET("/healthz", handler.HealthCheck)
 	router.GET("/health/live", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "alive", "service": "admin-service", "version": "1.0.0"})
+		healthData := gin.H{"status": "alive", "service": "admin-service", "version": "1.0.0"}
+		common.SuccessResponse(c, healthData)
 	})
 
 	// Readiness probe with dependency checks
@@ -151,20 +173,19 @@ func main() {
 	}
 
 	router.GET("/health/ready", func(c *gin.Context) {
-		allHealthy := true
 		for name, check := range healthChecks {
 			if err := check(); err != nil {
-				c.JSON(503, gin.H{"status": "not ready", "service": "admin-service", "failed_check": name, "error": err.Error()})
-				allHealthy = false
+				errorMsg := fmt.Sprintf("Service not ready: %s check failed - %s", name, err.Error())
+				common.ErrorResponse(c, 503, errorMsg)
 				return
 			}
 		}
-		if allHealthy {
-			c.JSON(200, gin.H{"status": "ready", "service": "admin-service", "version": "1.0.0"})
-		}
+		healthData := gin.H{"status": "ready", "service": "admin-service", "version": "1.0.0"}
+		common.SuccessResponse(c, healthData)
 	})
 
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+	swagger.RegisterRoutes(router)
 
 	// Admin API routes - all require authentication + admin role
 	api := router.Group("/api/v1/admin")
@@ -173,6 +194,15 @@ func main() {
 	{
 		// Dashboard
 		api.GET("/dashboard", handler.GetDashboard)
+
+		// Dashboard analytics endpoints
+		dashboard := api.Group("/dashboard")
+		{
+			dashboard.GET("/realtime", handler.GetRealtimeMetrics)
+			dashboard.GET("/summary", handler.GetDashboardSummary)
+			dashboard.GET("/revenue-trend", handler.GetRevenueTrend)
+			dashboard.GET("/action-items", handler.GetActionItems)
+		}
 
 		// User management
 		users := api.Group("/users")
@@ -186,7 +216,9 @@ func main() {
 		// Driver management
 		drivers := api.Group("/drivers")
 		{
+			drivers.GET("", handler.GetAllDrivers)
 			drivers.GET("/pending", handler.GetPendingDrivers)
+			drivers.GET("/:id", handler.GetDriver)
 			drivers.POST("/:id/approve", handler.ApproveDriver)
 			drivers.POST("/:id/reject", handler.RejectDriver)
 		}
@@ -196,15 +228,42 @@ func main() {
 		{
 			rides.GET("/recent", handler.GetRecentRides)
 			rides.GET("/stats", handler.GetRideStats)
+			rides.GET("/:id", handler.GetRide)
 		}
 	}
 
-	// Start server
-	addr := ":" + port
-	log.Printf("Admin service starting on port %s", port)
-	if err := router.Run(addr); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+	// Create HTTP server with timeouts
+	srv := &http.Server{
+		Addr:         ":" + cfg.Server.Port,
+		Handler:      router,
+		ReadTimeout:  time.Duration(cfg.Server.ReadTimeout) * time.Second,
+		WriteTimeout: time.Duration(cfg.Server.WriteTimeout) * time.Second,
 	}
+
+	// Start server in a goroutine
+	go func() {
+		logger.Info("Admin service starting", zap.String("port", cfg.Server.Port))
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Fatal("Failed to start server", zap.Error(err))
+		}
+	}()
+
+	// Wait for interrupt signal to gracefully shutdown the server
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	logger.Info("Shutting down server...")
+
+	// Graceful shutdown with 5 second timeout
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		logger.Fatal("Server forced to shutdown", zap.Error(err))
+	}
+
+	logger.Info("Server stopped")
 }
 
 // getEnv gets an environment variable or returns a default value

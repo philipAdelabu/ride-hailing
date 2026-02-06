@@ -4,30 +4,34 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/richxcame/ride-hailing/pkg/logger"
 )
 
 // Response represents a standard API response
 type Response struct {
-	Success bool        `json:"success"`
-	Data    interface{} `json:"data,omitempty"`
-	Error   *ErrorInfo  `json:"error,omitempty"`
-	Meta    *Meta       `json:"meta,omitempty"`
+	Success       bool        `json:"success"`
+	Data          interface{} `json:"data,omitempty"`
+	Error         *ErrorInfo  `json:"error,omitempty"`
+	Meta          *Meta       `json:"meta,omitempty"`
+	CorrelationID string      `json:"correlation_id,omitempty"`
 }
 
 // ErrorInfo contains error details
 type ErrorInfo struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
+	Code      int    `json:"code"`
+	ErrorCode string `json:"error_code,omitempty"`
+	Message   string `json:"message"`
 }
 
 // Meta contains metadata for paginated responses
 type Meta struct {
-	Page       int   `json:"page,omitempty"`
-	PerPage    int   `json:"per_page,omitempty"`
-	Limit      int   `json:"limit,omitempty"`
-	Offset     int   `json:"offset,omitempty"`
-	Total      int64 `json:"total,omitempty"`
-	TotalPages int   `json:"total_pages,omitempty"`
+	Page       int         `json:"page,omitempty"`
+	PerPage    int         `json:"per_page,omitempty"`
+	Limit      int         `json:"limit,omitempty"`
+	Offset     int         `json:"offset,omitempty"`
+	Total      int64       `json:"total,omitempty"`
+	TotalPages int         `json:"total_pages,omitempty"`
+	Stats      interface{} `json:"stats,omitempty"`
 }
 
 // SuccessResponse sends a successful response (backward compatibility)
@@ -80,6 +84,7 @@ func ErrorResponse(c *gin.Context, statusCode int, message string) {
 			Code:    statusCode,
 			Message: message,
 		},
+		CorrelationID: logger.CorrelationIDFromContext(c.Request.Context()),
 	})
 }
 
@@ -88,8 +93,10 @@ func AppErrorResponse(c *gin.Context, err *AppError) {
 	c.JSON(err.Code, Response{
 		Success: false,
 		Error: &ErrorInfo{
-			Code:    err.Code,
-			Message: err.Message,
+			Code:      err.Code,
+			ErrorCode: err.ErrorCode,
+			Message:   err.Message,
 		},
+		CorrelationID: logger.CorrelationIDFromContext(c.Request.Context()),
 	})
 }

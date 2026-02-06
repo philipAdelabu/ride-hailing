@@ -56,14 +56,54 @@ func (m *mockFraudRepository) GetAlertsByUser(ctx context.Context, userID uuid.U
 	return alerts, args.Error(1)
 }
 
+func (m *mockFraudRepository) GetAlertsByUserWithTotal(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*FraudAlert, int64, error) {
+	args := m.Called(ctx, userID, limit, offset)
+	alerts, _ := args.Get(0).([]*FraudAlert)
+	return alerts, int64(args.Int(1)), args.Error(2)
+}
+
 func (m *mockFraudRepository) GetPendingAlerts(ctx context.Context, limit, offset int) ([]*FraudAlert, error) {
 	args := m.Called(ctx, limit, offset)
 	alerts, _ := args.Get(0).([]*FraudAlert)
 	return alerts, args.Error(1)
 }
 
+func (m *mockFraudRepository) GetPendingAlertsWithTotal(ctx context.Context, limit, offset int) ([]*FraudAlert, int64, error) {
+	args := m.Called(ctx, limit, offset)
+	alerts, _ := args.Get(0).([]*FraudAlert)
+	return alerts, int64(args.Int(1)), args.Error(2)
+}
+
 func (m *mockFraudRepository) UpdateAlertStatus(ctx context.Context, alertID uuid.UUID, status FraudAlertStatus, investigatorID *uuid.UUID, notes, actionTaken string) error {
 	args := m.Called(ctx, alertID, status, investigatorID, notes, actionTaken)
+	return args.Error(0)
+}
+
+func (m *mockFraudRepository) GetAccountFraudIndicators(ctx context.Context, userID uuid.UUID) (*AccountFraudIndicators, error) {
+	args := m.Called(ctx, userID)
+	indicators, _ := args.Get(0).(*AccountFraudIndicators)
+	return indicators, args.Error(1)
+}
+
+func (m *mockFraudRepository) GetFraudStatistics(ctx context.Context, startDate, endDate time.Time) (*FraudStatistics, error) {
+	args := m.Called(ctx, startDate, endDate)
+	stats, _ := args.Get(0).(*FraudStatistics)
+	return stats, args.Error(1)
+}
+
+func (m *mockFraudRepository) GetFraudPatterns(ctx context.Context, limit int) ([]*FraudPattern, error) {
+	args := m.Called(ctx, limit)
+	patterns, _ := args.Get(0).([]*FraudPattern)
+	return patterns, args.Error(1)
+}
+
+func (m *mockFraudRepository) CreateFraudPattern(ctx context.Context, pattern *FraudPattern) error {
+	args := m.Called(ctx, pattern)
+	return args.Error(0)
+}
+
+func (m *mockFraudRepository) UpdateFraudPattern(ctx context.Context, pattern *FraudPattern) error {
+	args := m.Called(ctx, pattern)
 	return args.Error(0)
 }
 

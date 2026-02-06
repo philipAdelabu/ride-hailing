@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"math"
 	"time"
 
+	"github.com/richxcame/ride-hailing/pkg/logger"
 	"github.com/richxcame/ride-hailing/pkg/redis"
+	"go.uber.org/zap"
 )
 
 // ETARepository defines the persistence operations needed by the service.
@@ -134,7 +135,7 @@ func (s *Service) PredictETA(ctx context.Context, req *ETAPredictionRequest) (*E
 	// Get historical data for similar routes (if available)
 	historicalETA, err := s.getHistoricalETA(ctx, req.PickupLat, req.PickupLng, req.DropoffLat, req.DropoffLng)
 	if err != nil {
-		log.Printf("Warning: Could not fetch historical ETA: %v", err)
+		logger.Warn("Could not fetch historical ETA", zap.Error(err))
 		historicalETA = 0
 	}
 
@@ -301,19 +302,19 @@ func (s *Service) StartModelTrainingWorker(ctx context.Context) {
 	ticker := time.NewTicker(24 * time.Hour) // Retrain daily
 	defer ticker.Stop()
 
-	log.Println("🤖 ML ETA model training worker started")
+	logger.Info("ML ETA model training worker started")
 
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("🛑 ML ETA model training worker stopped")
+			logger.Info("ML ETA model training worker stopped")
 			return
 		case <-ticker.C:
-			log.Println("🔄 Starting automatic model retraining...")
+			logger.Info("Starting automatic model retraining")
 			if err := s.TrainModel(ctx); err != nil {
-				log.Printf("❌ Model retraining failed: %v", err)
+				logger.Error("Model retraining failed", zap.Error(err))
 			} else {
-				log.Println("✅ Model retraining completed successfully")
+				logger.Info("Model retraining completed successfully")
 			}
 		}
 	}
@@ -321,7 +322,7 @@ func (s *Service) StartModelTrainingWorker(ctx context.Context) {
 
 // TrainModel trains/retrains the ETA prediction model using historical data
 func (s *Service) TrainModel(ctx context.Context) error {
-	log.Println("📊 Fetching training data...")
+	logger.Info("Fetching training data")
 
 	// Get completed rides with actual ETAs
 	trainingData, err := s.repo.GetTrainingData(ctx, 10000) // Last 10k rides
@@ -333,7 +334,7 @@ func (s *Service) TrainModel(ctx context.Context) error {
 		return fmt.Errorf("insufficient training data: need at least 100 samples, got %d", len(trainingData))
 	}
 
-	log.Printf("📈 Training model with %d samples...", len(trainingData))
+	logger.Info("Training model", zap.Int("samples", len(trainingData)))
 
 	// Calculate optimal weights using gradient descent or similar
 	// For simplicity, using weighted average of errors
@@ -370,8 +371,7 @@ func (s *Service) TrainModel(ctx context.Context) error {
 
 	s.model.TrainedAt = time.Now()
 
-	log.Printf("✅ Model training complete - MAE: %.2f min, Accuracy: %.2f%%",
-		s.model.MeanAbsoluteError, s.model.AccuracyRate*100)
+	logger.Info("Model training complete", zap.Float64("mae_minutes", s.model.MeanAbsoluteError), zap.Float64("accuracy_pct", s.model.AccuracyRate*100))
 
 	// Store model stats
 	return s.repo.StoreModelStats(ctx, s.model)
