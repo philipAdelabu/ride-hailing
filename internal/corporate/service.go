@@ -19,6 +19,9 @@ type Service struct {
 
 // NewService creates a new corporate service
 func NewService(repo RepositoryInterface) *Service {
+	if repo == nil {
+		panic("corporate: repository cannot be nil")
+	}
 	return &Service{repo: repo}
 }
 
@@ -490,15 +493,30 @@ func (s *Service) RecordCorporateRide(ctx context.Context, rideID uuid.UUID, emp
 	}
 
 	// Update employee usage
-	_ = s.repo.UpdateEmployeeUsage(ctx, employeeID, finalFare)
+	if err := s.repo.UpdateEmployeeUsage(ctx, employeeID, finalFare); err != nil {
+		logger.WithContext(ctx).Error("failed to update employee usage",
+			zap.String("employee_id", employeeID.String()),
+			zap.Float64("amount", finalFare),
+			zap.Error(err))
+	}
 
 	// Update department budget if applicable
 	if emp.DepartmentID != nil {
-		_ = s.repo.UpdateDepartmentBudget(ctx, *emp.DepartmentID, finalFare)
+		if err := s.repo.UpdateDepartmentBudget(ctx, *emp.DepartmentID, finalFare); err != nil {
+			logger.WithContext(ctx).Error("failed to update department budget",
+				zap.String("department_id", emp.DepartmentID.String()),
+				zap.Float64("amount", finalFare),
+				zap.Error(err))
+		}
 	}
 
 	// Update account balance
-	_ = s.repo.UpdateAccountBalance(ctx, emp.CorporateAccountID, finalFare)
+	if err := s.repo.UpdateAccountBalance(ctx, emp.CorporateAccountID, finalFare); err != nil {
+		logger.WithContext(ctx).Error("failed to update account balance",
+			zap.String("account_id", emp.CorporateAccountID.String()),
+			zap.Float64("amount", finalFare),
+			zap.Error(err))
+	}
 
 	logger.Info("Corporate ride recorded",
 		zap.String("ride_id", rideID.String()),

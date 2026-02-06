@@ -73,7 +73,13 @@ func (s *Service) CreateRecurringRide(ctx context.Context, riderID uuid.UUID, re
 	}
 
 	// Estimate fare
-	estimatedFare, _ := s.pricingService.EstimateFare(ctx, req.PickupLocation, req.DropoffLocation, req.RideType)
+	estimatedFare, err := s.pricingService.EstimateFare(ctx, req.PickupLocation, req.DropoffLocation, req.RideType)
+	if err != nil {
+		logger.WithContext(ctx).Warn("failed to estimate fare for recurring ride",
+			zap.String("rider_id", riderID.String()),
+			zap.String("ride_type", req.RideType),
+			zap.Error(err))
+	}
 
 	// Calculate next scheduled date
 	nextScheduled := s.calculateNextScheduledDate(startDate, req.RecurrencePattern, daysOfWeek, req.ScheduledTime, timezone)
@@ -152,10 +158,20 @@ func (s *Service) GetRecurringRide(ctx context.Context, riderID uuid.UUID, rideI
 		return nil, common.NewForbiddenError("not authorized to view this ride")
 	}
 
-	instances, _ := s.repo.GetUpcomingInstances(ctx, rideID, 10)
+	instances, err := s.repo.GetUpcomingInstances(ctx, rideID, 10)
+	if err != nil {
+		logger.WithContext(ctx).Warn("failed to get upcoming instances",
+			zap.String("ride_id", rideID.String()),
+			zap.Error(err))
+	}
 
 	// Calculate totals
-	stats, _ := s.repo.GetRiderStats(ctx, riderID)
+	stats, err := s.repo.GetRiderStats(ctx, riderID)
+	if err != nil {
+		logger.WithContext(ctx).Warn("failed to get rider stats",
+			zap.String("rider_id", riderID.String()),
+			zap.Error(err))
+	}
 	var totalSpent float64
 	// Would calculate from completed instances
 
@@ -177,7 +193,12 @@ func (s *Service) ListRecurringRides(ctx context.Context, riderID uuid.UUID) ([]
 
 	var responses []*RecurringRideResponse
 	for _, ride := range rides {
-		instances, _ := s.repo.GetUpcomingInstances(ctx, ride.ID, 3)
+		instances, err := s.repo.GetUpcomingInstances(ctx, ride.ID, 3)
+		if err != nil {
+			logger.WithContext(ctx).Warn("failed to get upcoming instances for ride",
+				zap.String("ride_id", ride.ID.String()),
+				zap.Error(err))
+		}
 		responses = append(responses, &RecurringRideResponse{
 			RecurringRide:     ride,
 			UpcomingInstances: s.toInstanceSlice(instances),

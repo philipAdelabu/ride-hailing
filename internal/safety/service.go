@@ -38,6 +38,9 @@ type Config struct {
 
 // NewService creates a new safety service
 func NewService(repo RepositoryInterface, cfg Config) *Service {
+	if repo == nil {
+		panic("safety: repository cannot be nil")
+	}
 	return &Service{
 		repo:               repo,
 		baseShareURL:       cfg.BaseShareURL,
@@ -747,7 +750,11 @@ func (s *Service) sendContactVerification(ctx context.Context, contact *Emergenc
 		"message": fmt.Sprintf("Your emergency contact verification code is: %s", code),
 	}
 
-	s.notificationClient.Post(ctx, "/api/v1/notifications/send", payload, nil)
+	if _, err := s.notificationClient.Post(ctx, "/api/v1/notifications/send", payload, nil); err != nil {
+		logger.WithContext(ctx).Warn("failed to send verification code SMS",
+			zap.String("contact_id", contact.ID.String()),
+			zap.Error(err))
+	}
 }
 
 func (s *Service) notifyShareRecipient(ctx context.Context, link *RideShareLink, recipient ShareRecipientInput) {
@@ -760,7 +767,11 @@ func (s *Service) notifyShareRecipient(ctx context.Context, link *RideShareLink,
 			"to":      recipient.Phone,
 			"message": message,
 		}
-		s.notificationClient.Post(ctx, "/api/v1/notifications/send", payload, nil)
+		if _, err := s.notificationClient.Post(ctx, "/api/v1/notifications/send", payload, nil); err != nil {
+			logger.WithContext(ctx).Warn("failed to send ride share SMS notification",
+				zap.String("link_id", link.ID.String()),
+				zap.Error(err))
+		}
 	}
 
 	if recipient.Email != "" {
@@ -770,7 +781,11 @@ func (s *Service) notifyShareRecipient(ctx context.Context, link *RideShareLink,
 			"subject": "Ride Shared With You",
 			"body":    message,
 		}
-		s.notificationClient.Post(ctx, "/api/v1/notifications/send", payload, nil)
+		if _, err := s.notificationClient.Post(ctx, "/api/v1/notifications/send", payload, nil); err != nil {
+			logger.WithContext(ctx).Warn("failed to send ride share email notification",
+				zap.String("link_id", link.ID.String()),
+				zap.Error(err))
+		}
 	}
 }
 

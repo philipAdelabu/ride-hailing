@@ -46,6 +46,9 @@ type SurgeCalculator interface {
 
 // NewService creates a new rides service
 func NewService(repo *Repository, promosServiceURL string, breaker *resilience.CircuitBreaker, httpClientTimeout ...time.Duration) *Service {
+	if repo == nil {
+		panic("rides: repository cannot be nil")
+	}
 	return &Service{
 		repo:            repo,
 		promosClient:    httpclient.NewClient(promosServiceURL, httpClientTimeout...),

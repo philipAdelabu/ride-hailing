@@ -24,6 +24,9 @@ type Service struct {
 
 // NewService creates a new dispute service
 func NewService(repo *Repository) *Service {
+	if repo == nil {
+		panic("disputes: repository cannot be nil")
+	}
 	return &Service{repo: repo}
 }
 

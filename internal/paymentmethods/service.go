@@ -8,6 +8,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/richxcame/ride-hailing/pkg/common"
+	"github.com/richxcame/ride-hailing/pkg/logger"
+	"go.uber.org/zap"
 )
 
 const (
@@ -152,7 +154,12 @@ func (s *Service) GetPaymentMethods(ctx context.Context, userID uuid.UUID) (*Pay
 		methods = []PaymentMethod{}
 	}
 
-	walletBalance, _ := s.repo.GetWalletBalance(ctx, userID)
+	walletBalance, err := s.repo.GetWalletBalance(ctx, userID)
+	if err != nil {
+		logger.WithContext(ctx).Warn("failed to get wallet balance",
+			zap.String("user_id", userID.String()),
+			zap.Error(err))
+	}
 
 	var defaultID *uuid.UUID
 	for _, m := range methods {
@@ -262,15 +269,30 @@ func (s *Service) TopUpWallet(ctx context.Context, userID uuid.UUID, req *TopUpW
 		Description:     "Wallet top up",
 		CreatedAt:       time.Now(),
 	}
-	s.repo.CreateWalletTransaction(ctx, tx)
+	if err := s.repo.CreateWalletTransaction(ctx, tx); err != nil {
+		logger.WithContext(ctx).Error("failed to record top-up transaction",
+			zap.String("user_id", userID.String()),
+			zap.String("transaction_id", tx.ID.String()),
+			zap.Error(err))
+	}
 
 	return s.GetWalletSummary(ctx, userID)
 }
 
 // GetWalletSummary returns wallet info with recent transactions
 func (s *Service) GetWalletSummary(ctx context.Context, userID uuid.UUID) (*WalletSummary, error) {
-	balance, _ := s.repo.GetWalletBalance(ctx, userID)
-	txns, _ := s.repo.GetWalletTransactions(ctx, userID, 20)
+	balance, err := s.repo.GetWalletBalance(ctx, userID)
+	if err != nil {
+		logger.WithContext(ctx).Warn("failed to get wallet balance for summary",
+			zap.String("user_id", userID.String()),
+			zap.Error(err))
+	}
+	txns, err := s.repo.GetWalletTransactions(ctx, userID, 20)
+	if err != nil {
+		logger.WithContext(ctx).Warn("failed to get wallet transactions",
+			zap.String("user_id", userID.String()),
+			zap.Error(err))
+	}
 	if txns == nil {
 		txns = []WalletTransaction{}
 	}
@@ -320,7 +342,13 @@ func (s *Service) DeductFromWallet(ctx context.Context, userID uuid.UUID, rideID
 		RideID:          &rideID,
 		CreatedAt:       time.Now(),
 	}
-	s.repo.CreateWalletTransaction(ctx, tx)
+	if err := s.repo.CreateWalletTransaction(ctx, tx); err != nil {
+		logger.WithContext(ctx).Error("failed to record debit transaction",
+			zap.String("user_id", userID.String()),
+			zap.String("ride_id", rideID.String()),
+			zap.Float64("amount", deductAmount),
+			zap.Error(err))
+	}
 
 	return deductAmount, nil
 }
