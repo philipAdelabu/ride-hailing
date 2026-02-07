@@ -1,6 +1,7 @@
 package scheduling
 
 import (
+	"io"
 	"net/http"
 	"strconv"
 
@@ -8,8 +9,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/richxcame/ride-hailing/pkg/common"
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
+	"github.com/richxcame/ride-hailing/pkg/logger"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	"github.com/richxcame/ride-hailing/pkg/pagination"
+	"go.uber.org/zap"
 )
 
 // Handler handles HTTP requests for scheduling
@@ -271,7 +274,11 @@ func (h *Handler) SkipInstance(c *gin.Context) {
 	}
 
 	var req SkipInstanceRequest
-	_ = c.ShouldBindJSON(&req) // Reason is optional
+	// Reason field is optional - only log non-EOF parse errors
+	if err := c.ShouldBindJSON(&req); err != nil && err != io.EOF {
+		logger.Get().Debug("Failed to parse optional skip reason", zap.Error(err))
+		req.Reason = ""
+	}
 
 	if err := h.service.SkipInstance(c.Request.Context(), riderID, instanceID, req.Reason); err != nil {
 		if appErr, ok := err.(*common.AppError); ok {

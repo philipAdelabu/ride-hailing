@@ -235,11 +235,11 @@ type GetHeatmapRequest struct {
 
 // GetRepositionRecommendationsRequest gets driver repositioning suggestions
 type GetRepositionRecommendationsRequest struct {
-	DriverID     uuid.UUID `json:"driver_id" binding:"required"`
-	Latitude     float64   `json:"latitude" binding:"required"`
-	Longitude    float64   `json:"longitude" binding:"required"`
-	MaxDistanceKm float64  `json:"max_distance_km"` // Max distance to recommend (default 10km)
-	Limit        int       `json:"limit"`           // Number of recommendations (default 3)
+	DriverID      uuid.UUID `json:"-"` // Set by handler from auth context
+	Latitude      float64   `json:"latitude" binding:"required"`
+	Longitude     float64   `json:"longitude" binding:"required"`
+	MaxDistanceKm float64   `json:"max_distance_km"` // Max distance to recommend (default 10km)
+	Limit         int       `json:"limit"`           // Number of recommendations (default 3)
 }
 
 // GetRepositionRecommendationsResponse returns positioning suggestions

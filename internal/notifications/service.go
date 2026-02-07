@@ -108,11 +108,19 @@ func (s *Service) processNotification(ctx context.Context, notification *models.
 			zap.Error(err))
 
 		errMsg := err.Error()
-		_ = s.repo.UpdateNotificationStatus(ctx, notification.ID, "failed", &errMsg)
+		if updateErr := s.repo.UpdateNotificationStatus(ctx, notification.ID, "failed", &errMsg); updateErr != nil {
+			logger.Get().Error("Failed to update notification status to failed",
+				zap.String("notification_id", notification.ID.String()),
+				zap.Error(updateErr))
+		}
 		return
 	}
 
-	_ = s.repo.UpdateNotificationStatus(ctx, notification.ID, "sent", nil)
+	if updateErr := s.repo.UpdateNotificationStatus(ctx, notification.ID, "sent", nil); updateErr != nil {
+		logger.Get().Error("Failed to update notification status to sent",
+			zap.String("notification_id", notification.ID.String()),
+			zap.Error(updateErr))
+	}
 	logger.Get().Info("Notification sent successfully",
 		zap.String("notification_id", notification.ID.String()),
 		zap.String("channel", notification.Channel),
@@ -223,10 +231,14 @@ func (s *Service) NotifyRideRequested(ctx context.Context, driverID, rideID uuid
 	}
 
 	// Also send SMS for critical notification
-	_, _ = s.SendNotification(ctx, driverID, "ride_requested", "sms",
+	if _, err := s.SendNotification(ctx, driverID, "ride_requested", "sms",
 		"New Ride Request",
 		"New ride request nearby. Check your app!",
-		data)
+		data); err != nil {
+		logger.Get().Warn("Failed to send SMS notification for ride request",
+			zap.String("driver_id", driverID.String()),
+			zap.Error(err))
+	}
 
 	return nil
 }
@@ -286,10 +298,15 @@ func (s *Service) NotifyRideCompleted(ctx context.Context, riderID, driverID uui
 			"Status": "Completed",
 		},
 	}
-	_, _ = s.SendNotification(ctx, riderID, "ride_receipt", "email",
+	if _, err := s.SendNotification(ctx, riderID, "ride_receipt", "email",
 		"Your Ride Receipt",
 		"",
-		receiptData)
+		receiptData); err != nil {
+		logger.Get().Warn("Failed to send ride receipt email",
+			zap.String("rider_id", riderID.String()),
+			zap.Float64("fare", fare),
+			zap.Error(err))
+	}
 
 	// Notify driver
 	driverData := map[string]interface{}{

@@ -12,11 +12,11 @@ import (
 
 // Service handles ratings business logic
 type Service struct {
-	repo *Repository
+	repo RepositoryInterface
 }
 
 // NewService creates a new ratings service
-func NewService(repo *Repository) *Service {
+func NewService(repo RepositoryInterface) *Service {
 	return &Service{repo: repo}
 }
 

@@ -1,23 +1,37 @@
 package payments
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/richxcame/ride-hailing/pkg/common"
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
+	"github.com/richxcame/ride-hailing/pkg/logger"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	"github.com/richxcame/ride-hailing/pkg/models"
 	"github.com/richxcame/ride-hailing/pkg/pagination"
+	"github.com/stripe/stripe-go/v83/webhook"
+	"go.uber.org/zap"
 )
 
 type Handler struct {
-	service *Service
+	service       *Service
+	webhookSecret string
 }
 
 func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
+}
+
+// NewHandlerWithWebhookSecret creates a new handler with Stripe webhook secret for signature verification
+func NewHandlerWithWebhookSecret(service *Service, webhookSecret string) *Handler {
+	return &Handler{
+		service:       service,
+		webhookSecret: webhookSecret,
+	}
 }
 
 // RegisterRoutes registers payment routes
@@ -294,33 +308,79 @@ func (h *Handler) RefundPayment(c *gin.Context) {
 	common.SuccessResponseWithStatus(c, http.StatusOK, nil, "Refund processed successfully")
 }
 
-// HandleStripeWebhook handles Stripe webhook events
+// HandleStripeWebhook handles Stripe webhook events with signature verification
 func (h *Handler) HandleStripeWebhook(c *gin.Context) {
-	// In a real implementation, you would:
-	// 1. Verify the webhook signature
-	// 2. Parse the event
-	// 3. Handle the event based on type
-
-	var event struct {
-		Type string                 `json:"type"`
-		Data map[string]interface{} `json:"data"`
-	}
-
-	if err := c.ShouldBindJSON(&event); err != nil {
-		common.ErrorResponse(c, http.StatusBadRequest, "invalid webhook payload")
+	// Read the raw body for signature verification
+	payload, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		logger.Get().Error("Failed to read webhook body", zap.Error(err))
+		common.ErrorResponse(c, http.StatusBadRequest, "failed to read request body")
 		return
 	}
 
-	// Extract payment intent ID
-	paymentIntentID := ""
-	if obj, ok := event.Data["object"].(map[string]interface{}); ok {
-		if id, ok := obj["id"].(string); ok {
-			paymentIntentID = id
+	// Verify webhook signature if secret is configured
+	var eventType string
+	var paymentIntentID string
+
+	if h.webhookSecret != "" {
+		sig := c.GetHeader("Stripe-Signature")
+		if sig == "" {
+			logger.Get().Warn("Missing Stripe-Signature header")
+			common.ErrorResponse(c, http.StatusUnauthorized, "missing signature header")
+			return
+		}
+
+		event, err := webhook.ConstructEvent(payload, sig, h.webhookSecret)
+		if err != nil {
+			logger.Get().Warn("Invalid webhook signature", zap.Error(err))
+			common.ErrorResponse(c, http.StatusUnauthorized, "invalid webhook signature")
+			return
+		}
+
+		eventType = string(event.Type)
+
+		// Extract payment intent ID from the verified event
+		if event.Data != nil && event.Data.Object != nil {
+			if id, ok := event.Data.Object["id"].(string); ok {
+				paymentIntentID = id
+			}
+		}
+
+		logger.Get().Info("Verified Stripe webhook",
+			zap.String("event_type", eventType),
+			zap.String("event_id", event.ID),
+		)
+	} else {
+		// Fallback for testing/development without signature verification
+		// WARNING: This should not be used in production
+		logger.Get().Warn("Webhook signature verification disabled - not recommended for production")
+
+		var event struct {
+			Type string                 `json:"type"`
+			Data map[string]interface{} `json:"data"`
+		}
+
+		if err := json.Unmarshal(payload, &event); err != nil {
+			common.ErrorResponse(c, http.StatusBadRequest, "invalid webhook payload")
+			return
+		}
+
+		eventType = event.Type
+
+		// Extract payment intent ID
+		if obj, ok := event.Data["object"].(map[string]interface{}); ok {
+			if id, ok := obj["id"].(string); ok {
+				paymentIntentID = id
+			}
 		}
 	}
 
-	err := h.service.HandleStripeWebhook(c.Request.Context(), event.Type, paymentIntentID)
+	err = h.service.HandleStripeWebhook(c.Request.Context(), eventType, paymentIntentID)
 	if err != nil {
+		logger.Get().Error("Failed to handle webhook event",
+			zap.String("event_type", eventType),
+			zap.Error(err),
+		)
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to handle webhook")
 		return
 	}

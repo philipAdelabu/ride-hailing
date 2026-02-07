@@ -8,9 +8,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/richxcame/ride-hailing/pkg/common"
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
+	"github.com/richxcame/ride-hailing/pkg/logger"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
 	"github.com/richxcame/ride-hailing/pkg/models"
 	"github.com/richxcame/ride-hailing/pkg/pagination"
+	"go.uber.org/zap"
 )
 
 // Handler handles HTTP requests for package delivery
@@ -164,7 +166,10 @@ func (h *Handler) CancelDelivery(c *gin.Context) {
 	var req struct {
 		Reason string `json:"reason"`
 	}
-	_ = c.ShouldBindJSON(&req)
+	// Bind is optional - cancellation reason may not be provided
+	if err := c.ShouldBindJSON(&req); err != nil && err.Error() != "EOF" {
+		logger.Get().Debug("Failed to bind cancel delivery request body", zap.Error(err))
+	}
 
 	if err := h.service.CancelDelivery(c.Request.Context(), deliveryID, userID, req.Reason); err != nil {
 		if appErr, ok := err.(*common.AppError); ok {
@@ -340,7 +345,10 @@ func (h *Handler) ConfirmPickup(c *gin.Context) {
 	}
 
 	var req ConfirmPickupRequest
-	_ = c.ShouldBindJSON(&req)
+	// Bind is optional - pickup confirmation may not have additional data
+	if err := c.ShouldBindJSON(&req); err != nil && err.Error() != "EOF" {
+		logger.Get().Debug("Failed to bind confirm pickup request body", zap.Error(err))
+	}
 
 	if err := h.service.ConfirmPickup(c.Request.Context(), deliveryID, driverID, &req); err != nil {
 		if appErr, ok := err.(*common.AppError); ok {

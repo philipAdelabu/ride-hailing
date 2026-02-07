@@ -1,13 +1,16 @@
 package twofa
 
 import (
+	"io"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/richxcame/ride-hailing/pkg/common"
 	"github.com/richxcame/ride-hailing/pkg/jwtkeys"
+	"github.com/richxcame/ride-hailing/pkg/logger"
 	"github.com/richxcame/ride-hailing/pkg/middleware"
+	"go.uber.org/zap"
 )
 
 // Handler handles HTTP requests for 2FA
@@ -309,10 +312,15 @@ func (h *Handler) SendPhoneVerification(c *gin.Context) {
 	}
 
 	// Get phone number from request or context
+	// Phone number may come from request body or context - binding error is non-fatal
 	var req struct {
 		PhoneNumber string `json:"phone_number"`
 	}
-	_ = c.ShouldBindJSON(&req)
+	// Phone number field is optional - only log non-EOF parse errors
+	if err := c.ShouldBindJSON(&req); err != nil && err != io.EOF {
+		logger.Get().Debug("Failed to parse optional phone request body", zap.Error(err))
+		req.PhoneNumber = ""
+	}
 
 	phone := req.PhoneNumber
 	if phone == "" {
@@ -400,8 +408,11 @@ func (h *Handler) VerifyTOTP(c *gin.Context) {
 		return
 	}
 
-	// Mark TOTP as verified
-	_ = h.service.repo.SetTOTPVerified(c.Request.Context(), userID)
+	// Mark TOTP as verified - this is critical for security
+	if err := h.service.repo.SetTOTPVerified(c.Request.Context(), userID); err != nil {
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to complete TOTP verification")
+		return
+	}
 
 	common.SuccessResponse(c, gin.H{
 		"success": true,

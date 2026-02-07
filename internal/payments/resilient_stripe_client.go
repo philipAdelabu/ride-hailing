@@ -89,7 +89,12 @@ func (r *ResilientStripeClient) CreateCustomer(email, name string, metadata map[
 		return nil, err
 	}
 
-	return result.(*stripe.Customer), nil
+	customer, ok := result.(*stripe.Customer)
+	if !ok {
+		return nil, common.NewInternalError("unexpected response type from Stripe", nil)
+	}
+
+	return customer, nil
 }
 
 // CreatePaymentIntent creates a payment intent with resilience
@@ -109,12 +114,17 @@ func (r *ResilientStripeClient) CreatePaymentIntent(amount int64, currency, cust
 		return nil, err
 	}
 
+	paymentIntent, ok := result.(*stripe.PaymentIntent)
+	if !ok {
+		return nil, common.NewInternalError("unexpected response type from Stripe", nil)
+	}
+
 	logger.Get().Info("Successfully created payment intent",
-		zap.String("payment_intent_id", result.(*stripe.PaymentIntent).ID),
+		zap.String("payment_intent_id", paymentIntent.ID),
 		zap.Int64("amount", amount),
 	)
 
-	return result.(*stripe.PaymentIntent), nil
+	return paymentIntent, nil
 }
 
 // ConfirmPaymentIntent confirms a payment intent with resilience
@@ -133,7 +143,12 @@ func (r *ResilientStripeClient) ConfirmPaymentIntent(paymentIntentID string) (*s
 		return nil, err
 	}
 
-	return result.(*stripe.PaymentIntent), nil
+	paymentIntent, ok := result.(*stripe.PaymentIntent)
+	if !ok {
+		return nil, common.NewInternalError("unexpected response type from Stripe", nil)
+	}
+
+	return paymentIntent, nil
 }
 
 // CapturePaymentIntent captures a payment intent with resilience
@@ -152,7 +167,12 @@ func (r *ResilientStripeClient) CapturePaymentIntent(paymentIntentID string) (*s
 		return nil, err
 	}
 
-	return result.(*stripe.PaymentIntent), nil
+	paymentIntent, ok := result.(*stripe.PaymentIntent)
+	if !ok {
+		return nil, common.NewInternalError("unexpected response type from Stripe", nil)
+	}
+
+	return paymentIntent, nil
 }
 
 // CreateRefund creates a refund with resilience
@@ -171,7 +191,12 @@ func (r *ResilientStripeClient) CreateRefund(chargeID string, amount *int64, rea
 		return nil, err
 	}
 
-	return result.(*stripe.Refund), nil
+	refund, ok := result.(*stripe.Refund)
+	if !ok {
+		return nil, common.NewInternalError("unexpected response type from Stripe", nil)
+	}
+
+	return refund, nil
 }
 
 // CreateTransfer creates a transfer with resilience
@@ -191,7 +216,12 @@ func (r *ResilientStripeClient) CreateTransfer(amount int64, currency, destinati
 		return nil, err
 	}
 
-	return result.(*stripe.Transfer), nil
+	transfer, ok := result.(*stripe.Transfer)
+	if !ok {
+		return nil, common.NewInternalError("unexpected response type from Stripe", nil)
+	}
+
+	return transfer, nil
 }
 
 // GetPaymentIntent retrieves a payment intent with resilience
@@ -210,7 +240,12 @@ func (r *ResilientStripeClient) GetPaymentIntent(paymentIntentID string) (*strip
 		return nil, err
 	}
 
-	return result.(*stripe.PaymentIntent), nil
+	paymentIntent, ok := result.(*stripe.PaymentIntent)
+	if !ok {
+		return nil, common.NewInternalError("unexpected response type from Stripe", nil)
+	}
+
+	return paymentIntent, nil
 }
 
 // CancelPaymentIntent cancels a payment intent with resilience
@@ -229,7 +264,12 @@ func (r *ResilientStripeClient) CancelPaymentIntent(paymentIntentID string) (*st
 		return nil, err
 	}
 
-	return result.(*stripe.PaymentIntent), nil
+	paymentIntent, ok := result.(*stripe.PaymentIntent)
+	if !ok {
+		return nil, common.NewInternalError("unexpected response type from Stripe", nil)
+	}
+
+	return paymentIntent, nil
 }
 
 // isStripeRetryable determines if a Stripe error should be retried

@@ -7,6 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/richxcame/ride-hailing/pkg/logger"
+	"go.uber.org/zap"
 )
 
 // Repository handles corporate account database operations
@@ -25,7 +27,14 @@ func NewRepository(db *pgxpool.Pool) *Repository {
 
 // CreateAccount creates a new corporate account
 func (r *Repository) CreateAccount(ctx context.Context, account *CorporateAccount) error {
-	addressJSON, _ := json.Marshal(account.Address)
+	addressJSON, err := json.Marshal(account.Address)
+	if err != nil {
+		logger.Get().Warn("Failed to marshal corporate account address",
+			zap.String("account_id", account.ID.String()),
+			zap.Error(err),
+		)
+		addressJSON = []byte("{}")
+	}
 
 	query := `
 		INSERT INTO corporate_accounts (
@@ -40,7 +49,7 @@ func (r *Repository) CreateAccount(ctx context.Context, account *CorporateAccoun
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
 	`
 
-	_, err := r.db.Exec(ctx, query,
+	_, execErr := r.db.Exec(ctx, query,
 		account.ID, account.Name, account.LegalName, account.TaxID, account.Status,
 		account.PrimaryEmail, account.PrimaryPhone, account.BillingEmail, addressJSON,
 		account.BillingCycle, account.PaymentTermDays, account.CreditLimit, account.CurrentBalance,
@@ -50,7 +59,7 @@ func (r *Repository) CreateAccount(ctx context.Context, account *CorporateAccoun
 		account.LogoURL, account.Industry, account.CompanySize,
 		account.CreatedAt, account.UpdatedAt,
 	)
-	return err
+	return execErr
 }
 
 // GetAccount gets a corporate account by ID
@@ -85,7 +94,12 @@ func (r *Repository) GetAccount(ctx context.Context, accountID uuid.UUID) (*Corp
 	}
 
 	if addressJSON != nil {
-		_ = json.Unmarshal(addressJSON, &account.Address)
+		if err := json.Unmarshal(addressJSON, &account.Address); err != nil {
+			logger.Get().Warn("Failed to unmarshal corporate account address",
+				zap.String("account_id", account.ID.String()),
+				zap.Error(err),
+			)
+		}
 	}
 
 	return &account, nil
@@ -93,7 +107,14 @@ func (r *Repository) GetAccount(ctx context.Context, accountID uuid.UUID) (*Corp
 
 // UpdateAccount updates a corporate account
 func (r *Repository) UpdateAccount(ctx context.Context, account *CorporateAccount) error {
-	addressJSON, _ := json.Marshal(account.Address)
+	addressJSON, err := json.Marshal(account.Address)
+	if err != nil {
+		logger.Get().Warn("Failed to marshal corporate account address for update",
+			zap.String("account_id", account.ID.String()),
+			zap.Error(err),
+		)
+		addressJSON = []byte("{}")
+	}
 
 	query := `
 		UPDATE corporate_accounts SET
@@ -108,7 +129,7 @@ func (r *Repository) UpdateAccount(ctx context.Context, account *CorporateAccoun
 		WHERE id = $24
 	`
 
-	_, err := r.db.Exec(ctx, query,
+	_, execErr := r.db.Exec(ctx, query,
 		account.Name, account.LegalName, account.TaxID, account.Status,
 		account.PrimaryEmail, account.PrimaryPhone, account.BillingEmail, addressJSON,
 		account.BillingCycle, account.PaymentTermDays, account.CreditLimit,
@@ -118,7 +139,7 @@ func (r *Repository) UpdateAccount(ctx context.Context, account *CorporateAccoun
 		account.LogoURL, account.Industry, account.CompanySize,
 		account.ID,
 	)
-	return err
+	return execErr
 }
 
 // UpdateAccountStatus updates account status
@@ -182,7 +203,12 @@ func (r *Repository) ListAccounts(ctx context.Context, status *AccountStatus, li
 			continue
 		}
 		if addressJSON != nil {
-			_ = json.Unmarshal(addressJSON, &account.Address)
+			if unmarshalErr := json.Unmarshal(addressJSON, &account.Address); unmarshalErr != nil {
+				logger.Get().Warn("Failed to unmarshal corporate account address in list",
+					zap.String("account_id", account.ID.String()),
+					zap.Error(unmarshalErr),
+				)
+			}
 		}
 		accounts = append(accounts, &account)
 	}
@@ -447,7 +473,14 @@ func (r *Repository) GetEmployeeCount(ctx context.Context, accountID uuid.UUID, 
 
 // CreatePolicy creates a new policy
 func (r *Repository) CreatePolicy(ctx context.Context, policy *RidePolicy) error {
-	rulesJSON, _ := json.Marshal(policy.Rules)
+	rulesJSON, err := json.Marshal(policy.Rules)
+	if err != nil {
+		logger.Get().Warn("Failed to marshal policy rules",
+			zap.String("policy_id", policy.ID.String()),
+			zap.Error(err),
+		)
+		rulesJSON = []byte("{}")
+	}
 
 	query := `
 		INSERT INTO corporate_policies (
@@ -455,11 +488,11 @@ func (r *Repository) CreatePolicy(ctx context.Context, policy *RidePolicy) error
 			policy_type, rules, priority, is_active, created_at, updated_at
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
-	_, err := r.db.Exec(ctx, query,
+	_, execErr := r.db.Exec(ctx, query,
 		policy.ID, policy.CorporateAccountID, policy.DepartmentID, policy.Name, policy.Description,
 		policy.PolicyType, rulesJSON, policy.Priority, policy.IsActive, policy.CreatedAt, policy.UpdatedAt,
 	)
-	return err
+	return execErr
 }
 
 // GetPolicies gets policies for an account/department
@@ -492,7 +525,12 @@ func (r *Repository) GetPolicies(ctx context.Context, accountID uuid.UUID, depar
 			continue
 		}
 		if rulesJSON != nil {
-			_ = json.Unmarshal(rulesJSON, &policy.Rules)
+			if unmarshalErr := json.Unmarshal(rulesJSON, &policy.Rules); unmarshalErr != nil {
+				logger.Get().Warn("Failed to unmarshal policy rules",
+					zap.String("policy_id", policy.ID.String()),
+					zap.Error(unmarshalErr),
+				)
+			}
 		}
 		policies = append(policies, &policy)
 	}

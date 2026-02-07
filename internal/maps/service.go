@@ -120,7 +120,10 @@ func (s *Service) GetRoute(ctx context.Context, req *RouteRequest) (*RouteRespon
 		return nil, err
 	}
 
-	routeResp := resp.(*RouteResponse)
+	routeResp, ok := resp.(*RouteResponse)
+	if !ok {
+		return nil, fmt.Errorf("unexpected response type: %T", resp)
+	}
 
 	// Cache the result
 	if s.config.CacheEnabled && len(routeResp.Routes) > 0 {
@@ -157,7 +160,10 @@ func (s *Service) GetETA(ctx context.Context, req *ETARequest) (*ETAResponse, er
 		return s.fallbackETA(req), nil
 	}
 
-	etaResp := resp.(*ETAResponse)
+	etaResp, ok := resp.(*ETAResponse)
+	if !ok {
+		return nil, fmt.Errorf("unexpected response type: %T", resp)
+	}
 
 	// Cache with shorter TTL for ETA
 	if s.config.CacheEnabled {
@@ -181,7 +187,12 @@ func (s *Service) GetDistanceMatrix(ctx context.Context, req *DistanceMatrixRequ
 		return nil, err
 	}
 
-	return resp.(*DistanceMatrixResponse), nil
+	matrixResp, ok := resp.(*DistanceMatrixResponse)
+	if !ok {
+		return nil, fmt.Errorf("unexpected response type: %T", resp)
+	}
+
+	return matrixResp, nil
 }
 
 // GetTrafficFlow returns traffic flow information
@@ -206,7 +217,10 @@ func (s *Service) GetTrafficFlow(ctx context.Context, req *TrafficFlowRequest) (
 		}, nil
 	}
 
-	trafficResp := resp.(*TrafficFlowResponse)
+	trafficResp, ok := resp.(*TrafficFlowResponse)
+	if !ok {
+		return nil, fmt.Errorf("unexpected response type: %T", resp)
+	}
 
 	// Update in-memory cache
 	s.mu.Lock()
@@ -237,7 +251,12 @@ func (s *Service) GetTrafficIncidents(ctx context.Context, req *TrafficIncidents
 		}, nil
 	}
 
-	return resp.(*TrafficIncidentsResponse), nil
+	incidentsResp, ok := resp.(*TrafficIncidentsResponse)
+	if !ok {
+		return nil, fmt.Errorf("unexpected response type: %T", resp)
+	}
+
+	return incidentsResp, nil
 }
 
 // Geocode converts an address to coordinates
@@ -261,7 +280,10 @@ func (s *Service) Geocode(ctx context.Context, req *GeocodingRequest) (*Geocodin
 		return nil, err
 	}
 
-	geoResp := resp.(*GeocodingResponse)
+	geoResp, ok := resp.(*GeocodingResponse)
+	if !ok {
+		return nil, fmt.Errorf("unexpected response type: %T", resp)
+	}
 
 	// Cache geocoding results for longer (24 hours)
 	if s.config.CacheEnabled && len(geoResp.Results) > 0 {
@@ -295,7 +317,10 @@ func (s *Service) ReverseGeocode(ctx context.Context, req *GeocodingRequest) (*G
 		return nil, err
 	}
 
-	geoResp := resp.(*GeocodingResponse)
+	geoResp, ok := resp.(*GeocodingResponse)
+	if !ok {
+		return nil, fmt.Errorf("unexpected response type: %T", resp)
+	}
 
 	// Cache reverse geocoding results
 	if s.config.CacheEnabled && len(geoResp.Results) > 0 && req.Coordinate != nil {
@@ -318,7 +343,12 @@ func (s *Service) SearchPlaces(ctx context.Context, req *PlaceSearchRequest) (*P
 		return nil, err
 	}
 
-	return resp.(*PlaceSearchResponse), nil
+	placesResp, ok := resp.(*PlaceSearchResponse)
+	if !ok {
+		return nil, fmt.Errorf("unexpected response type: %T", resp)
+	}
+
+	return placesResp, nil
 }
 
 // SnapToRoad snaps GPS coordinates to the nearest road
@@ -331,7 +361,12 @@ func (s *Service) SnapToRoad(ctx context.Context, req *SnapToRoadRequest) (*Snap
 		return nil, err
 	}
 
-	return resp.(*SnapToRoadResponse), nil
+	snapResp, ok := resp.(*SnapToRoadResponse)
+	if !ok {
+		return nil, fmt.Errorf("unexpected response type: %T", resp)
+	}
+
+	return snapResp, nil
 }
 
 // GetSpeedLimits returns speed limits along a path
@@ -344,7 +379,12 @@ func (s *Service) GetSpeedLimits(ctx context.Context, req *SpeedLimitsRequest) (
 		return nil, err
 	}
 
-	return resp.(*SpeedLimitsResponse), nil
+	speedResp, ok := resp.(*SpeedLimitsResponse)
+	if !ok {
+		return nil, fmt.Errorf("unexpected response type: %T", resp)
+	}
+
+	return speedResp, nil
 }
 
 // HealthCheck checks the health of all providers

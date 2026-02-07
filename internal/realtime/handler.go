@@ -71,6 +71,18 @@ func (h *Handler) HandleWebSocket(c *gin.Context) {
 		role = "rider" // Default to rider
 	}
 
+	// Safely extract userID and role as strings
+	userIDStr, ok := userID.(string)
+	if !ok {
+		common.ErrorResponse(c, http.StatusInternalServerError, "invalid user context")
+		return
+	}
+
+	roleStr, ok := role.(string)
+	if !ok {
+		roleStr = "rider" // Default to rider if type assertion fails
+	}
+
 	// Upgrade HTTP connection to WebSocket
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
@@ -79,7 +91,7 @@ func (h *Handler) HandleWebSocket(c *gin.Context) {
 	}
 
 	// Create new WebSocket client
-	client := ws.NewClient(userID.(string), conn, h.service.GetHub(), role.(string), h.logger)
+	client := ws.NewClient(userIDStr, conn, h.service.GetHub(), roleStr, h.logger)
 
 	// Register client with hub
 	h.service.GetHub().Register <- client
@@ -100,7 +112,11 @@ func (h *Handler) GetChatHistory(c *gin.Context) {
 	}
 
 	// Extract user ID from JWT token
-	userID, _ := c.Get("user_id")
+	userID, exists := c.Get("user_id")
+	if !exists {
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 
 	// Verify user is part of this ride
 	var count int

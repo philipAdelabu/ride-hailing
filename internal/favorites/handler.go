@@ -20,7 +20,16 @@ func NewHandler(service *Service) *Handler {
 
 // CreateFavorite creates a new favorite location
 func (h *Handler) CreateFavorite(c *gin.Context) {
-	userID, _ := c.Get("user_id")
+	userID, exists := c.Get("user_id")
+	if !exists {
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	userUUID, ok := userID.(uuid.UUID)
+	if !ok {
+		common.ErrorResponse(c, http.StatusInternalServerError, "invalid user context")
+		return
+	}
 
 	var req struct {
 		Name      string  `json:"name" binding:"required"`
@@ -36,7 +45,7 @@ func (h *Handler) CreateFavorite(c *gin.Context) {
 
 	favorite, err := h.service.CreateFavoriteLocation(
 		c.Request.Context(),
-		userID.(uuid.UUID),
+		userUUID,
 		req.Name,
 		req.Address,
 		req.Latitude,
@@ -53,11 +62,20 @@ func (h *Handler) CreateFavorite(c *gin.Context) {
 
 // GetFavorites retrieves all favorite locations for the user
 func (h *Handler) GetFavorites(c *gin.Context) {
-	userID, _ := c.Get("user_id")
+	userID, exists := c.Get("user_id")
+	if !exists {
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	userUUID, ok := userID.(uuid.UUID)
+	if !ok {
+		common.ErrorResponse(c, http.StatusInternalServerError, "invalid user context")
+		return
+	}
 
 	favorites, err := h.service.GetFavoriteLocations(
 		c.Request.Context(),
-		userID.(uuid.UUID),
+		userUUID,
 	)
 
 	if err != nil {
@@ -70,7 +88,17 @@ func (h *Handler) GetFavorites(c *gin.Context) {
 
 // GetFavorite retrieves a specific favorite location
 func (h *Handler) GetFavorite(c *gin.Context) {
-	userID, _ := c.Get("user_id")
+	userID, exists := c.Get("user_id")
+	if !exists {
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	userUUID, ok := userID.(uuid.UUID)
+	if !ok {
+		common.ErrorResponse(c, http.StatusInternalServerError, "invalid user context")
+		return
+	}
+
 	favoriteID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		common.ErrorResponse(c, http.StatusBadRequest, "Invalid favorite ID")
@@ -80,7 +108,7 @@ func (h *Handler) GetFavorite(c *gin.Context) {
 	favorite, err := h.service.GetFavoriteLocation(
 		c.Request.Context(),
 		favoriteID,
-		userID.(uuid.UUID),
+		userUUID,
 	)
 
 	if err != nil {
@@ -93,7 +121,17 @@ func (h *Handler) GetFavorite(c *gin.Context) {
 
 // UpdateFavorite updates a favorite location
 func (h *Handler) UpdateFavorite(c *gin.Context) {
-	userID, _ := c.Get("user_id")
+	userID, exists := c.Get("user_id")
+	if !exists {
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	userUUID, ok := userID.(uuid.UUID)
+	if !ok {
+		common.ErrorResponse(c, http.StatusInternalServerError, "invalid user context")
+		return
+	}
+
 	favoriteID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		common.ErrorResponse(c, http.StatusBadRequest, "Invalid favorite ID")
@@ -115,7 +153,7 @@ func (h *Handler) UpdateFavorite(c *gin.Context) {
 	favorite, err := h.service.UpdateFavoriteLocation(
 		c.Request.Context(),
 		favoriteID,
-		userID.(uuid.UUID),
+		userUUID,
 		req.Name,
 		req.Address,
 		req.Latitude,
@@ -132,7 +170,17 @@ func (h *Handler) UpdateFavorite(c *gin.Context) {
 
 // DeleteFavorite deletes a favorite location
 func (h *Handler) DeleteFavorite(c *gin.Context) {
-	userID, _ := c.Get("user_id")
+	userID, exists := c.Get("user_id")
+	if !exists {
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	userUUID, ok := userID.(uuid.UUID)
+	if !ok {
+		common.ErrorResponse(c, http.StatusInternalServerError, "invalid user context")
+		return
+	}
+
 	favoriteID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		common.ErrorResponse(c, http.StatusBadRequest, "Invalid favorite ID")
@@ -142,7 +190,7 @@ func (h *Handler) DeleteFavorite(c *gin.Context) {
 	err = h.service.DeleteFavoriteLocation(
 		c.Request.Context(),
 		favoriteID,
-		userID.(uuid.UUID),
+		userUUID,
 	)
 
 	if err != nil {

@@ -58,7 +58,12 @@ func (s *Service) SendOTP(ctx context.Context, userID uuid.UUID, phoneNumber str
 	}
 
 	// Invalidate any existing OTPs of this type
-	_ = s.repo.InvalidateUserOTPs(ctx, userID, otpType)
+	if err := s.repo.InvalidateUserOTPs(ctx, userID, otpType); err != nil {
+		logger.Warn("Failed to invalidate existing OTPs",
+			zap.String("user_id", userID.String()),
+			zap.String("otp_type", string(otpType)),
+			zap.Error(err))
+	}
 
 	// Generate OTP
 	otp := s.generateOTP()
@@ -129,7 +134,11 @@ func (s *Service) VerifyOTP(ctx context.Context, userID uuid.UUID, otp string, o
 	}
 
 	// Increment attempts
-	_ = s.repo.IncrementOTPAttempts(ctx, otpRecord.ID)
+	if err := s.repo.IncrementOTPAttempts(ctx, otpRecord.ID); err != nil {
+		logger.Warn("Failed to increment OTP attempts",
+			zap.String("otp_id", otpRecord.ID.String()),
+			zap.Error(err))
+	}
 
 	// Verify OTP
 	if err := bcrypt.CompareHashAndPassword([]byte(otpRecord.OTPHash), []byte(otp)); err != nil {
@@ -212,7 +221,13 @@ func (s *Service) Enable2FA(ctx context.Context, userID uuid.UUID, method TwoFAM
 		response.RequiresOTP = true
 		response.OTPDestination = maskPhone(phoneNumber)
 		// Send OTP for phone verification
-		_, _ = s.SendOTP(ctx, userID, phoneNumber, OTPTypeEnable2FA, ipAddress, userAgent)
+		if _, err := s.SendOTP(ctx, userID, phoneNumber, OTPTypeEnable2FA, ipAddress, userAgent); err != nil {
+			logger.Warn("Failed to send 2FA verification OTP",
+				zap.String("user_id", userID.String()),
+				zap.String("method", string(method)),
+				zap.Error(err))
+			// Don't fail the enable operation, OTP can be resent
+		}
 	}
 
 	s.logAuditEvent(ctx, userID, "2fa_enabled", "success", map[string]interface{}{
@@ -252,7 +267,11 @@ func (s *Service) Disable2FA(ctx context.Context, userID uuid.UUID, otp, backupC
 	}
 
 	// Revoke all trusted devices
-	_ = s.repo.RevokeAllUserTrustedDevices(ctx, userID, "2FA disabled")
+	if err := s.repo.RevokeAllUserTrustedDevices(ctx, userID, "2FA disabled"); err != nil {
+		logger.Warn("Failed to revoke trusted devices on 2FA disable",
+			zap.String("user_id", userID.String()),
+			zap.Error(err))
+	}
 
 	s.logAuditEvent(ctx, userID, "2fa_disabled", "success", nil, ipAddress, userAgent)
 
@@ -266,8 +285,20 @@ func (s *Service) Get2FAStatus(ctx context.Context, userID uuid.UUID) (*TwoFASta
 		return nil, common.NewInternalServerError("failed to get 2FA status")
 	}
 
-	backupCount, _ := s.repo.CountUnusedBackupCodes(ctx, userID)
-	deviceCount, _ := s.repo.CountUserTrustedDevices(ctx, userID)
+	backupCount, err := s.repo.CountUnusedBackupCodes(ctx, userID)
+	if err != nil {
+		logger.Warn("Failed to count unused backup codes",
+			zap.String("user_id", userID.String()),
+			zap.Error(err))
+		backupCount = 0
+	}
+	deviceCount, err := s.repo.CountUserTrustedDevices(ctx, userID)
+	if err != nil {
+		logger.Warn("Failed to count trusted devices",
+			zap.String("user_id", userID.String()),
+			zap.Error(err))
+		deviceCount = 0
+	}
 
 	return &TwoFAStatusResponse{
 		Enabled:             enabled,
@@ -395,7 +426,11 @@ func (s *Service) ValidateTrustedDevice(ctx context.Context, userID uuid.UUID, t
 	}
 
 	// Update last used
-	_ = s.repo.UpdateTrustedDeviceLastUsed(ctx, device.ID)
+	if err := s.repo.UpdateTrustedDeviceLastUsed(ctx, device.ID); err != nil {
+		logger.Warn("Failed to update trusted device last used",
+			zap.String("device_id", device.ID.String()),
+			zap.Error(err))
+	}
 
 	return true, nil
 }
@@ -507,7 +542,13 @@ func (s *Service) generateOTP() string {
 	const digits = "0123456789"
 	otp := make([]byte, OTPLength)
 	for i := 0; i < OTPLength; i++ {
-		n, _ := rand.Int(rand.Reader, big.NewInt(int64(len(digits))))
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(digits))))
+		if err != nil {
+			// Critical: crypto/rand failure - log and use fallback
+			logger.Error("crypto/rand failure in OTP generation", zap.Error(err))
+			// Use time-based fallback (less secure but better than panic)
+			n = big.NewInt(int64(time.Now().UnixNano() % int64(len(digits))))
+		}
 		otp[i] = digits[n.Int64()]
 	}
 	return string(otp)
@@ -516,7 +557,14 @@ func (s *Service) generateOTP() string {
 // generateSecureToken generates a secure random token
 func (s *Service) generateSecureToken(length int) string {
 	bytes := make([]byte, length)
-	rand.Read(bytes)
+	if _, err := rand.Read(bytes); err != nil {
+		logger.Error("crypto/rand failure in token generation", zap.Error(err))
+		// Critical failure - but we need to return something
+		// Use time-based seed as fallback (less secure)
+		for i := range bytes {
+			bytes[i] = byte(time.Now().UnixNano() >> (i * 8))
+		}
+	}
 	return base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(bytes)
 }
 
@@ -544,7 +592,12 @@ func (s *Service) generateBackupCode() string {
 	const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" // Exclude confusing characters
 	code := make([]byte, BackupCodeLength)
 	for i := 0; i < BackupCodeLength; i++ {
-		n, _ := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
+		if err != nil {
+			logger.Error("crypto/rand failure in backup code generation", zap.Error(err))
+			// Use time-based fallback (less secure)
+			n = big.NewInt(int64(time.Now().UnixNano() % int64(len(chars))))
+		}
 		code[i] = chars[n.Int64()]
 	}
 	// Format as XXXX-XXXX
