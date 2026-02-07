@@ -52,8 +52,8 @@ func (s *TwoFAFlowTestSuite) SetupTest() {
 
 func startTwoFAService() *serviceInstance {
 	repo := twofa.NewRepository(dbPool)
-	// Create a mock SMS sender for testing
-	service := twofa.NewService(repo, &mockSMSSender{}, "test-issuer")
+	// Create a mock SMS sender for testing - pass nil for redis (not needed for tests)
+	service := twofa.NewService(repo, &mockSMSSender{}, nil, "test-issuer")
 	handler := twofa.NewHandler(service)
 
 	router := gin.New()
@@ -105,12 +105,12 @@ func startTwoFAService() *serviceInstance {
 	return &serviceInstance{server: server, client: server.Client(), baseURL: server.URL}
 }
 
-// mockSMSSender implements SMSSender for testing
+// mockSMSSender implements twofa.SMSSender for testing
 type mockSMSSender struct{}
 
-func (m *mockSMSSender) SendSMS(to, message string) error {
-	// In tests, we don't actually send SMS
-	return nil
+func (m *mockSMSSender) SendOTP(to, otp string) (string, error) {
+	// In tests, we don't actually send SMS - just return success
+	return "mock-message-id", nil
 }
 
 func truncateTwoFATables(t *testing.T) {
@@ -865,4 +865,524 @@ func (s *TwoFAFlowTestSuite) TestSendOTP_Unauthorized() {
 	sendResp := doRawRequest(t, twofaServiceKey, http.MethodPost, "/api/v1/2fa/otp/send", sendReq, nil)
 	defer sendResp.Body.Close()
 	require.Equal(t, http.StatusUnauthorized, sendResp.StatusCode)
+}
+
+// ============================================
+// COMPLETE 2FA FLOW TESTS
+// ============================================
+
+// TestComplete2FAEnableFlow tests the complete flow of enabling 2FA
+func (s *TwoFAFlowTestSuite) TestComplete2FAEnableFlow() {
+	t := s.T()
+	ctx := context.Background()
+
+	// Step 1: Check initial 2FA status (should be disabled)
+	type statusResponse struct {
+		Enabled             bool   `json:"enabled"`
+		Method              string `json:"method,omitempty"`
+		PhoneVerified       bool   `json:"phone_verified"`
+		TOTPVerified        bool   `json:"totp_verified"`
+		BackupCodesCount    int    `json:"backup_codes_count"`
+		TrustedDevicesCount int    `json:"trusted_devices_count"`
+	}
+
+	statusResp := doRequest[statusResponse](t, twofaServiceKey, http.MethodGet, "/api/v1/2fa/status", nil, authHeaders(s.rider.Token))
+	require.True(t, statusResp.Success)
+	require.False(t, statusResp.Data.Enabled)
+
+	// Step 2: Enable 2FA with TOTP method
+	enableReq := map[string]interface{}{
+		"method": "totp",
+	}
+
+	type enableResponse struct {
+		Message     string   `json:"message"`
+		Method      string   `json:"method"`
+		TOTPSecret  string   `json:"totp_secret"`
+		TOTPQRCode  string   `json:"totp_qr_code"`
+		BackupCodes []string `json:"backup_codes"`
+		RequiresOTP bool     `json:"requires_otp"`
+	}
+
+	enableResp := doRequest[enableResponse](t, twofaServiceKey, http.MethodPost, "/api/v1/2fa/enable", enableReq, authHeaders(s.rider.Token))
+	require.True(t, enableResp.Success)
+	require.Equal(t, "totp", enableResp.Data.Method)
+	require.NotEmpty(t, enableResp.Data.TOTPSecret)
+	require.Len(t, enableResp.Data.BackupCodes, 10)
+
+	// Step 3: Verify 2FA is now enabled in database
+	var enabled bool
+	var method string
+	err := dbPool.QueryRow(ctx, `SELECT twofa_enabled, twofa_method FROM users WHERE id = $1`, s.rider.User.ID).Scan(&enabled, &method)
+	require.NoError(t, err)
+	require.True(t, enabled)
+	require.Equal(t, "totp", method)
+
+	// Step 4: Check updated 2FA status
+	statusResp2 := doRequest[statusResponse](t, twofaServiceKey, http.MethodGet, "/api/v1/2fa/status", nil, authHeaders(s.rider.Token))
+	require.True(t, statusResp2.Success)
+	require.True(t, statusResp2.Data.Enabled)
+	require.Equal(t, 10, statusResp2.Data.BackupCodesCount)
+}
+
+// TestComplete2FADisableFlow tests the complete flow of disabling 2FA
+func (s *TwoFAFlowTestSuite) TestComplete2FADisableFlow() {
+	t := s.T()
+	ctx := context.Background()
+
+	// Step 1: Enable 2FA for the user
+	_, err := dbPool.Exec(ctx, `
+		UPDATE users SET twofa_enabled = true, twofa_method = 'sms', phone_verified_at = NOW()
+		WHERE id = $1`,
+		s.rider.User.ID)
+	require.NoError(t, err)
+
+	// Step 2: Create a valid OTP for disabling
+	otp := "654321"
+	otpHash, err := bcrypt.GenerateFromPassword([]byte(otp), bcrypt.DefaultCost)
+	require.NoError(t, err)
+
+	_, err = dbPool.Exec(ctx, `
+		INSERT INTO otp_verifications (id, user_id, otp_hash, otp_type, delivery_method, destination, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		uuid.New(), s.rider.User.ID, string(otpHash), "disable_2fa", "sms", "+15551234567", time.Now().Add(10*time.Minute))
+	require.NoError(t, err)
+
+	// Step 3: Disable 2FA
+	disableReq := map[string]interface{}{
+		"otp": otp,
+	}
+
+	type disableResponse struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+
+	disableResp := doRequest[disableResponse](t, twofaServiceKey, http.MethodPost, "/api/v1/2fa/disable", disableReq, authHeaders(s.rider.Token))
+	require.True(t, disableResp.Success)
+
+	// Step 4: Verify 2FA is disabled in database
+	var enabled bool
+	err = dbPool.QueryRow(ctx, `SELECT twofa_enabled FROM users WHERE id = $1`, s.rider.User.ID).Scan(&enabled)
+	require.NoError(t, err)
+	require.False(t, enabled)
+
+	// Step 5: Verify status endpoint shows disabled
+	type statusResponse struct {
+		Enabled bool `json:"enabled"`
+	}
+
+	statusResp := doRequest[statusResponse](t, twofaServiceKey, http.MethodGet, "/api/v1/2fa/status", nil, authHeaders(s.rider.Token))
+	require.True(t, statusResp.Success)
+	require.False(t, statusResp.Data.Enabled)
+}
+
+// TestTrustedDeviceFlow tests the complete trusted device flow
+func (s *TwoFAFlowTestSuite) TestTrustedDeviceFlow() {
+	t := s.T()
+	ctx := context.Background()
+
+	// Step 1: Enable 2FA
+	_, err := dbPool.Exec(ctx, `
+		UPDATE users SET twofa_enabled = true, twofa_method = 'sms', phone_verified_at = NOW()
+		WHERE id = $1`,
+		s.rider.User.ID)
+	require.NoError(t, err)
+
+	// Step 2: Create a trusted device directly in DB (simulating successful 2FA verification with trust option)
+	deviceID := uuid.New()
+	deviceToken := "test-device-token-" + uuid.NewString()
+	deviceName := "Test iPhone"
+	_, err = dbPool.Exec(ctx, `
+		INSERT INTO trusted_devices (id, user_id, device_token, device_name, trusted_at, expires_at, ip_address)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		deviceID, s.rider.User.ID, deviceToken, deviceName, time.Now(), time.Now().Add(30*24*time.Hour), "192.168.1.1")
+	require.NoError(t, err)
+
+	// Step 3: Get trusted devices
+	type deviceItem struct {
+		ID         string `json:"id"`
+		DeviceName string `json:"device_name"`
+		IsCurrent  bool   `json:"is_current"`
+	}
+
+	type devicesResponse struct {
+		Devices []deviceItem `json:"devices"`
+	}
+
+	devicesResp := doRequest[devicesResponse](t, twofaServiceKey, http.MethodGet, "/api/v1/2fa/devices", nil, authHeaders(s.rider.Token))
+	require.True(t, devicesResp.Success)
+	require.Len(t, devicesResp.Data.Devices, 1)
+	require.Equal(t, deviceName, devicesResp.Data.Devices[0].DeviceName)
+
+	// Step 4: Revoke the trusted device
+	revokePath := fmt.Sprintf("/api/v1/2fa/devices/%s", deviceID)
+
+	type revokeResponse struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+
+	revokeResp := doRequest[revokeResponse](t, twofaServiceKey, http.MethodDelete, revokePath, nil, authHeaders(s.rider.Token))
+	require.True(t, revokeResp.Success)
+
+	// Step 5: Verify device is revoked
+	var revokedAt *time.Time
+	err = dbPool.QueryRow(ctx, `SELECT revoked_at FROM trusted_devices WHERE id = $1`, deviceID).Scan(&revokedAt)
+	require.NoError(t, err)
+	require.NotNil(t, revokedAt)
+
+	// Step 6: Verify device no longer appears in list
+	devicesResp2 := doRequest[devicesResponse](t, twofaServiceKey, http.MethodGet, "/api/v1/2fa/devices", nil, authHeaders(s.rider.Token))
+	require.True(t, devicesResp2.Success)
+	require.Empty(t, devicesResp2.Data.Devices)
+}
+
+// TestBackupCodeVerificationFlow tests the complete backup code verification flow
+func (s *TwoFAFlowTestSuite) TestBackupCodeVerificationFlow() {
+	t := s.T()
+	ctx := context.Background()
+
+	// Step 1: Enable 2FA
+	_, err := dbPool.Exec(ctx, `
+		UPDATE users SET twofa_enabled = true, twofa_method = 'totp', totp_verified_at = NOW()
+		WHERE id = $1`,
+		s.rider.User.ID)
+	require.NoError(t, err)
+
+	// Step 2: Create backup codes
+	backupCode1 := "ABCD-1234"
+	backupCode2 := "EFGH-5678"
+	codeHash1, err := bcrypt.GenerateFromPassword([]byte(backupCode1), bcrypt.DefaultCost)
+	require.NoError(t, err)
+	codeHash2, err := bcrypt.GenerateFromPassword([]byte(backupCode2), bcrypt.DefaultCost)
+	require.NoError(t, err)
+
+	_, err = dbPool.Exec(ctx, `
+		INSERT INTO backup_codes (id, user_id, code_hash)
+		VALUES ($1, $2, $3), ($4, $5, $6)`,
+		uuid.New(), s.rider.User.ID, string(codeHash1),
+		uuid.New(), s.rider.User.ID, string(codeHash2))
+	require.NoError(t, err)
+
+	// Step 3: Verify backup codes count in status
+	type statusResponse struct {
+		Enabled          bool `json:"enabled"`
+		BackupCodesCount int  `json:"backup_codes_count"`
+	}
+
+	statusResp := doRequest[statusResponse](t, twofaServiceKey, http.MethodGet, "/api/v1/2fa/status", nil, authHeaders(s.rider.Token))
+	require.True(t, statusResp.Success)
+	require.Equal(t, 2, statusResp.Data.BackupCodesCount)
+
+	// Step 4: Use backup code to disable 2FA
+	disableReq := map[string]interface{}{
+		"otp":         "000000", // Invalid OTP
+		"backup_code": backupCode1,
+	}
+
+	type disableResponse struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+
+	disableResp := doRequest[disableResponse](t, twofaServiceKey, http.MethodPost, "/api/v1/2fa/disable", disableReq, authHeaders(s.rider.Token))
+	require.True(t, disableResp.Success)
+
+	// Step 5: Verify backup code was marked as used
+	var usedCount int
+	err = dbPool.QueryRow(ctx, `SELECT COUNT(*) FROM backup_codes WHERE user_id = $1 AND used_at IS NOT NULL`, s.rider.User.ID).Scan(&usedCount)
+	require.NoError(t, err)
+	require.Equal(t, 1, usedCount)
+}
+
+// TestPhoneVerificationCompleteFlow tests the complete phone verification flow
+func (s *TwoFAFlowTestSuite) TestPhoneVerificationCompleteFlow() {
+	t := s.T()
+	ctx := context.Background()
+
+	// Step 1: Set phone number for user
+	phoneNumber := "+15551234567"
+	_, err := dbPool.Exec(ctx, `UPDATE users SET phone_number = $1 WHERE id = $2`, phoneNumber, s.rider.User.ID)
+	require.NoError(t, err)
+
+	// Step 2: Send phone verification OTP
+	sendReq := map[string]interface{}{
+		"phone_number": phoneNumber,
+	}
+
+	type sendResponse struct {
+		Message     string    `json:"message"`
+		Destination string    `json:"destination"`
+		ExpiresAt   time.Time `json:"expires_at"`
+	}
+
+	sendResp := doRequest[sendResponse](t, twofaServiceKey, http.MethodPost, "/api/v1/2fa/phone/send", sendReq, authHeaders(s.rider.Token))
+	require.True(t, sendResp.Success)
+	require.NotEmpty(t, sendResp.Data.Message)
+
+	// Step 3: Get the OTP from DB (simulating what user receives via SMS)
+	var otpHash string
+	err = dbPool.QueryRow(ctx, `
+		SELECT otp_hash FROM otp_verifications
+		WHERE user_id = $1 AND otp_type = 'phone_verification' AND verified_at IS NULL
+		ORDER BY created_at DESC LIMIT 1`,
+		s.rider.User.ID).Scan(&otpHash)
+	require.NoError(t, err)
+
+	// Step 4: Create a known OTP for verification (since we can't decode the hash)
+	otp := "123456"
+	newOtpHash, err := bcrypt.GenerateFromPassword([]byte(otp), bcrypt.DefaultCost)
+	require.NoError(t, err)
+
+	_, err = dbPool.Exec(ctx, `
+		UPDATE otp_verifications SET otp_hash = $1
+		WHERE user_id = $2 AND otp_type = 'phone_verification' AND verified_at IS NULL`,
+		string(newOtpHash), s.rider.User.ID)
+	require.NoError(t, err)
+
+	// Step 5: Verify phone with OTP
+	verifyReq := map[string]interface{}{
+		"otp": otp,
+	}
+
+	type verifyResponse struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+
+	verifyResp := doRequest[verifyResponse](t, twofaServiceKey, http.MethodPost, "/api/v1/2fa/phone/verify", verifyReq, authHeaders(s.rider.Token))
+	require.True(t, verifyResp.Success)
+	require.True(t, verifyResp.Data.Success)
+
+	// Step 6: Verify phone is marked as verified in DB
+	var phoneVerifiedAt *time.Time
+	err = dbPool.QueryRow(ctx, `SELECT phone_verified_at FROM users WHERE id = $1`, s.rider.User.ID).Scan(&phoneVerifiedAt)
+	require.NoError(t, err)
+	require.NotNil(t, phoneVerifiedAt)
+}
+
+// TestMultipleTrustedDevices tests managing multiple trusted devices
+func (s *TwoFAFlowTestSuite) TestMultipleTrustedDevices() {
+	t := s.T()
+	ctx := context.Background()
+
+	// Enable 2FA
+	_, err := dbPool.Exec(ctx, `
+		UPDATE users SET twofa_enabled = true, twofa_method = 'sms'
+		WHERE id = $1`,
+		s.rider.User.ID)
+	require.NoError(t, err)
+
+	// Create multiple trusted devices
+	deviceIDs := make([]uuid.UUID, 5)
+	for i := 0; i < 5; i++ {
+		deviceIDs[i] = uuid.New()
+		deviceToken := fmt.Sprintf("device-token-%d-%s", i, uuid.NewString())
+		deviceName := fmt.Sprintf("Device %d", i+1)
+		_, err := dbPool.Exec(ctx, `
+			INSERT INTO trusted_devices (id, user_id, device_token, device_name, trusted_at, expires_at, ip_address)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			deviceIDs[i], s.rider.User.ID, deviceToken, deviceName, time.Now(), time.Now().Add(30*24*time.Hour), "192.168.1.1")
+		require.NoError(t, err)
+	}
+
+	// Get all devices
+	type deviceItem struct {
+		ID         string `json:"id"`
+		DeviceName string `json:"device_name"`
+	}
+
+	type devicesResponse struct {
+		Devices []deviceItem `json:"devices"`
+	}
+
+	devicesResp := doRequest[devicesResponse](t, twofaServiceKey, http.MethodGet, "/api/v1/2fa/devices", nil, authHeaders(s.rider.Token))
+	require.True(t, devicesResp.Success)
+	require.Len(t, devicesResp.Data.Devices, 5)
+
+	// Revoke 2 devices
+	for i := 0; i < 2; i++ {
+		revokePath := fmt.Sprintf("/api/v1/2fa/devices/%s", deviceIDs[i])
+		revokeResp := doRawRequest(t, twofaServiceKey, http.MethodDelete, revokePath, nil, authHeaders(s.rider.Token))
+		require.Equal(t, http.StatusOK, revokeResp.StatusCode)
+		revokeResp.Body.Close()
+	}
+
+	// Verify only 3 devices remain
+	devicesResp2 := doRequest[devicesResponse](t, twofaServiceKey, http.MethodGet, "/api/v1/2fa/devices", nil, authHeaders(s.rider.Token))
+	require.True(t, devicesResp2.Success)
+	require.Len(t, devicesResp2.Data.Devices, 3)
+
+	// Verify 2FA status shows correct device count
+	type statusResponse struct {
+		TrustedDevicesCount int `json:"trusted_devices_count"`
+	}
+
+	statusResp := doRequest[statusResponse](t, twofaServiceKey, http.MethodGet, "/api/v1/2fa/status", nil, authHeaders(s.rider.Token))
+	require.True(t, statusResp.Success)
+	require.Equal(t, 3, statusResp.Data.TrustedDevicesCount)
+}
+
+// TestOTPVerificationAttemptTracking tests that OTP verification attempts are tracked
+func (s *TwoFAFlowTestSuite) TestOTPVerificationAttemptTracking() {
+	t := s.T()
+	ctx := context.Background()
+
+	// Create a valid OTP
+	otp := "123456"
+	otpHash, err := bcrypt.GenerateFromPassword([]byte(otp), bcrypt.DefaultCost)
+	require.NoError(t, err)
+
+	otpID := uuid.New()
+	_, err = dbPool.Exec(ctx, `
+		INSERT INTO otp_verifications (id, user_id, otp_hash, otp_type, delivery_method, destination, attempts, max_attempts, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		otpID, s.rider.User.ID, string(otpHash), "phone_verification", "sms", "+15551234567", 0, 5, time.Now().Add(10*time.Minute))
+	require.NoError(t, err)
+
+	// Make 3 failed verification attempts
+	for i := 0; i < 3; i++ {
+		verifyReq := map[string]interface{}{
+			"otp":      "999999", // Wrong OTP
+			"otp_type": "phone_verification",
+		}
+
+		verifyResp := doRawRequest(t, twofaServiceKey, http.MethodPost, "/api/v1/2fa/otp/verify", verifyReq, authHeaders(s.rider.Token))
+		require.Equal(t, http.StatusBadRequest, verifyResp.StatusCode)
+		verifyResp.Body.Close()
+	}
+
+	// Check attempts were incremented
+	var attempts int
+	err = dbPool.QueryRow(ctx, `SELECT attempts FROM otp_verifications WHERE id = $1`, otpID).Scan(&attempts)
+	require.NoError(t, err)
+	require.Equal(t, 3, attempts)
+
+	// Verify with correct OTP should still work (under max attempts)
+	verifyReq := map[string]interface{}{
+		"otp":      otp,
+		"otp_type": "phone_verification",
+	}
+
+	type verifyResponse struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+
+	verifyResp := doRequest[verifyResponse](t, twofaServiceKey, http.MethodPost, "/api/v1/2fa/otp/verify", verifyReq, authHeaders(s.rider.Token))
+	require.True(t, verifyResp.Success)
+	require.True(t, verifyResp.Data.Success)
+}
+
+// TestExpiredTrustedDevice tests that expired trusted devices are not returned
+func (s *TwoFAFlowTestSuite) TestExpiredTrustedDevice() {
+	t := s.T()
+	ctx := context.Background()
+
+	// Enable 2FA
+	_, err := dbPool.Exec(ctx, `
+		UPDATE users SET twofa_enabled = true, twofa_method = 'sms'
+		WHERE id = $1`,
+		s.rider.User.ID)
+	require.NoError(t, err)
+
+	// Create an expired trusted device
+	deviceID := uuid.New()
+	deviceToken := "expired-device-token-" + uuid.NewString()
+	_, err = dbPool.Exec(ctx, `
+		INSERT INTO trusted_devices (id, user_id, device_token, device_name, trusted_at, expires_at, ip_address)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		deviceID, s.rider.User.ID, deviceToken, "Expired Device",
+		time.Now().Add(-60*24*time.Hour), time.Now().Add(-30*24*time.Hour), "192.168.1.1")
+	require.NoError(t, err)
+
+	// Create a valid trusted device
+	validDeviceID := uuid.New()
+	validDeviceToken := "valid-device-token-" + uuid.NewString()
+	_, err = dbPool.Exec(ctx, `
+		INSERT INTO trusted_devices (id, user_id, device_token, device_name, trusted_at, expires_at, ip_address)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		validDeviceID, s.rider.User.ID, validDeviceToken, "Valid Device",
+		time.Now(), time.Now().Add(30*24*time.Hour), "192.168.1.1")
+	require.NoError(t, err)
+
+	// Get trusted devices - should only return the valid one
+	type deviceItem struct {
+		ID         string `json:"id"`
+		DeviceName string `json:"device_name"`
+	}
+
+	type devicesResponse struct {
+		Devices []deviceItem `json:"devices"`
+	}
+
+	devicesResp := doRequest[devicesResponse](t, twofaServiceKey, http.MethodGet, "/api/v1/2fa/devices", nil, authHeaders(s.rider.Token))
+	require.True(t, devicesResp.Success)
+	require.Len(t, devicesResp.Data.Devices, 1)
+	require.Equal(t, "Valid Device", devicesResp.Data.Devices[0].DeviceName)
+}
+
+// TestSwitching2FAMethod tests switching between 2FA methods
+func (s *TwoFAFlowTestSuite) TestSwitching2FAMethod() {
+	t := s.T()
+	ctx := context.Background()
+
+	// Step 1: Enable 2FA with SMS
+	_, err := dbPool.Exec(ctx, `UPDATE users SET phone_number = $1 WHERE id = $2`,
+		"+15551234567", s.rider.User.ID)
+	require.NoError(t, err)
+
+	enableReq := map[string]interface{}{
+		"method": "sms",
+	}
+
+	type enableResponse struct {
+		Method      string   `json:"method"`
+		BackupCodes []string `json:"backup_codes"`
+	}
+
+	enableResp := doRequest[enableResponse](t, twofaServiceKey, http.MethodPost, "/api/v1/2fa/enable", enableReq, authHeaders(s.rider.Token))
+	require.True(t, enableResp.Success)
+	require.Equal(t, "sms", enableResp.Data.Method)
+
+	// Step 2: Verify current method is SMS
+	var method string
+	err = dbPool.QueryRow(ctx, `SELECT twofa_method FROM users WHERE id = $1`, s.rider.User.ID).Scan(&method)
+	require.NoError(t, err)
+	require.Equal(t, "sms", method)
+
+	// Step 3: Create OTP for disable
+	otp := "654321"
+	otpHash, err := bcrypt.GenerateFromPassword([]byte(otp), bcrypt.DefaultCost)
+	require.NoError(t, err)
+
+	_, err = dbPool.Exec(ctx, `
+		INSERT INTO otp_verifications (id, user_id, otp_hash, otp_type, delivery_method, destination, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		uuid.New(), s.rider.User.ID, string(otpHash), "disable_2fa", "sms", "+15551234567", time.Now().Add(10*time.Minute))
+	require.NoError(t, err)
+
+	// Step 4: Disable 2FA
+	disableReq := map[string]interface{}{
+		"otp": otp,
+	}
+
+	disableResp := doRawRequest(t, twofaServiceKey, http.MethodPost, "/api/v1/2fa/disable", disableReq, authHeaders(s.rider.Token))
+	require.Equal(t, http.StatusOK, disableResp.StatusCode)
+	disableResp.Body.Close()
+
+	// Step 5: Re-enable with TOTP method
+	enableReq2 := map[string]interface{}{
+		"method": "totp",
+	}
+
+	enableResp2 := doRequest[enableResponse](t, twofaServiceKey, http.MethodPost, "/api/v1/2fa/enable", enableReq2, authHeaders(s.rider.Token))
+	require.True(t, enableResp2.Success)
+	require.Equal(t, "totp", enableResp2.Data.Method)
+
+	// Step 6: Verify method changed to TOTP
+	err = dbPool.QueryRow(ctx, `SELECT twofa_method FROM users WHERE id = $1`, s.rider.User.ID).Scan(&method)
+	require.NoError(t, err)
+	require.Equal(t, "totp", method)
 }

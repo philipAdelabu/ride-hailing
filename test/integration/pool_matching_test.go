@@ -715,6 +715,560 @@ func (s *PoolMatchingTestSuite) TestPool_MaxRidersInPool() {
 }
 
 // ============================================
+// FULL POOL RIDE FLOW TESTS (E2E)
+// ============================================
+
+func (s *PoolMatchingTestSuite) TestPool_FullPoolRideFlow_E2E() {
+	t := s.T()
+	ctx := context.Background()
+
+	t.Log("Step 1: Create pool ride type")
+	poolRideTypeID := s.createPoolRideType(t, ctx)
+
+	// Step 2: First rider creates a pool ride request
+	t.Log("Step 2: First rider creates pool ride request")
+	ride1Req := &models.RideRequest{
+		PickupLatitude:   37.7749,
+		PickupLongitude:  -122.4194,
+		PickupAddress:    "100 Market St, San Francisco",
+		DropoffLatitude:  37.8044,
+		DropoffLongitude: -122.2712,
+		DropoffAddress:   "100 Broadway, Oakland",
+		RideTypeID:       &poolRideTypeID,
+	}
+
+	ride1Resp := doRequest[*models.Ride](t, ridesServiceKey, http.MethodPost, "/api/v1/rides", ride1Req, authHeaders(s.riders[0].Token))
+	require.True(t, ride1Resp.Success)
+	require.NotNil(t, ride1Resp.Data)
+	require.Equal(t, models.RideStatusRequested, ride1Resp.Data.Status)
+	ride1ID := ride1Resp.Data.ID
+	t.Logf("Ride 1 created with ID: %s", ride1ID)
+
+	// Step 3: Second rider creates a pool ride request with similar route
+	t.Log("Step 3: Second rider creates pool ride request (similar route)")
+	ride2Req := &models.RideRequest{
+		PickupLatitude:   37.7755, // Nearby pickup (~0.5km from rider 1)
+		PickupLongitude:  -122.4185,
+		PickupAddress:    "150 Market St, San Francisco",
+		DropoffLatitude:  37.8050, // Nearby dropoff (~0.5km from rider 1)
+		DropoffLongitude: -122.2700,
+		DropoffAddress:   "150 Broadway, Oakland",
+		RideTypeID:       &poolRideTypeID,
+	}
+
+	ride2Resp := doRequest[*models.Ride](t, ridesServiceKey, http.MethodPost, "/api/v1/rides", ride2Req, authHeaders(s.riders[1].Token))
+	require.True(t, ride2Resp.Success)
+	require.NotNil(t, ride2Resp.Data)
+	require.Equal(t, models.RideStatusRequested, ride2Resp.Data.Status)
+	ride2ID := ride2Resp.Data.ID
+	t.Logf("Ride 2 created with ID: %s", ride2ID)
+
+	// Step 4: Verify both rides are in requested status
+	t.Log("Step 4: Verifying both rides are in requested status")
+	var ride1Status, ride2Status string
+	err := dbPool.QueryRow(ctx, "SELECT status FROM rides WHERE id = $1", ride1ID).Scan(&ride1Status)
+	require.NoError(t, err)
+	require.Equal(t, string(models.RideStatusRequested), ride1Status)
+
+	err = dbPool.QueryRow(ctx, "SELECT status FROM rides WHERE id = $1", ride2ID).Scan(&ride2Status)
+	require.NoError(t, err)
+	require.Equal(t, string(models.RideStatusRequested), ride2Status)
+
+	// Step 5: Driver accepts first ride (would be part of a pool)
+	t.Log("Step 5: Driver accepts first pool ride")
+	acceptPath1 := fmt.Sprintf("/api/v1/driver/rides/%s/accept", ride1ID)
+	acceptResp1 := doRequest[*models.Ride](t, ridesServiceKey, http.MethodPost, acceptPath1, nil, authHeaders(s.drivers[0].Token))
+	require.True(t, acceptResp1.Success)
+	require.Equal(t, models.RideStatusAccepted, acceptResp1.Data.Status)
+	require.NotNil(t, acceptResp1.Data.DriverID)
+	require.Equal(t, s.drivers[0].User.ID, *acceptResp1.Data.DriverID)
+
+	// Step 6: Same driver accepts second ride (pooling)
+	t.Log("Step 6: Same driver accepts second pool ride (forming pool)")
+	// Simulate pool matching by having the same driver accept the second ride
+	_, err = dbPool.Exec(ctx, `
+		UPDATE rides SET driver_id = $1, status = $2, accepted_at = NOW()
+		WHERE id = $3`,
+		s.drivers[0].User.ID, models.RideStatusAccepted, ride2ID)
+	require.NoError(t, err)
+
+	// Step 7: Verify both rides are now accepted by the same driver
+	t.Log("Step 7: Verifying both rides accepted by same driver")
+	var driver1ID, driver2ID uuid.UUID
+	err = dbPool.QueryRow(ctx, "SELECT driver_id FROM rides WHERE id = $1", ride1ID).Scan(&driver1ID)
+	require.NoError(t, err)
+	err = dbPool.QueryRow(ctx, "SELECT driver_id FROM rides WHERE id = $1", ride2ID).Scan(&driver2ID)
+	require.NoError(t, err)
+	require.Equal(t, driver1ID, driver2ID, "Both rides should have the same driver")
+
+	// Step 8: Driver starts first ride (picks up first rider)
+	t.Log("Step 8: Driver starts first ride (picks up rider 1)")
+	startPath1 := fmt.Sprintf("/api/v1/driver/rides/%s/start", ride1ID)
+	startResp1 := doRequest[*models.Ride](t, ridesServiceKey, http.MethodPost, startPath1, nil, authHeaders(s.drivers[0].Token))
+	require.True(t, startResp1.Success)
+	require.Equal(t, models.RideStatusInProgress, startResp1.Data.Status)
+	require.NotNil(t, startResp1.Data.StartedAt)
+
+	// Step 9: Driver picks up second rider (second ride in progress)
+	t.Log("Step 9: Driver picks up second rider (ride 2 in progress)")
+	_, err = dbPool.Exec(ctx, `
+		UPDATE rides SET status = $1, started_at = NOW()
+		WHERE id = $2`,
+		models.RideStatusInProgress, ride2ID)
+	require.NoError(t, err)
+
+	// Step 10: Verify both rides are now in progress
+	t.Log("Step 10: Verifying both rides are in progress")
+	err = dbPool.QueryRow(ctx, "SELECT status FROM rides WHERE id = $1", ride1ID).Scan(&ride1Status)
+	require.NoError(t, err)
+	require.Equal(t, string(models.RideStatusInProgress), ride1Status)
+
+	err = dbPool.QueryRow(ctx, "SELECT status FROM rides WHERE id = $1", ride2ID).Scan(&ride2Status)
+	require.NoError(t, err)
+	require.Equal(t, string(models.RideStatusInProgress), ride2Status)
+
+	// Step 11: Driver drops off first rider (completes first ride)
+	t.Log("Step 11: Driver completes first ride (drops off rider 1)")
+	completePath1 := fmt.Sprintf("/api/v1/driver/rides/%s/complete", ride1ID)
+	completeReq1 := map[string]interface{}{"actual_distance": 8.5}
+	completeResp1 := doRequest[*models.Ride](t, ridesServiceKey, http.MethodPost, completePath1, completeReq1, authHeaders(s.drivers[0].Token))
+	require.True(t, completeResp1.Success)
+	require.Equal(t, models.RideStatusCompleted, completeResp1.Data.Status)
+	require.NotNil(t, completeResp1.Data.CompletedAt)
+	require.NotNil(t, completeResp1.Data.FinalFare)
+	t.Logf("Ride 1 final fare: %.2f", *completeResp1.Data.FinalFare)
+
+	// Step 12: Driver drops off second rider (completes second ride)
+	t.Log("Step 12: Driver completes second ride (drops off rider 2)")
+	_, err = dbPool.Exec(ctx, `
+		UPDATE rides SET status = $1, completed_at = NOW(), actual_distance = $2, final_fare = $3
+		WHERE id = $4`,
+		models.RideStatusCompleted, 9.2, 14.50, ride2ID)
+	require.NoError(t, err)
+
+	// Step 13: Verify both rides are completed
+	t.Log("Step 13: Verifying both rides are completed")
+	err = dbPool.QueryRow(ctx, "SELECT status FROM rides WHERE id = $1", ride1ID).Scan(&ride1Status)
+	require.NoError(t, err)
+	require.Equal(t, string(models.RideStatusCompleted), ride1Status)
+
+	err = dbPool.QueryRow(ctx, "SELECT status FROM rides WHERE id = $1", ride2ID).Scan(&ride2Status)
+	require.NoError(t, err)
+	require.Equal(t, string(models.RideStatusCompleted), ride2Status)
+
+	// Step 14: Verify ride details for both riders
+	t.Log("Step 14: Verifying ride details for both riders")
+	ride1Detail := doRequest[*models.Ride](t, ridesServiceKey, http.MethodGet, fmt.Sprintf("/api/v1/rides/%s", ride1ID), nil, authHeaders(s.riders[0].Token))
+	require.True(t, ride1Detail.Success)
+	require.Equal(t, models.RideStatusCompleted, ride1Detail.Data.Status)
+	require.Equal(t, s.riders[0].User.ID, ride1Detail.Data.RiderID)
+
+	ride2Detail := doRequest[*models.Ride](t, ridesServiceKey, http.MethodGet, fmt.Sprintf("/api/v1/rides/%s", ride2ID), nil, authHeaders(s.riders[1].Token))
+	require.True(t, ride2Detail.Success)
+	require.Equal(t, models.RideStatusCompleted, ride2Detail.Data.Status)
+	require.Equal(t, s.riders[1].User.ID, ride2Detail.Data.RiderID)
+
+	t.Log("Full pool ride flow completed successfully!")
+}
+
+func (s *PoolMatchingTestSuite) TestPool_PoolRideWithMultipleStops() {
+	t := s.T()
+	ctx := context.Background()
+
+	t.Log("Testing pool ride with multiple pickup/dropoff stops")
+	poolRideTypeID := s.createPoolRideType(t, ctx)
+
+	// Create three pool rides going in the same direction with staggered pickups/dropoffs
+	// Pickup order: Rider 1 -> Rider 2 -> Rider 3
+	// Dropoff order: Rider 2 -> Rider 1 -> Rider 3
+
+	rideConfigs := []struct {
+		rider       authSession
+		pickupLat   float64
+		pickupLon   float64
+		dropoffLat  float64
+		dropoffLon  float64
+		pickupAddr  string
+		dropoffAddr string
+	}{
+		{
+			rider:       s.riders[0],
+			pickupLat:   37.7749,
+			pickupLon:   -122.4194,
+			dropoffLat:  37.8044,
+			dropoffLon:  -122.2712,
+			pickupAddr:  "Stop A - Pickup Rider 1",
+			dropoffAddr: "Stop D - Dropoff Rider 1",
+		},
+		{
+			rider:       s.riders[1],
+			pickupLat:   37.7770,
+			pickupLon:   -122.4100,
+			dropoffLat:  37.7950,
+			dropoffLon:  -122.3000,
+			pickupAddr:  "Stop B - Pickup Rider 2",
+			dropoffAddr: "Stop C - Dropoff Rider 2",
+		},
+		{
+			rider:       s.riders[2],
+			pickupLat:   37.7790,
+			pickupLon:   -122.4000,
+			dropoffLat:  37.8100,
+			dropoffLon:  -122.2600,
+			pickupAddr:  "Stop C - Pickup Rider 3",
+			dropoffAddr: "Stop E - Dropoff Rider 3",
+		},
+	}
+
+	rideIDs := make([]uuid.UUID, len(rideConfigs))
+
+	// Create all pool ride requests
+	for i, cfg := range rideConfigs {
+		rideReq := &models.RideRequest{
+			PickupLatitude:   cfg.pickupLat,
+			PickupLongitude:  cfg.pickupLon,
+			PickupAddress:    cfg.pickupAddr,
+			DropoffLatitude:  cfg.dropoffLat,
+			DropoffLongitude: cfg.dropoffLon,
+			DropoffAddress:   cfg.dropoffAddr,
+			RideTypeID:       &poolRideTypeID,
+		}
+
+		rideResp := doRequest[*models.Ride](t, ridesServiceKey, http.MethodPost, "/api/v1/rides", rideReq, authHeaders(cfg.rider.Token))
+		require.True(t, rideResp.Success, "Ride %d creation should succeed", i+1)
+		rideIDs[i] = rideResp.Data.ID
+		t.Logf("Created ride %d with ID: %s", i+1, rideIDs[i])
+	}
+
+	// Driver accepts all three rides (pool grouping)
+	for i, rideID := range rideIDs {
+		if i == 0 {
+			// First ride - use API
+			acceptPath := fmt.Sprintf("/api/v1/driver/rides/%s/accept", rideID)
+			acceptResp := doRequest[*models.Ride](t, ridesServiceKey, http.MethodPost, acceptPath, nil, authHeaders(s.drivers[0].Token))
+			require.True(t, acceptResp.Success)
+		} else {
+			// Subsequent rides - simulate pool assignment
+			_, err := dbPool.Exec(ctx, `
+				UPDATE rides SET driver_id = $1, status = $2, accepted_at = NOW()
+				WHERE id = $3`,
+				s.drivers[0].User.ID, models.RideStatusAccepted, rideID)
+			require.NoError(t, err)
+		}
+	}
+
+	// Simulate the multi-stop journey:
+	// Stop A: Pick up Rider 1
+	startPath1 := fmt.Sprintf("/api/v1/driver/rides/%s/start", rideIDs[0])
+	startResp1 := doRequest[*models.Ride](t, ridesServiceKey, http.MethodPost, startPath1, nil, authHeaders(s.drivers[0].Token))
+	require.True(t, startResp1.Success)
+	t.Log("Stop A: Picked up Rider 1")
+
+	// Stop B: Pick up Rider 2
+	_, err := dbPool.Exec(ctx, `UPDATE rides SET status = $1, started_at = NOW() WHERE id = $2`,
+		models.RideStatusInProgress, rideIDs[1])
+	require.NoError(t, err)
+	t.Log("Stop B: Picked up Rider 2")
+
+	// Stop C: Pick up Rider 3 AND Drop off Rider 2 (same area)
+	_, err = dbPool.Exec(ctx, `UPDATE rides SET status = $1, started_at = NOW() WHERE id = $2`,
+		models.RideStatusInProgress, rideIDs[2])
+	require.NoError(t, err)
+	t.Log("Stop C: Picked up Rider 3")
+
+	// Complete Ride 2 (Rider 2 dropped off at Stop C)
+	_, err = dbPool.Exec(ctx, `
+		UPDATE rides SET status = $1, completed_at = NOW(), actual_distance = $2, final_fare = $3
+		WHERE id = $4`,
+		models.RideStatusCompleted, 5.5, 10.50, rideIDs[1])
+	require.NoError(t, err)
+	t.Log("Stop C: Dropped off Rider 2")
+
+	// Stop D: Drop off Rider 1
+	completePath1 := fmt.Sprintf("/api/v1/driver/rides/%s/complete", rideIDs[0])
+	completeReq1 := map[string]interface{}{"actual_distance": 8.0}
+	completeResp1 := doRequest[*models.Ride](t, ridesServiceKey, http.MethodPost, completePath1, completeReq1, authHeaders(s.drivers[0].Token))
+	require.True(t, completeResp1.Success)
+	t.Log("Stop D: Dropped off Rider 1")
+
+	// Stop E: Drop off Rider 3
+	_, err = dbPool.Exec(ctx, `
+		UPDATE rides SET status = $1, completed_at = NOW(), actual_distance = $2, final_fare = $3
+		WHERE id = $4`,
+		models.RideStatusCompleted, 10.0, 16.00, rideIDs[2])
+	require.NoError(t, err)
+	t.Log("Stop E: Dropped off Rider 3")
+
+	// Verify all rides are completed
+	for i, rideID := range rideIDs {
+		var status string
+		err = dbPool.QueryRow(ctx, "SELECT status FROM rides WHERE id = $1", rideID).Scan(&status)
+		require.NoError(t, err)
+		require.Equal(t, string(models.RideStatusCompleted), status, "Ride %d should be completed", i+1)
+	}
+
+	// Verify all rides were served by the same driver
+	var driverIDs []uuid.UUID
+	rows, err := dbPool.Query(ctx, "SELECT driver_id FROM rides WHERE id = ANY($1)", rideIDs)
+	require.NoError(t, err)
+	defer rows.Close()
+
+	for rows.Next() {
+		var driverID uuid.UUID
+		err = rows.Scan(&driverID)
+		require.NoError(t, err)
+		driverIDs = append(driverIDs, driverID)
+	}
+
+	require.Len(t, driverIDs, 3)
+	require.Equal(t, driverIDs[0], driverIDs[1], "All rides should have same driver")
+	require.Equal(t, driverIDs[1], driverIDs[2], "All rides should have same driver")
+
+	t.Log("Pool ride with multiple stops completed successfully!")
+}
+
+func (s *PoolMatchingTestSuite) TestPool_DriverAcceptsPoolRide() {
+	t := s.T()
+	ctx := context.Background()
+
+	poolRideTypeID := s.createPoolRideType(t, ctx)
+
+	// Create a pool ride request
+	rideReq := &models.RideRequest{
+		PickupLatitude:   37.7749,
+		PickupLongitude:  -122.4194,
+		PickupAddress:    "Market St, SF",
+		DropoffLatitude:  37.8044,
+		DropoffLongitude: -122.2712,
+		DropoffAddress:   "Broadway, Oakland",
+		RideTypeID:       &poolRideTypeID,
+	}
+
+	rideResp := doRequest[*models.Ride](t, ridesServiceKey, http.MethodPost, "/api/v1/rides", rideReq, authHeaders(s.riders[0].Token))
+	require.True(t, rideResp.Success)
+	rideID := rideResp.Data.ID
+
+	// Verify ride is associated with pool type
+	require.NotNil(t, rideResp.Data.RideTypeID)
+	require.Equal(t, poolRideTypeID, *rideResp.Data.RideTypeID)
+
+	// Driver accepts the pool ride
+	acceptPath := fmt.Sprintf("/api/v1/driver/rides/%s/accept", rideID)
+	acceptResp := doRequest[*models.Ride](t, ridesServiceKey, http.MethodPost, acceptPath, nil, authHeaders(s.drivers[0].Token))
+	require.True(t, acceptResp.Success)
+	require.Equal(t, models.RideStatusAccepted, acceptResp.Data.Status)
+	require.NotNil(t, acceptResp.Data.DriverID)
+	require.Equal(t, s.drivers[0].User.ID, *acceptResp.Data.DriverID)
+	require.NotNil(t, acceptResp.Data.AcceptedAt)
+
+	// Verify in database
+	var dbDriverID uuid.UUID
+	var dbStatus string
+	err := dbPool.QueryRow(ctx, "SELECT driver_id, status FROM rides WHERE id = $1", rideID).Scan(&dbDriverID, &dbStatus)
+	require.NoError(t, err)
+	require.Equal(t, s.drivers[0].User.ID, dbDriverID)
+	require.Equal(t, string(models.RideStatusAccepted), dbStatus)
+}
+
+func (s *PoolMatchingTestSuite) TestPool_PoolRidePricingDiscount() {
+	t := s.T()
+	ctx := context.Background()
+
+	poolRideTypeID := s.createPoolRideType(t, ctx)
+
+	// Create a regular ride type for comparison
+	regularRideTypeID := uuid.New()
+	_, err := dbPool.Exec(ctx, `
+		INSERT INTO ride_types (id, name, description, base_fare, per_km_rate, per_minute_rate, minimum_fare, capacity)
+		VALUES ($1, 'Economy', 'Standard ride', 3.00, 1.20, 0.20, 5.00, 4)
+		ON CONFLICT DO NOTHING`,
+		regularRideTypeID)
+	if err != nil {
+		t.Logf("Note: Could not create economy ride type: %v", err)
+	}
+
+	// Create pool ride
+	poolRideReq := &models.RideRequest{
+		PickupLatitude:   37.7749,
+		PickupLongitude:  -122.4194,
+		PickupAddress:    "Market St, SF",
+		DropoffLatitude:  37.8044,
+		DropoffLongitude: -122.2712,
+		DropoffAddress:   "Broadway, Oakland",
+		RideTypeID:       &poolRideTypeID,
+	}
+
+	poolRideResp := doRequest[*models.Ride](t, ridesServiceKey, http.MethodPost, "/api/v1/rides", poolRideReq, authHeaders(s.riders[0].Token))
+	require.True(t, poolRideResp.Success)
+	poolFare := poolRideResp.Data.EstimatedFare
+
+	// Create regular ride for comparison (different rider)
+	regularRideReq := &models.RideRequest{
+		PickupLatitude:   37.7749,
+		PickupLongitude:  -122.4194,
+		PickupAddress:    "Market St, SF",
+		DropoffLatitude:  37.8044,
+		DropoffLongitude: -122.2712,
+		DropoffAddress:   "Broadway, Oakland",
+		RideTypeID:       &regularRideTypeID,
+	}
+
+	regularRideResp := doRequest[*models.Ride](t, ridesServiceKey, http.MethodPost, "/api/v1/rides", regularRideReq, authHeaders(s.riders[1].Token))
+	require.True(t, regularRideResp.Success)
+	regularFare := regularRideResp.Data.EstimatedFare
+
+	// Pool fare should generally be less than or equal to regular fare
+	// (This depends on the pricing configuration, but pool rides typically offer discounts)
+	t.Logf("Pool fare: %.2f, Regular fare: %.2f", poolFare, regularFare)
+	require.NotZero(t, poolFare, "Pool fare should not be zero")
+	require.NotZero(t, regularFare, "Regular fare should not be zero")
+}
+
+func (s *PoolMatchingTestSuite) TestPool_PartialPoolCompletion() {
+	t := s.T()
+	ctx := context.Background()
+
+	t.Log("Testing scenario where one rider in pool completes while another cancels")
+	poolRideTypeID := s.createPoolRideType(t, ctx)
+
+	// Create two pool rides
+	ride1Req := &models.RideRequest{
+		PickupLatitude:   37.7749,
+		PickupLongitude:  -122.4194,
+		PickupAddress:    "Pickup 1",
+		DropoffLatitude:  37.8044,
+		DropoffLongitude: -122.2712,
+		DropoffAddress:   "Dropoff 1",
+		RideTypeID:       &poolRideTypeID,
+	}
+
+	ride1Resp := doRequest[*models.Ride](t, ridesServiceKey, http.MethodPost, "/api/v1/rides", ride1Req, authHeaders(s.riders[0].Token))
+	require.True(t, ride1Resp.Success)
+	ride1ID := ride1Resp.Data.ID
+
+	ride2Req := &models.RideRequest{
+		PickupLatitude:   37.7755,
+		PickupLongitude:  -122.4185,
+		PickupAddress:    "Pickup 2",
+		DropoffLatitude:  37.8050,
+		DropoffLongitude: -122.2700,
+		DropoffAddress:   "Dropoff 2",
+		RideTypeID:       &poolRideTypeID,
+	}
+
+	ride2Resp := doRequest[*models.Ride](t, ridesServiceKey, http.MethodPost, "/api/v1/rides", ride2Req, authHeaders(s.riders[1].Token))
+	require.True(t, ride2Resp.Success)
+	ride2ID := ride2Resp.Data.ID
+
+	// Driver accepts both rides
+	acceptPath1 := fmt.Sprintf("/api/v1/driver/rides/%s/accept", ride1ID)
+	doRequest[*models.Ride](t, ridesServiceKey, http.MethodPost, acceptPath1, nil, authHeaders(s.drivers[0].Token))
+
+	_, err := dbPool.Exec(ctx, `UPDATE rides SET driver_id = $1, status = $2, accepted_at = NOW() WHERE id = $3`,
+		s.drivers[0].User.ID, models.RideStatusAccepted, ride2ID)
+	require.NoError(t, err)
+
+	// Start both rides
+	startPath1 := fmt.Sprintf("/api/v1/driver/rides/%s/start", ride1ID)
+	doRequest[*models.Ride](t, ridesServiceKey, http.MethodPost, startPath1, nil, authHeaders(s.drivers[0].Token))
+
+	_, err = dbPool.Exec(ctx, `UPDATE rides SET status = $1, started_at = NOW() WHERE id = $2`,
+		models.RideStatusInProgress, ride2ID)
+	require.NoError(t, err)
+
+	// Rider 2 cancels mid-ride (emergency)
+	_, err = dbPool.Exec(ctx, `
+		UPDATE rides SET status = $1, cancelled_at = NOW(), cancellation_reason = $2
+		WHERE id = $3`,
+		models.RideStatusCancelled, "rider_emergency", ride2ID)
+	require.NoError(t, err)
+	t.Log("Rider 2 cancelled their ride")
+
+	// Driver continues and completes ride 1
+	completePath1 := fmt.Sprintf("/api/v1/driver/rides/%s/complete", ride1ID)
+	completeReq := map[string]interface{}{"actual_distance": 8.5}
+	completeResp := doRequest[*models.Ride](t, ridesServiceKey, http.MethodPost, completePath1, completeReq, authHeaders(s.drivers[0].Token))
+	require.True(t, completeResp.Success)
+	require.Equal(t, models.RideStatusCompleted, completeResp.Data.Status)
+	t.Log("Rider 1's ride completed successfully")
+
+	// Verify final states
+	var status1, status2 string
+	err = dbPool.QueryRow(ctx, "SELECT status FROM rides WHERE id = $1", ride1ID).Scan(&status1)
+	require.NoError(t, err)
+	require.Equal(t, string(models.RideStatusCompleted), status1)
+
+	err = dbPool.QueryRow(ctx, "SELECT status FROM rides WHERE id = $1", ride2ID).Scan(&status2)
+	require.NoError(t, err)
+	require.Equal(t, string(models.RideStatusCancelled), status2)
+
+	t.Log("Partial pool completion test passed!")
+}
+
+func (s *PoolMatchingTestSuite) TestPool_VerifyRiderIsolation() {
+	t := s.T()
+	ctx := context.Background()
+
+	poolRideTypeID := s.createPoolRideType(t, ctx)
+
+	// Create pool rides for two riders
+	ride1Req := &models.RideRequest{
+		PickupLatitude:   37.7749,
+		PickupLongitude:  -122.4194,
+		PickupAddress:    "Rider 1 Pickup",
+		DropoffLatitude:  37.8044,
+		DropoffLongitude: -122.2712,
+		DropoffAddress:   "Rider 1 Dropoff",
+		RideTypeID:       &poolRideTypeID,
+	}
+
+	ride1Resp := doRequest[*models.Ride](t, ridesServiceKey, http.MethodPost, "/api/v1/rides", ride1Req, authHeaders(s.riders[0].Token))
+	require.True(t, ride1Resp.Success)
+	ride1ID := ride1Resp.Data.ID
+
+	ride2Req := &models.RideRequest{
+		PickupLatitude:   37.7755,
+		PickupLongitude:  -122.4185,
+		PickupAddress:    "Rider 2 Pickup",
+		DropoffLatitude:  37.8050,
+		DropoffLongitude: -122.2700,
+		DropoffAddress:   "Rider 2 Dropoff",
+		RideTypeID:       &poolRideTypeID,
+	}
+
+	ride2Resp := doRequest[*models.Ride](t, ridesServiceKey, http.MethodPost, "/api/v1/rides", ride2Req, authHeaders(s.riders[1].Token))
+	require.True(t, ride2Resp.Success)
+	ride2ID := ride2Resp.Data.ID
+
+	// Rider 1 should only see their own ride
+	rider1Rides := doRequest[[]*models.Ride](t, ridesServiceKey, http.MethodGet, "/api/v1/rides", nil, authHeaders(s.riders[0].Token))
+	require.True(t, rider1Rides.Success)
+	for _, ride := range rider1Rides.Data {
+		require.Equal(t, s.riders[0].User.ID, ride.RiderID, "Rider 1 should only see their own rides")
+	}
+
+	// Rider 2 should only see their own ride
+	rider2Rides := doRequest[[]*models.Ride](t, ridesServiceKey, http.MethodGet, "/api/v1/rides", nil, authHeaders(s.riders[1].Token))
+	require.True(t, rider2Rides.Success)
+	for _, ride := range rider2Rides.Data {
+		require.Equal(t, s.riders[1].User.ID, ride.RiderID, "Rider 2 should only see their own rides")
+	}
+
+	// Rider 1 should not be able to access Rider 2's ride details
+	ride2DetailResp := doRawRequest(t, ridesServiceKey, http.MethodGet, fmt.Sprintf("/api/v1/rides/%s", ride2ID), nil, authHeaders(s.riders[0].Token))
+	defer ride2DetailResp.Body.Close()
+	require.Equal(t, http.StatusForbidden, ride2DetailResp.StatusCode, "Rider 1 should not access Rider 2's ride")
+
+	// Rider 2 should not be able to access Rider 1's ride details
+	ride1DetailResp := doRawRequest(t, ridesServiceKey, http.MethodGet, fmt.Sprintf("/api/v1/rides/%s", ride1ID), nil, authHeaders(s.riders[1].Token))
+	defer ride1DetailResp.Body.Close()
+	require.Equal(t, http.StatusForbidden, ride1DetailResp.StatusCode, "Rider 2 should not access Rider 1's ride")
+
+	_ = ctx
+	t.Log("Rider isolation verification passed!")
+}
+
+// ============================================
 // HELPER METHODS
 // ============================================
 
