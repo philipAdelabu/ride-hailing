@@ -87,17 +87,6 @@ func main() {
 		logger.Info("Sentry error tracking initialized successfully")
 	}
 
-	// Initialize Sentry for error tracking
-	sentryConfig := errors.DefaultSentryConfig()
-	sentryConfig.ServerName = "realtime-service"
-	sentryConfig.Release = "1.0.0"
-	if err := errors.InitSentry(sentryConfig); err != nil {
-		log.Printf("Warning: Failed to initialize Sentry, continuing without error tracking: %v", err)
-	} else {
-		defer errors.Flush(2 * time.Second)
-		log.Println("Sentry error tracking initialized successfully")
-	}
-
 	// Initialize OpenTelemetry tracer
 	tracerEnabled := os.Getenv("OTEL_ENABLED") == "true"
 	if tracerEnabled {
