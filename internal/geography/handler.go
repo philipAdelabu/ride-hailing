@@ -131,7 +131,7 @@ func (h *Handler) GetCity(c *gin.Context) {
 
 // GetPricingZones returns all pricing zones for a city
 func (h *Handler) GetPricingZones(c *gin.Context) {
-	cityID, err := uuid.Parse(c.Param("cityId"))
+	cityID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		common.ErrorResponse(c, http.StatusBadRequest, "invalid city ID")
 		return
@@ -203,7 +203,7 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 
 		// Cities
 		geo.GET("/cities/:id", h.GetCity)
-		geo.GET("/cities/:cityId/zones", h.GetPricingZones)
+		geo.GET("/cities/:id/zones", h.GetPricingZones)
 
 		// Location
 		geo.POST("/location/resolve", h.ResolveLocation)

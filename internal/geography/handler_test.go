@@ -640,7 +640,7 @@ func TestHandler_GetPricingZones_Success(t *testing.T) {
 	mockRepo.On("GetPricingZonesByCity", mock.Anything, city.ID).Return(zones, nil)
 
 	c, w := setupTestContext("GET", "/api/v1/geography/cities/"+city.ID.String()+"/zones", nil)
-	c.Params = gin.Params{{Key: "cityId", Value: city.ID.String()}}
+	c.Params = gin.Params{{Key: "id", Value: city.ID.String()}}
 
 	handler.GetPricingZones(c)
 
@@ -657,7 +657,7 @@ func TestHandler_GetPricingZones_InvalidCityID(t *testing.T) {
 	handler := createTestHandler(mockRepo)
 
 	c, w := setupTestContext("GET", "/api/v1/geography/cities/invalid-uuid/zones", nil)
-	c.Params = gin.Params{{Key: "cityId", Value: "invalid-uuid"}}
+	c.Params = gin.Params{{Key: "id", Value: "invalid-uuid"}}
 
 	handler.GetPricingZones(c)
 
@@ -677,7 +677,7 @@ func TestHandler_GetPricingZones_ServiceError(t *testing.T) {
 	mockRepo.On("GetPricingZonesByCity", mock.Anything, cityID).Return(nil, errors.New("database error"))
 
 	c, w := setupTestContext("GET", "/api/v1/geography/cities/"+cityID.String()+"/zones", nil)
-	c.Params = gin.Params{{Key: "cityId", Value: cityID.String()}}
+	c.Params = gin.Params{{Key: "id", Value: cityID.String()}}
 
 	handler.GetPricingZones(c)
 
@@ -1142,7 +1142,7 @@ func TestHandler_GetPricingZones_EmptyList(t *testing.T) {
 	mockRepo.On("GetPricingZonesByCity", mock.Anything, cityID).Return([]*PricingZone{}, nil)
 
 	c, w := setupTestContext("GET", "/api/v1/geography/cities/"+cityID.String()+"/zones", nil)
-	c.Params = gin.Params{{Key: "cityId", Value: cityID.String()}}
+	c.Params = gin.Params{{Key: "id", Value: cityID.String()}}
 
 	handler.GetPricingZones(c)
 

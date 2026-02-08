@@ -113,9 +113,9 @@ func (h *Handler) ListFlags(c *gin.Context) {
 }
 
 // GetFlag gets a flag by key (admin)
-// GET /api/v1/admin/flags/:key
+// GET /api/v1/admin/flags/:id
 func (h *Handler) GetFlag(c *gin.Context) {
-	key := c.Param("key")
+	key := c.Param("id")
 
 	flag, err := h.service.GetFlag(c.Request.Context(), key)
 	if err != nil || flag == nil {
@@ -509,7 +509,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, jwtProvider jwtkeys.KeyProvider)
 	{
 		adminFlags.POST("", h.CreateFlag)
 		adminFlags.GET("", h.ListFlags)
-		adminFlags.GET("/:key", h.GetFlag)
+		adminFlags.GET("/:id", h.GetFlag)
 		adminFlags.PUT("/:id", h.UpdateFlag)
 		adminFlags.POST("/:id/toggle", h.ToggleFlag)
 		adminFlags.DELETE("/:id", h.ArchiveFlag)
