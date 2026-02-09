@@ -4,10 +4,10 @@
 	"values": [
 		{
 			"key": "base_url",
-			"value": "http://localhost:8081",
+			"value": "http://localhost:8087",
 			"type": "default",
 			"enabled": true,
-			"description": "Auth Service"
+			"description": "Mobile Aggregator (all services)"
 		},
 		{
 			"key": "rides_base_url",
@@ -176,6 +176,48 @@
 			"type": "default",
 			"enabled": true,
 			"description": "Token expiry timestamp (auto-managed)"
+		},
+		{
+			"key": "payment_method_id",
+			"value": "",
+			"type": "default",
+			"enabled": true,
+			"description": "Payment method ID"
+		},
+		{
+			"key": "recording_id",
+			"value": "",
+			"type": "default",
+			"enabled": true,
+			"description": "Recording session ID"
+		},
+		{
+			"key": "rider_id",
+			"value": "",
+			"type": "default",
+			"enabled": true,
+			"description": "Rider ID for rider-specific requests"
+		},
+		{
+			"key": "pool_ride_id",
+			"value": "",
+			"type": "default",
+			"enabled": true,
+			"description": "Pool ride ID"
+		},
+		{
+			"key": "plan_id",
+			"value": "",
+			"type": "default",
+			"enabled": true,
+			"description": "Subscription plan ID"
+		},
+		{
+			"key": "check_id",
+			"value": "",
+			"type": "default",
+			"enabled": true,
+			"description": "Safety check ID"
 		}
 	],
 	"_postman_variable_scope": "environment"
