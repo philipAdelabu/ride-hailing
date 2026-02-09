@@ -1029,65 +1029,65 @@ func TestGetPointsHistory_Success(t *testing.T) {
 
 	repo.On("GetPointsHistory", ctx, riderID, 20, 0).Return(transactions, 2, nil).Once()
 
-	response, err := service.GetPointsHistory(ctx, riderID, 1, 20)
+	response, err := service.GetPointsHistory(ctx, riderID, 20, 0)
 
 	require.NoError(t, err)
 	assert.Len(t, response.Transactions, 2)
 	assert.Equal(t, 2, response.Total)
-	assert.Equal(t, 1, response.Page)
-	assert.Equal(t, 20, response.PageSize)
+	assert.Equal(t, 20, response.Limit)
+	assert.Equal(t, 0, response.Offset)
 	repo.AssertExpectations(t)
 }
 
 func TestGetPointsHistory_Pagination(t *testing.T) {
 	testCases := []struct {
-		name             string
-		page             int
-		pageSize         int
-		expectedOffset   int
-		expectedPageSize int
+		name          string
+		limit         int
+		offset        int
+		expectedLimit int
+		expectedOffset int
 	}{
 		{
-			name:             "First page",
-			page:             1,
-			pageSize:         10,
-			expectedOffset:   0,
-			expectedPageSize: 10,
+			name:           "Valid limit and offset",
+			limit:          10,
+			offset:         0,
+			expectedLimit:  10,
+			expectedOffset: 0,
 		},
 		{
-			name:             "Second page",
-			page:             2,
-			pageSize:         10,
-			expectedOffset:   10,
-			expectedPageSize: 10,
+			name:           "Offset skips first page",
+			limit:          10,
+			offset:         10,
+			expectedLimit:  10,
+			expectedOffset: 10,
 		},
 		{
-			name:             "Invalid page (zero)",
-			page:             0,
-			pageSize:         10,
-			expectedOffset:   0,
-			expectedPageSize: 10,
+			name:           "Invalid limit (zero) defaults to 20",
+			limit:          0,
+			offset:         0,
+			expectedLimit:  20,
+			expectedOffset: 0,
 		},
 		{
-			name:             "Invalid page size (zero)",
-			page:             1,
-			pageSize:         0,
-			expectedOffset:   0,
-			expectedPageSize: 20,
+			name:           "Limit exceeds max defaults to 20",
+			limit:          200,
+			offset:         0,
+			expectedLimit:  20,
+			expectedOffset: 0,
 		},
 		{
-			name:             "Page size exceeds max",
-			page:             1,
-			pageSize:         200,
-			expectedOffset:   0,
-			expectedPageSize: 20,
+			name:           "Negative limit defaults to 20",
+			limit:          -1,
+			offset:         0,
+			expectedLimit:  20,
+			expectedOffset: 0,
 		},
 		{
-			name:             "Negative page",
-			page:             -1,
-			pageSize:         10,
-			expectedOffset:   0,
-			expectedPageSize: 10,
+			name:           "Negative offset defaults to 0",
+			limit:          10,
+			offset:         -5,
+			expectedLimit:  10,
+			expectedOffset: 0,
 		},
 	}
 
@@ -1098,9 +1098,9 @@ func TestGetPointsHistory_Pagination(t *testing.T) {
 			service := NewService(repo)
 			riderID := uuid.New()
 
-			repo.On("GetPointsHistory", ctx, riderID, tc.expectedPageSize, tc.expectedOffset).Return([]*PointsTransaction{}, 0, nil).Once()
+			repo.On("GetPointsHistory", ctx, riderID, tc.expectedLimit, tc.expectedOffset).Return([]*PointsTransaction{}, 0, nil).Once()
 
-			_, err := service.GetPointsHistory(ctx, riderID, tc.page, tc.pageSize)
+			_, err := service.GetPointsHistory(ctx, riderID, tc.limit, tc.offset)
 
 			require.NoError(t, err)
 			repo.AssertExpectations(t)
@@ -1116,7 +1116,7 @@ func TestGetPointsHistory_RepositoryError(t *testing.T) {
 
 	repo.On("GetPointsHistory", ctx, riderID, 20, 0).Return(([]*PointsTransaction)(nil), 0, errors.New("database error")).Once()
 
-	response, err := service.GetPointsHistory(ctx, riderID, 1, 20)
+	response, err := service.GetPointsHistory(ctx, riderID, 20, 0)
 
 	require.Error(t, err)
 	assert.Nil(t, response)
@@ -1132,7 +1132,7 @@ func TestGetPointsHistory_EmptyHistory(t *testing.T) {
 
 	repo.On("GetPointsHistory", ctx, riderID, 20, 0).Return([]*PointsTransaction{}, 0, nil).Once()
 
-	response, err := service.GetPointsHistory(ctx, riderID, 1, 20)
+	response, err := service.GetPointsHistory(ctx, riderID, 20, 0)
 
 	require.NoError(t, err)
 	assert.Empty(t, response.Transactions)

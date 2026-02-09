@@ -889,61 +889,57 @@ func TestCancellationReasonCode_SystemConstants(t *testing.T) {
 func TestService_GetMyCancellationHistory_DefaultPagination(t *testing.T) {
 	// Test that default pagination is applied for invalid values
 	tests := []struct {
-		name         string
-		page         int
-		pageSize     int
-		expectedPage int
-		expectedSize int
+		name          string
+		limit         int
+		offset        int
+		expectedLimit int
+		expectedOffset int
 	}{
-		{"negative page", -1, 10, 1, 10},
-		{"zero page", 0, 10, 1, 10},
-		{"negative pageSize", 1, -5, 1, 20},
-		{"zero pageSize", 1, 0, 1, 20},
-		{"pageSize too large", 1, 100, 1, 20},
-		{"valid values", 2, 25, 2, 25},
+		{"negative limit", -1, 0, 20, 0},
+		{"zero limit", 0, 0, 20, 0},
+		{"limit too large", 100, 0, 20, 0},
+		{"negative offset", 10, -5, 10, 0},
+		{"valid values", 25, 10, 25, 10},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// The service adjusts page/pageSize internally
-			page := tt.page
-			pageSize := tt.pageSize
+			// The service adjusts limit/offset internally
+			limit := tt.limit
+			offset := tt.offset
 
-			if page < 1 {
-				page = 1
+			if limit < 1 || limit > 50 {
+				limit = 20
 			}
-			if pageSize < 1 || pageSize > 50 {
-				pageSize = 20
+			if offset < 0 {
+				offset = 0
 			}
 
-			expectedOffset := (page - 1) * pageSize
-
-			if tt.name == "valid values" {
-				assert.Equal(t, 2, page)
-				assert.Equal(t, 25, pageSize)
-				assert.Equal(t, 25, expectedOffset)
-			}
+			assert.Equal(t, tt.expectedLimit, limit)
+			assert.Equal(t, tt.expectedOffset, offset)
 		})
 	}
 }
 
-func TestService_GetMyCancellationHistory_OffsetCalculation(t *testing.T) {
+func TestService_GetMyCancellationHistory_OffsetPassthrough(t *testing.T) {
+	// Offset is now passed directly — verify limit/offset values are used as-is
 	tests := []struct {
-		page           int
-		pageSize       int
+		limit          int
+		offset         int
+		expectedLimit  int
 		expectedOffset int
 	}{
-		{1, 20, 0},
-		{2, 20, 20},
-		{3, 20, 40},
-		{1, 10, 0},
-		{2, 10, 10},
-		{5, 10, 40},
+		{20, 0, 20, 0},
+		{20, 20, 20, 20},
+		{20, 40, 20, 40},
+		{10, 0, 10, 0},
+		{10, 10, 10, 10},
+		{10, 40, 10, 40},
 	}
 
 	for _, tt := range tests {
-		offset := (tt.page - 1) * tt.pageSize
-		assert.Equal(t, tt.expectedOffset, offset)
+		assert.Equal(t, tt.expectedLimit, tt.limit)
+		assert.Equal(t, tt.expectedOffset, tt.offset)
 	}
 }
 
@@ -2106,7 +2102,7 @@ func TestTestableService_GetMyCancellationHistory_Success(t *testing.T) {
 	}
 	svc := NewTestableService(repo, &MockDB{}, &MockRideGetter{})
 
-	result, total, err := svc.GetMyCancellationHistory(context.Background(), userID, 1, 20)
+	result, total, err := svc.GetMyCancellationHistory(context.Background(), userID, 20, 0)
 
 	assert.NoError(t, err)
 	assert.Len(t, result, 2)
@@ -2126,19 +2122,20 @@ func TestTestableService_GetMyCancellationHistory_DefaultPagination(t *testing.T
 	}
 	svc := NewTestableService(repo, &MockDB{}, &MockRideGetter{})
 
-	// Test with invalid page
+	// Test with invalid limit (0 defaults to 20)
 	svc.GetMyCancellationHistory(context.Background(), userID, 0, 10)
-	assert.Equal(t, 10, capturedLimit)
-	assert.Equal(t, 0, capturedOffset) // page 1 means offset 0
-
-	// Test with invalid pageSize
-	svc.GetMyCancellationHistory(context.Background(), userID, 1, 0)
 	assert.Equal(t, 20, capturedLimit) // defaults to 20
-	assert.Equal(t, 0, capturedOffset)
+	assert.Equal(t, 10, capturedOffset)
 
-	// Test with pageSize > 50
-	svc.GetMyCancellationHistory(context.Background(), userID, 1, 100)
+	// Test with negative offset (defaults to 0)
+	svc.GetMyCancellationHistory(context.Background(), userID, 10, -5)
+	assert.Equal(t, 10, capturedLimit)
+	assert.Equal(t, 0, capturedOffset) // negative offset defaults to 0
+
+	// Test with limit > 50 (defaults to 20)
+	svc.GetMyCancellationHistory(context.Background(), userID, 100, 0)
 	assert.Equal(t, 20, capturedLimit) // caps at 20 (default)
+	assert.Equal(t, 0, capturedOffset)
 }
 
 func TestTestableService_WaiveFee_NotFound(t *testing.T) {

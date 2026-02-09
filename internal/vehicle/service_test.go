@@ -1201,16 +1201,16 @@ func TestReviewVehicle(t *testing.T) {
 func TestGetPendingReviews(t *testing.T) {
 	tests := []struct {
 		name       string
-		page       int
-		pageSize   int
+		limit      int
+		offset     int
 		setupMocks func(m *mockRepo)
 		wantErr    bool
 		validate   func(t *testing.T, vehicles []Vehicle, total int)
 	}{
 		{
-			name:     "success - returns pending vehicles",
-			page:     1,
-			pageSize: 10,
+			name:   "success - returns pending vehicles",
+			limit:  10,
+			offset: 0,
 			setupMocks: func(m *mockRepo) {
 				vehicles := []Vehicle{
 					{ID: uuid.New(), Make: "Toyota", Status: VehicleStatusPending},
@@ -1225,54 +1225,54 @@ func TestGetPendingReviews(t *testing.T) {
 			},
 		},
 		{
-			name:     "success - page defaults to 1",
-			page:     0,
-			pageSize: 10,
-			setupMocks: func(m *mockRepo) {
-				m.On("GetPendingReviewVehicles", mock.Anything, 10, 0).Return([]Vehicle{}, 0, nil)
-			},
-			wantErr: false,
-		},
-		{
-			name:     "success - negative page defaults to 1",
-			page:     -5,
-			pageSize: 10,
-			setupMocks: func(m *mockRepo) {
-				m.On("GetPendingReviewVehicles", mock.Anything, 10, 0).Return([]Vehicle{}, 0, nil)
-			},
-			wantErr: false,
-		},
-		{
-			name:     "success - pageSize defaults to 20",
-			page:     1,
-			pageSize: 0,
+			name:   "success - invalid limit defaults to 20",
+			limit:  0,
+			offset: 0,
 			setupMocks: func(m *mockRepo) {
 				m.On("GetPendingReviewVehicles", mock.Anything, 20, 0).Return([]Vehicle{}, 0, nil)
 			},
 			wantErr: false,
 		},
 		{
-			name:     "success - pageSize capped at 50",
-			page:     1,
-			pageSize: 100,
+			name:   "success - negative limit defaults to 20",
+			limit:  -5,
+			offset: 0,
 			setupMocks: func(m *mockRepo) {
 				m.On("GetPendingReviewVehicles", mock.Anything, 20, 0).Return([]Vehicle{}, 0, nil)
 			},
 			wantErr: false,
 		},
 		{
-			name:     "success - pagination offset calculation",
-			page:     3,
-			pageSize: 10,
+			name:   "success - limit over 50 defaults to 20",
+			limit:  100,
+			offset: 0,
+			setupMocks: func(m *mockRepo) {
+				m.On("GetPendingReviewVehicles", mock.Anything, 20, 0).Return([]Vehicle{}, 0, nil)
+			},
+			wantErr: false,
+		},
+		{
+			name:   "success - negative offset defaults to 0",
+			limit:  10,
+			offset: -5,
+			setupMocks: func(m *mockRepo) {
+				m.On("GetPendingReviewVehicles", mock.Anything, 10, 0).Return([]Vehicle{}, 0, nil)
+			},
+			wantErr: false,
+		},
+		{
+			name:   "success - pagination with offset",
+			limit:  10,
+			offset: 20,
 			setupMocks: func(m *mockRepo) {
 				m.On("GetPendingReviewVehicles", mock.Anything, 10, 20).Return([]Vehicle{}, 50, nil)
 			},
 			wantErr: false,
 		},
 		{
-			name:     "error - database failure",
-			page:     1,
-			pageSize: 10,
+			name:   "error - database failure",
+			limit:  10,
+			offset: 0,
 			setupMocks: func(m *mockRepo) {
 				m.On("GetPendingReviewVehicles", mock.Anything, 10, 0).Return(nil, 0, errors.New("database error"))
 			},
@@ -1286,7 +1286,7 @@ func TestGetPendingReviews(t *testing.T) {
 			tt.setupMocks(m)
 			svc := newTestService(m)
 
-			vehicles, total, err := svc.GetPendingReviews(context.Background(), tt.page, tt.pageSize)
+			vehicles, total, err := svc.GetPendingReviews(context.Background(), tt.limit, tt.offset)
 
 			if tt.wantErr {
 				require.Error(t, err)

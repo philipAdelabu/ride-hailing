@@ -219,12 +219,12 @@ func (s *Service) GetDailyEarnings(ctx context.Context, driverID uuid.UUID, peri
 }
 
 // GetEarningsHistory returns paginated earnings
-func (s *Service) GetEarningsHistory(ctx context.Context, driverID uuid.UUID, period string, page, pageSize int) (*EarningsHistoryResponse, error) {
-	if page < 1 {
-		page = 1
+func (s *Service) GetEarningsHistory(ctx context.Context, driverID uuid.UUID, period string, limit, offset int) (*EarningsHistoryResponse, error) {
+	if limit < 1 || limit > 100 {
+		limit = 20
 	}
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
+	if offset < 0 {
+		offset = 0
 	}
 
 	from, to, err := s.periodToTimeRange(period)
@@ -232,8 +232,7 @@ func (s *Service) GetEarningsHistory(ctx context.Context, driverID uuid.UUID, pe
 		return nil, err
 	}
 
-	offset := (page - 1) * pageSize
-	earnings, total, err := s.repo.GetEarningsByDriver(ctx, driverID, from, to, pageSize, offset)
+	earnings, total, err := s.repo.GetEarningsByDriver(ctx, driverID, from, to, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -244,8 +243,8 @@ func (s *Service) GetEarningsHistory(ctx context.Context, driverID uuid.UUID, pe
 	return &EarningsHistoryResponse{
 		Earnings: earnings,
 		Total:    total,
-		Page:     page,
-		PageSize: pageSize,
+		Limit:    limit,
+		Offset:   offset,
 	}, nil
 }
 
@@ -322,16 +321,15 @@ func (s *Service) RequestPayout(ctx context.Context, driverID uuid.UUID, req *Re
 }
 
 // GetPayoutHistory returns payout history
-func (s *Service) GetPayoutHistory(ctx context.Context, driverID uuid.UUID, page, pageSize int) (*PayoutHistoryResponse, error) {
-	if page < 1 {
-		page = 1
+func (s *Service) GetPayoutHistory(ctx context.Context, driverID uuid.UUID, limit, offset int) (*PayoutHistoryResponse, error) {
+	if limit < 1 || limit > 50 {
+		limit = 20
 	}
-	if pageSize < 1 || pageSize > 50 {
-		pageSize = 20
+	if offset < 0 {
+		offset = 0
 	}
 
-	offset := (page - 1) * pageSize
-	payouts, total, err := s.repo.GetPayoutsByDriver(ctx, driverID, pageSize, offset)
+	payouts, total, err := s.repo.GetPayoutsByDriver(ctx, driverID, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -340,10 +338,10 @@ func (s *Service) GetPayoutHistory(ctx context.Context, driverID uuid.UUID, page
 	}
 
 	return &PayoutHistoryResponse{
-		Payouts:  payouts,
-		Total:    total,
-		Page:     page,
-		PageSize: pageSize,
+		Payouts: payouts,
+		Total:   total,
+		Limit:   limit,
+		Offset:  offset,
 	}, nil
 }
 

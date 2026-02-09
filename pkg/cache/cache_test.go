@@ -437,16 +437,16 @@ func TestCacheKeys_Ride(t *testing.T) {
 func TestCacheKeys_RideHistory(t *testing.T) {
 	tests := []struct {
 		userID   string
-		page     int
+		offset   int
 		expected string
 	}{
-		{"user-1", 1, "ride_history:user-1:page:1"},
-		{"user-2", 10, "ride_history:user-2:page:10"},
-		{"user-3", 0, "ride_history:user-3:page:0"},
+		{"user-1", 0, "ride_history:user-1:offset:0"},
+		{"user-2", 20, "ride_history:user-2:offset:20"},
+		{"user-3", 100, "ride_history:user-3:offset:100"},
 	}
 
 	for _, tc := range tests {
-		key := Keys.RideHistory(tc.userID, tc.page)
+		key := Keys.RideHistory(tc.userID, tc.offset)
 		if key != tc.expected {
 			t.Errorf("expected %s, got %s", tc.expected, key)
 		}

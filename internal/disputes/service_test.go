@@ -881,18 +881,16 @@ func TestService_GetMyDisputes_WithStatusFilter(t *testing.T) {
 
 func TestService_GetMyDisputes_PaginationDefaults(t *testing.T) {
 	tests := []struct {
-		name             string
-		page             int
-		pageSize         int
-		expectedPage     int
-		expectedPageSize int
+		name          string
+		limit         int
+		offset        int
+		expectedLimit int
 	}{
-		{"zero page defaults to 1", 0, 20, 1, 20},
-		{"negative page defaults to 1", -5, 20, 1, 20},
-		{"zero pageSize defaults to 20", 1, 0, 1, 20},
-		{"negative pageSize defaults to 20", 1, -10, 1, 20},
-		{"pageSize over 50 defaults to 20", 1, 100, 1, 20},
-		{"valid pagination unchanged", 3, 25, 3, 25},
+		{"zero limit defaults to 20", 0, 0, 20},
+		{"negative limit defaults to 20", -5, 0, 20},
+		{"limit over 50 defaults to 20", 100, 0, 20},
+		{"valid limit unchanged", 25, 10, 25},
+		{"negative offset defaults to 0", 20, -5, 20},
 	}
 
 	for _, tt := range tests {
@@ -901,7 +899,7 @@ func TestService_GetMyDisputes_PaginationDefaults(t *testing.T) {
 			svc := createTestService(mock)
 
 			userID := uuid.New()
-			svc.GetMyDisputes(context.Background(), userID, nil, tt.page, tt.pageSize)
+			svc.GetMyDisputes(context.Background(), userID, nil, tt.limit, tt.offset)
 
 			// Verify pagination was applied (implicitly through mock)
 			assert.True(t, mock.getUserDisputesCalled)
@@ -1311,16 +1309,15 @@ func TestService_AdminGetDisputes_WithReasonFilter(t *testing.T) {
 
 func TestService_AdminGetDisputes_PaginationDefaults(t *testing.T) {
 	tests := []struct {
-		name     string
-		page     int
-		pageSize int
+		name   string
+		limit  int
+		offset int
 	}{
-		{"zero page defaults to 1", 0, 20},
-		{"negative page defaults to 1", -5, 20},
-		{"zero pageSize defaults to 20", 1, 0},
-		{"negative pageSize defaults to 20", 1, -10},
-		{"pageSize over 100 defaults to 20", 1, 200},
-		{"valid pagination unchanged", 3, 50},
+		{"zero limit defaults to 20", 0, 0},
+		{"negative limit defaults to 20", -5, 0},
+		{"limit over 100 defaults to 20", 200, 0},
+		{"valid limit unchanged", 50, 10},
+		{"negative offset defaults to 0", 20, -5},
 	}
 
 	for _, tt := range tests {
@@ -1328,7 +1325,7 @@ func TestService_AdminGetDisputes_PaginationDefaults(t *testing.T) {
 			mock := NewMockRepository()
 			svc := createTestService(mock)
 
-			svc.AdminGetDisputes(context.Background(), nil, nil, tt.page, tt.pageSize)
+			svc.AdminGetDisputes(context.Background(), nil, nil, tt.limit, tt.offset)
 
 			assert.True(t, mock.getAllDisputesCalled)
 		})
@@ -2265,32 +2262,26 @@ func TestService_CreateDispute_VeryLargeFare(t *testing.T) {
 	assert.Equal(t, 10000.0, dispute.OriginalFare)
 }
 
-func TestService_GetMyDisputes_PageCalculation(t *testing.T) {
+func TestService_GetMyDisputes_OffsetPassthrough(t *testing.T) {
 	tests := []struct {
-		name           string
-		page           int
-		pageSize       int
-		expectedOffset int
+		name   string
+		limit  int
+		offset int
 	}{
-		{"page 1", 1, 20, 0},
-		{"page 2", 2, 20, 20},
-		{"page 3 with size 10", 3, 10, 20},
-		{"page 5 with size 25", 5, 25, 100},
+		{"offset 0", 20, 0},
+		{"offset 20", 20, 20},
+		{"offset 100 with limit 25", 25, 100},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// This test verifies the pagination logic is correct
-			page := tt.page
-			pageSize := tt.pageSize
-			if page < 1 {
-				page = 1
-			}
-			if pageSize < 1 || pageSize > 50 {
-				pageSize = 20
-			}
-			offset := (page - 1) * pageSize
-			assert.Equal(t, tt.expectedOffset, offset)
+			mock := NewMockRepository()
+			svc := createTestService(mock)
+
+			userID := uuid.New()
+			svc.GetMyDisputes(context.Background(), userID, nil, tt.limit, tt.offset)
+
+			assert.True(t, mock.getUserDisputesCalled)
 		})
 	}
 }

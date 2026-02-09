@@ -60,8 +60,8 @@ func (m *MockCancellationService) GetMyCancellationStats(ctx context.Context, us
 	return args.Get(0).(*UserCancellationStats), args.Error(1)
 }
 
-func (m *MockCancellationService) GetMyCancellationHistory(ctx context.Context, userID uuid.UUID, page, pageSize int) ([]CancellationRecord, int, error) {
-	args := m.Called(ctx, userID, page, pageSize)
+func (m *MockCancellationService) GetMyCancellationHistory(ctx context.Context, userID uuid.UUID, limit, offset int) ([]CancellationRecord, int, error) {
+	args := m.Called(ctx, userID, limit, offset)
 	if args.Get(0) == nil {
 		return nil, args.Int(1), args.Error(2)
 	}
@@ -107,7 +107,7 @@ type ServiceInterface interface {
 	CancelRide(ctx context.Context, rideID, userID uuid.UUID, req *CancelRideRequest) (*CancelRideResponse, error)
 	GetCancellationDetails(ctx context.Context, rideID, userID uuid.UUID) (*CancellationRecord, error)
 	GetMyCancellationStats(ctx context.Context, userID uuid.UUID) (*UserCancellationStats, error)
-	GetMyCancellationHistory(ctx context.Context, userID uuid.UUID, page, pageSize int) ([]CancellationRecord, int, error)
+	GetMyCancellationHistory(ctx context.Context, userID uuid.UUID, limit, offset int) ([]CancellationRecord, int, error)
 	GetCancellationReasons(isDriver bool) *CancellationReasonsResponse
 	WaiveFee(ctx context.Context, cancellationID uuid.UUID, reason string) error
 	GetCancellationStats(ctx context.Context, from, to time.Time) (*CancellationStatsResponse, error)
@@ -1004,7 +1004,7 @@ func TestHandler_GetMyCancellationHistory_WithPagination(t *testing.T) {
 	h := newTestHandler(mockSvc)
 	router.GET("/api/v1/cancellations/history", func(c *gin.Context) {
 		setUserContext(c, userID, models.RoleRider)
-		// Simulate parsing page and page_size from query
+		// Simulate parsing limit and offset from query
 		result, total, err := h.service.GetMyCancellationHistory(c.Request.Context(), userID, 10, 20)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -1017,7 +1017,7 @@ func TestHandler_GetMyCancellationHistory_WithPagination(t *testing.T) {
 		})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/cancellations/history?page=3&page_size=10", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/cancellations/history?limit=10&offset=20", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

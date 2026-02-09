@@ -98,10 +98,10 @@ type UpdateProfileRequest struct {
 
 // PaginationRequest represents common pagination parameters
 type PaginationRequest struct {
-	Page     int    `json:"page" validate:"omitempty,gte=1"`
-	PageSize int    `json:"page_size" validate:"omitempty,gte=1,lte=100"`
-	SortBy   string `json:"sort_by" validate:"omitempty,alpha"`
-	SortDir  string `json:"sort_dir" validate:"omitempty,oneof=asc desc"`
+	Limit   int    `json:"limit" validate:"omitempty,gte=1,lte=100"`
+	Offset  int    `json:"offset" validate:"omitempty,gte=0"`
+	SortBy  string `json:"sort_by" validate:"omitempty,alpha"`
+	SortDir string `json:"sort_dir" validate:"omitempty,oneof=asc desc"`
 }
 
 // DateRangeRequest represents a date range filter

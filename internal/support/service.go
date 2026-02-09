@@ -75,15 +75,14 @@ func (s *Service) CreateTicket(ctx context.Context, userID uuid.UUID, req *Creat
 }
 
 // GetMyTickets returns the current user's tickets
-func (s *Service) GetMyTickets(ctx context.Context, userID uuid.UUID, status *TicketStatus, page, pageSize int) ([]TicketSummary, int, error) {
-	if page < 1 {
-		page = 1
+func (s *Service) GetMyTickets(ctx context.Context, userID uuid.UUID, status *TicketStatus, limit, offset int) ([]TicketSummary, int, error) {
+	if limit < 1 || limit > 50 {
+		limit = 20
 	}
-	if pageSize < 1 || pageSize > 50 {
-		pageSize = 20
+	if offset < 0 {
+		offset = 0
 	}
-	offset := (page - 1) * pageSize
-	return s.repo.GetUserTickets(ctx, userID, status, pageSize, offset)
+	return s.repo.GetUserTickets(ctx, userID, status, limit, offset)
 }
 
 // GetTicket returns a ticket with access check
@@ -218,15 +217,14 @@ func (s *Service) GetFAQArticle(ctx context.Context, id uuid.UUID) (*FAQArticle,
 // ========================================
 
 // AdminGetTickets returns all tickets with filters
-func (s *Service) AdminGetTickets(ctx context.Context, status *TicketStatus, priority *TicketPriority, category *TicketCategory, page, pageSize int) ([]TicketSummary, int, error) {
-	if page < 1 {
-		page = 1
+func (s *Service) AdminGetTickets(ctx context.Context, status *TicketStatus, priority *TicketPriority, category *TicketCategory, limit, offset int) ([]TicketSummary, int, error) {
+	if limit < 1 || limit > 100 {
+		limit = 20
 	}
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
+	if offset < 0 {
+		offset = 0
 	}
-	offset := (page - 1) * pageSize
-	return s.repo.GetAllTickets(ctx, status, priority, category, pageSize, offset)
+	return s.repo.GetAllTickets(ctx, status, priority, category, limit, offset)
 }
 
 // AdminGetTicket returns a ticket for admin (no ownership check)

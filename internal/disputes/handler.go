@@ -56,7 +56,7 @@ func (h *Handler) CreateDispute(c *gin.Context) {
 }
 
 // GetMyDisputes returns the current user's disputes
-// GET /api/v1/disputes?status=pending&page=1&page_size=20
+// GET /api/v1/disputes?status=pending&offset=0&limit=20
 func (h *Handler) GetMyDisputes(c *gin.Context) {
 	userID, err := middleware.GetUserID(c)
 	if err != nil {
@@ -158,7 +158,7 @@ func (h *Handler) GetDisputeReasons(c *gin.Context) {
 // ========================================
 
 // AdminGetDisputes returns all disputes with filters
-// GET /api/v1/admin/disputes?status=pending&reason=overcharged&page=1
+// GET /api/v1/admin/disputes?status=pending&reason=overcharged&limit=20&offset=0
 func (h *Handler) AdminGetDisputes(c *gin.Context) {
 	params := pagination.ParseParams(c)
 

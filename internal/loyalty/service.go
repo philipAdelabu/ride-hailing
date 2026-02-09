@@ -299,16 +299,15 @@ func (s *Service) RedeemPoints(ctx context.Context, req *RedeemPointsRequest) (*
 }
 
 // GetPointsHistory gets points transaction history
-func (s *Service) GetPointsHistory(ctx context.Context, riderID uuid.UUID, page, pageSize int) (*PointsHistoryResponse, error) {
-	if page < 1 {
-		page = 1
+func (s *Service) GetPointsHistory(ctx context.Context, riderID uuid.UUID, limit, offset int) (*PointsHistoryResponse, error) {
+	if limit < 1 || limit > 100 {
+		limit = 20
 	}
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
+	if offset < 0 {
+		offset = 0
 	}
 
-	offset := (page - 1) * pageSize
-	transactions, total, err := s.repo.GetPointsHistory(ctx, riderID, pageSize, offset)
+	transactions, total, err := s.repo.GetPointsHistory(ctx, riderID, limit, offset)
 	if err != nil {
 		return nil, common.NewInternalServerError("failed to get points history")
 	}
@@ -322,8 +321,8 @@ func (s *Service) GetPointsHistory(ctx context.Context, riderID uuid.UUID, page,
 	return &PointsHistoryResponse{
 		Transactions: txList,
 		Total:        total,
-		Page:         page,
-		PageSize:     pageSize,
+		Limit:        limit,
+		Offset:       offset,
 	}, nil
 }
 

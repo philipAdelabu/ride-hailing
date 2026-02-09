@@ -276,15 +276,14 @@ func (s *Service) ReviewVehicle(ctx context.Context, vehicleID uuid.UUID, req *A
 }
 
 // GetPendingReviews returns vehicles awaiting review
-func (s *Service) GetPendingReviews(ctx context.Context, page, pageSize int) ([]Vehicle, int, error) {
-	if page < 1 {
-		page = 1
+func (s *Service) GetPendingReviews(ctx context.Context, limit, offset int) ([]Vehicle, int, error) {
+	if limit < 1 || limit > 50 {
+		limit = 20
 	}
-	if pageSize <= 0 || pageSize > 50 {
-		pageSize = 20
+	if offset < 0 {
+		offset = 0
 	}
-	offset := (page - 1) * pageSize
-	return s.repo.GetPendingReviewVehicles(ctx, pageSize, offset)
+	return s.repo.GetPendingReviewVehicles(ctx, limit, offset)
 }
 
 // GetVehicleStats returns vehicle stats for admin

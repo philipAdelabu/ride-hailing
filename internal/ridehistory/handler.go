@@ -28,7 +28,7 @@ func NewHandler(service *Service) *Handler {
 // ========================================
 
 // GetRiderHistory returns the rider's ride history
-// GET /api/v1/rides/history?page=1&page_size=20&status=completed&from=2025-01-01&to=2025-12-31
+// GET /api/v1/rides/history?limit=20&offset=0&status=completed&from=2025-01-01&to=2025-12-31
 func (h *Handler) GetRiderHistory(c *gin.Context) {
 	riderID, err := middleware.GetUserID(c)
 	if err != nil {
@@ -54,13 +54,14 @@ func (h *Handler) GetRiderHistory(c *gin.Context) {
 		}
 	}
 
-	resp, err := h.service.GetRiderHistory(c.Request.Context(), riderID, filters, params.Limit, params.Offset)
+	rides, total, err := h.service.GetRiderHistory(c.Request.Context(), riderID, filters, params.Limit, params.Offset)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get ride history")
 		return
 	}
 
-	common.SuccessResponse(c, resp)
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(total))
+	common.SuccessResponseWithMeta(c, gin.H{"rides": rides}, meta)
 }
 
 // GetRideDetails returns full details of a specific ride
@@ -162,7 +163,7 @@ func (h *Handler) GetFrequentRoutes(c *gin.Context) {
 // ========================================
 
 // GetDriverHistory returns the driver's ride history
-// GET /api/v1/driver/rides/history?page=1&page_size=20
+// GET /api/v1/driver/rides/history?limit=20&offset=0
 func (h *Handler) GetDriverHistory(c *gin.Context) {
 	driverID, err := middleware.GetUserID(c)
 	if err != nil {
@@ -188,13 +189,14 @@ func (h *Handler) GetDriverHistory(c *gin.Context) {
 		}
 	}
 
-	resp, err := h.service.GetDriverHistory(c.Request.Context(), driverID, filters, params.Limit, params.Offset)
+	rides, total, err := h.service.GetDriverHistory(c.Request.Context(), driverID, filters, params.Limit, params.Offset)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get ride history")
 		return
 	}
 
-	common.SuccessResponse(c, resp)
+	meta := pagination.BuildMeta(params.Limit, params.Offset, int64(total))
+	common.SuccessResponseWithMeta(c, gin.H{"rides": rides}, meta)
 }
 
 // ========================================

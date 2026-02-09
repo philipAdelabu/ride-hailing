@@ -174,11 +174,10 @@ type ReviewDocumentRequest struct {
 
 // DocumentListResponse represents a paginated list of documents
 type DocumentListResponse struct {
-	Documents  []*DriverDocument `json:"documents"`
-	Total      int               `json:"total"`
-	Page       int               `json:"page"`
-	PageSize   int               `json:"page_size"`
-	TotalPages int               `json:"total_pages"`
+	Documents []*DriverDocument `json:"documents"`
+	Total     int               `json:"total"`
+	Limit     int               `json:"limit"`
+	Offset    int               `json:"offset"`
 }
 
 // DocumentTypeListResponse represents available document types

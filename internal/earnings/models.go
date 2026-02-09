@@ -142,16 +142,16 @@ type DailyEarning struct {
 type EarningsHistoryResponse struct {
 	Earnings []DriverEarning `json:"earnings"`
 	Total    int             `json:"total"`
-	Page     int             `json:"page"`
-	PageSize int             `json:"page_size"`
+	Limit    int             `json:"limit"`
+	Offset   int             `json:"offset"`
 }
 
 // PayoutHistoryResponse returns paginated payouts
 type PayoutHistoryResponse struct {
 	Payouts  []DriverPayout `json:"payouts"`
 	Total    int            `json:"total"`
-	Page     int            `json:"page"`
-	PageSize int            `json:"page_size"`
+	Limit    int            `json:"limit"`
+	Offset   int            `json:"offset"`
 }
 
 // AddBankAccountRequest adds a bank account for payouts

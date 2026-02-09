@@ -24,11 +24,11 @@ import (
 
 type ServiceInterface interface {
 	CreateDispute(ctx context.Context, userID uuid.UUID, req *CreateDisputeRequest) (*Dispute, error)
-	GetMyDisputes(ctx context.Context, userID uuid.UUID, status *DisputeStatus, page, pageSize int) ([]DisputeSummary, int, error)
+	GetMyDisputes(ctx context.Context, userID uuid.UUID, status *DisputeStatus, limit, offset int) ([]DisputeSummary, int, error)
 	GetDisputeDetail(ctx context.Context, disputeID, userID uuid.UUID) (*DisputeDetailResponse, error)
 	AddComment(ctx context.Context, disputeID, userID uuid.UUID, req *AddCommentRequest) (*DisputeComment, error)
 	GetDisputeReasons() *DisputeReasonsResponse
-	AdminGetDisputes(ctx context.Context, status *DisputeStatus, reason *DisputeReason, page, pageSize int) ([]DisputeSummary, int, error)
+	AdminGetDisputes(ctx context.Context, status *DisputeStatus, reason *DisputeReason, limit, offset int) ([]DisputeSummary, int, error)
 	AdminGetDisputeDetail(ctx context.Context, disputeID uuid.UUID) (*DisputeDetailResponse, error)
 	AdminResolveDispute(ctx context.Context, disputeID, adminID uuid.UUID, req *ResolveDisputeRequest) error
 	AdminAddComment(ctx context.Context, disputeID, adminID uuid.UUID, comment string, isInternal bool) (*DisputeComment, error)
@@ -51,8 +51,8 @@ func (m *mockService) CreateDispute(ctx context.Context, userID uuid.UUID, req *
 	return args.Get(0).(*Dispute), args.Error(1)
 }
 
-func (m *mockService) GetMyDisputes(ctx context.Context, userID uuid.UUID, status *DisputeStatus, page, pageSize int) ([]DisputeSummary, int, error) {
-	args := m.Called(ctx, userID, status, page, pageSize)
+func (m *mockService) GetMyDisputes(ctx context.Context, userID uuid.UUID, status *DisputeStatus, limit, offset int) ([]DisputeSummary, int, error) {
+	args := m.Called(ctx, userID, status, limit, offset)
 	if args.Get(0) == nil {
 		return nil, args.Int(1), args.Error(2)
 	}
@@ -80,8 +80,8 @@ func (m *mockService) GetDisputeReasons() *DisputeReasonsResponse {
 	return args.Get(0).(*DisputeReasonsResponse)
 }
 
-func (m *mockService) AdminGetDisputes(ctx context.Context, status *DisputeStatus, reason *DisputeReason, page, pageSize int) ([]DisputeSummary, int, error) {
-	args := m.Called(ctx, status, reason, page, pageSize)
+func (m *mockService) AdminGetDisputes(ctx context.Context, status *DisputeStatus, reason *DisputeReason, limit, offset int) ([]DisputeSummary, int, error) {
+	args := m.Called(ctx, status, reason, limit, offset)
 	if args.Get(0) == nil {
 		return nil, args.Int(1), args.Error(2)
 	}

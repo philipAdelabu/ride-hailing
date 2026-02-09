@@ -265,7 +265,7 @@ func TestGetMyTickets_Success(t *testing.T) {
 
 	repo.On("GetUserTickets", ctx, userID, (*TicketStatus)(nil), 20, 0).Return(expected, 1, nil)
 
-	tickets, total, err := svc.GetMyTickets(ctx, userID, nil, 1, 20)
+	tickets, total, err := svc.GetMyTickets(ctx, userID, nil, 20, 0)
 	require.NoError(t, err)
 	assert.Equal(t, 1, total)
 	assert.Len(t, tickets, 1)
@@ -294,7 +294,7 @@ func TestGetMyTickets_WithStatusFilter(t *testing.T) {
 
 	repo.On("GetUserTickets", ctx, userID, &openStatus, 20, 0).Return(expected, 1, nil)
 
-	tickets, total, err := svc.GetMyTickets(ctx, userID, &openStatus, 1, 20)
+	tickets, total, err := svc.GetMyTickets(ctx, userID, &openStatus, 20, 0)
 	require.NoError(t, err)
 	assert.Equal(t, 1, total)
 	assert.Len(t, tickets, 1)
@@ -305,50 +305,43 @@ func TestGetMyTickets_WithStatusFilter(t *testing.T) {
 func TestGetMyTickets_Pagination(t *testing.T) {
 	tests := []struct {
 		name         string
-		page         int
-		pageSize     int
+		limit        int
+		offset       int
 		expectedSize int
 		expectedOff  int
 	}{
 		{
-			name:         "page 1 with default size",
-			page:         1,
-			pageSize:     20,
+			name:         "valid limit and offset",
+			limit:        20,
+			offset:       0,
 			expectedSize: 20,
 			expectedOff:  0,
 		},
 		{
-			name:         "page 2 with size 10",
-			page:         2,
-			pageSize:     10,
+			name:         "limit 10 offset 10",
+			limit:        10,
+			offset:       10,
 			expectedSize: 10,
 			expectedOff:  10,
 		},
 		{
-			name:         "page 0 defaults to 1",
-			page:         0,
-			pageSize:     20,
+			name:         "limit 0 defaults to 20",
+			limit:        0,
+			offset:       0,
 			expectedSize: 20,
 			expectedOff:  0,
 		},
 		{
-			name:         "negative page defaults to 1",
-			page:         -1,
-			pageSize:     20,
+			name:         "negative offset defaults to 0",
+			limit:        20,
+			offset:       -1,
 			expectedSize: 20,
 			expectedOff:  0,
 		},
 		{
-			name:         "pageSize 0 defaults to 20",
-			page:         1,
-			pageSize:     0,
-			expectedSize: 20,
-			expectedOff:  0,
-		},
-		{
-			name:         "pageSize > 50 caps at 20",
-			page:         1,
-			pageSize:     100,
+			name:         "limit > 50 defaults to 20",
+			limit:        100,
+			offset:       0,
 			expectedSize: 20,
 			expectedOff:  0,
 		},
@@ -364,7 +357,7 @@ func TestGetMyTickets_Pagination(t *testing.T) {
 			repo.On("GetUserTickets", ctx, userID, (*TicketStatus)(nil), tt.expectedSize, tt.expectedOff).
 				Return([]TicketSummary{}, 0, nil)
 
-			_, _, err := svc.GetMyTickets(ctx, userID, nil, tt.page, tt.pageSize)
+			_, _, err := svc.GetMyTickets(ctx, userID, nil, tt.limit, tt.offset)
 			require.NoError(t, err)
 
 			repo.AssertExpectations(t)
@@ -958,7 +951,7 @@ func TestAdminGetTickets_Success(t *testing.T) {
 	repo.On("GetAllTickets", ctx, (*TicketStatus)(nil), (*TicketPriority)(nil), (*TicketCategory)(nil), 20, 0).
 		Return(expected, 2, nil)
 
-	tickets, total, err := svc.AdminGetTickets(ctx, nil, nil, nil, 1, 20)
+	tickets, total, err := svc.AdminGetTickets(ctx, nil, nil, nil, 20, 0)
 	require.NoError(t, err)
 	assert.Equal(t, 2, total)
 	assert.Len(t, tickets, 2)
@@ -989,7 +982,7 @@ func TestAdminGetTickets_WithFilters(t *testing.T) {
 	repo.On("GetAllTickets", ctx, &status, &priority, &category, 20, 0).
 		Return(expected, 1, nil)
 
-	tickets, total, err := svc.AdminGetTickets(ctx, &status, &priority, &category, 1, 20)
+	tickets, total, err := svc.AdminGetTickets(ctx, &status, &priority, &category, 20, 0)
 	require.NoError(t, err)
 	assert.Equal(t, 1, total)
 	assert.Len(t, tickets, 1)
@@ -1000,29 +993,29 @@ func TestAdminGetTickets_WithFilters(t *testing.T) {
 func TestAdminGetTickets_PaginationDefaults(t *testing.T) {
 	tests := []struct {
 		name         string
-		page         int
-		pageSize     int
+		limit        int
+		offset       int
 		expectedSize int
 		expectedOff  int
 	}{
 		{
-			name:         "page 0 defaults to 1",
-			page:         0,
-			pageSize:     20,
+			name:         "limit 0 defaults to 20",
+			limit:        0,
+			offset:       0,
 			expectedSize: 20,
 			expectedOff:  0,
 		},
 		{
-			name:         "pageSize 0 defaults to 20",
-			page:         1,
-			pageSize:     0,
+			name:         "negative offset defaults to 0",
+			limit:        20,
+			offset:       -5,
 			expectedSize: 20,
 			expectedOff:  0,
 		},
 		{
-			name:         "pageSize > 100 caps at 20",
-			page:         1,
-			pageSize:     150,
+			name:         "limit > 100 defaults to 20",
+			limit:        150,
+			offset:       0,
 			expectedSize: 20,
 			expectedOff:  0,
 		},
@@ -1037,7 +1030,7 @@ func TestAdminGetTickets_PaginationDefaults(t *testing.T) {
 			repo.On("GetAllTickets", ctx, (*TicketStatus)(nil), (*TicketPriority)(nil), (*TicketCategory)(nil), tt.expectedSize, tt.expectedOff).
 				Return([]TicketSummary{}, 0, nil)
 
-			_, _, err := svc.AdminGetTickets(ctx, nil, nil, nil, tt.page, tt.pageSize)
+			_, _, err := svc.AdminGetTickets(ctx, nil, nil, nil, tt.limit, tt.offset)
 			require.NoError(t, err)
 
 			repo.AssertExpectations(t)

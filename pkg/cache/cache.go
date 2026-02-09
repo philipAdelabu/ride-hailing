@@ -129,8 +129,8 @@ func (k CacheKeys) Ride(rideID string) string {
 }
 
 // RideHistory returns cache key for user's ride history
-func (k CacheKeys) RideHistory(userID string, page int) string {
-	return fmt.Sprintf("ride_history:%s:page:%d", userID, page)
+func (k CacheKeys) RideHistory(userID string, offset int) string {
+	return fmt.Sprintf("ride_history:%s:offset:%d", userID, offset)
 }
 
 // DriverLocation returns cache key for driver location

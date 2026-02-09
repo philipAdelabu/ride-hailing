@@ -136,7 +136,7 @@ func (h *Handler) GetMyCancellationStats(c *gin.Context) {
 }
 
 // GetMyCancellationHistory returns the user's cancellation history
-// GET /api/v1/cancellations/history?page=1&page_size=20
+// GET /api/v1/cancellations/history?limit=20&offset=0
 func (h *Handler) GetMyCancellationHistory(c *gin.Context) {
 	userID, err := middleware.GetUserID(c)
 	if err != nil {

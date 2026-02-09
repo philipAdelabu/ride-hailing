@@ -642,98 +642,93 @@ func TestLogHistory_NotesHandling(t *testing.T) {
 // UNIT TESTS - Pagination
 // ========================================
 
-func TestPendingReviewDocument_PageCalculation(t *testing.T) {
+func TestPendingReviewDocument_LimitOffsetValidation(t *testing.T) {
 	tests := []struct {
-		name         string
-		page         int
-		pageSize     int
-		expectedPage int
-		expectedSize int
-		expectedOff  int
+		name           string
+		limit          int
+		offset         int
+		expectedLimit  int
+		expectedOffset int
 	}{
 		{
-			name:         "defaults for zero values",
-			page:         0,
-			pageSize:     0,
-			expectedPage: 1,
-			expectedSize: 20,
-			expectedOff:  0,
+			name:           "defaults for zero values",
+			limit:          0,
+			offset:         0,
+			expectedLimit:  20,
+			expectedOffset: 0,
 		},
 		{
-			name:         "negative page becomes 1",
-			page:         -1,
-			pageSize:     10,
-			expectedPage: 1,
-			expectedSize: 10,
-			expectedOff:  0,
+			name:           "negative limit becomes 20",
+			limit:          -1,
+			offset:         10,
+			expectedLimit:  20,
+			expectedOffset: 10,
 		},
 		{
-			name:         "oversized pageSize becomes 20",
-			page:         1,
-			pageSize:     200,
-			expectedPage: 1,
-			expectedSize: 20,
-			expectedOff:  0,
+			name:           "oversized limit becomes 20",
+			limit:          200,
+			offset:         0,
+			expectedLimit:  20,
+			expectedOffset: 0,
 		},
 		{
-			name:         "valid values preserved",
-			page:         3,
-			pageSize:     50,
-			expectedPage: 3,
-			expectedSize: 50,
-			expectedOff:  100,
+			name:           "valid values preserved",
+			limit:          50,
+			offset:         100,
+			expectedLimit:  50,
+			expectedOffset: 100,
 		},
 		{
-			name:         "page 2 with size 10",
-			page:         2,
-			pageSize:     10,
-			expectedPage: 2,
-			expectedSize: 10,
-			expectedOff:  10,
+			name:           "limit 10 offset 10",
+			limit:          10,
+			offset:         10,
+			expectedLimit:  10,
+			expectedOffset: 10,
 		},
 		{
-			name:         "large page number",
-			page:         100,
-			pageSize:     25,
-			expectedPage: 100,
-			expectedSize: 25,
-			expectedOff:  2475,
+			name:           "large offset",
+			limit:          25,
+			offset:         2475,
+			expectedLimit:  25,
+			expectedOffset: 2475,
 		},
 		{
-			name:         "pageSize at boundary 100",
-			page:         1,
-			pageSize:     100,
-			expectedPage: 1,
-			expectedSize: 100,
-			expectedOff:  0,
+			name:           "limit at boundary 100",
+			limit:          100,
+			offset:         0,
+			expectedLimit:  100,
+			expectedOffset: 0,
 		},
 		{
-			name:         "pageSize just over boundary 101",
-			page:         1,
-			pageSize:     101,
-			expectedPage: 1,
-			expectedSize: 20,
-			expectedOff:  0,
+			name:           "limit just over boundary 101",
+			limit:          101,
+			offset:         0,
+			expectedLimit:  20,
+			expectedOffset: 0,
+		},
+		{
+			name:           "negative offset becomes 0",
+			limit:          10,
+			offset:         -5,
+			expectedLimit:  10,
+			expectedOffset: 0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			page := tt.page
-			pageSize := tt.pageSize
+			limit := tt.limit
+			offset := tt.offset
 
-			if page < 1 {
-				page = 1
+			if limit < 1 || limit > 100 {
+				limit = 20
 			}
-			if pageSize < 1 || pageSize > 100 {
-				pageSize = 20
+			if offset < 0 {
+				offset = 0
 			}
 
-			assert.Equal(t, tt.expectedPage, page)
-			assert.Equal(t, tt.expectedSize, pageSize)
-
-			offset := (page - 1) * pageSize
-			assert.Equal(t, tt.expectedOff, offset)
+			assert.Equal(t, tt.expectedLimit, limit)
+			assert.Equal(t, tt.expectedOffset, offset)
 			assert.GreaterOrEqual(t, offset, 0, "offset should be non-negative")
 		})
 	}
@@ -1583,18 +1578,16 @@ func TestDocumentListResponse(t *testing.T) {
 	}
 
 	resp := &DocumentListResponse{
-		Documents:  docs,
-		Total:      50,
-		Page:       1,
-		PageSize:   20,
-		TotalPages: 3,
+		Documents: docs,
+		Total:     50,
+		Limit:     20,
+		Offset:    0,
 	}
 
 	assert.Len(t, resp.Documents, 2)
 	assert.Equal(t, 50, resp.Total)
-	assert.Equal(t, 1, resp.Page)
-	assert.Equal(t, 20, resp.PageSize)
-	assert.Equal(t, 3, resp.TotalPages)
+	assert.Equal(t, 20, resp.Limit)
+	assert.Equal(t, 0, resp.Offset)
 }
 
 func TestDocumentTypeListResponse(t *testing.T) {
@@ -2822,7 +2815,7 @@ func TestService_GetPendingReviews_Success(t *testing.T) {
 	mockStorage := &MockStorage{}
 	svc := newTestService(mockRepo, mockStorage, ServiceConfig{})
 
-	reviews, total, err := svc.GetPendingReviews(context.Background(), 1, 20)
+	reviews, total, err := svc.GetPendingReviews(context.Background(), 20, 0)
 
 	require.NoError(t, err)
 	assert.Len(t, reviews, 2)
@@ -2849,7 +2842,7 @@ func TestService_GetPendingReviews_DefaultPagination(t *testing.T) {
 	assert.Equal(t, 0, capturedOffset)
 }
 
-func TestService_GetPendingReviews_OversizedPageSize(t *testing.T) {
+func TestService_GetPendingReviews_OversizedLimit(t *testing.T) {
 	var capturedLimit int
 
 	mockRepo := &MockRepository{
@@ -2861,7 +2854,7 @@ func TestService_GetPendingReviews_OversizedPageSize(t *testing.T) {
 	mockStorage := &MockStorage{}
 	svc := newTestService(mockRepo, mockStorage, ServiceConfig{})
 
-	_, _, err := svc.GetPendingReviews(context.Background(), 1, 200)
+	_, _, err := svc.GetPendingReviews(context.Background(), 200, 0)
 
 	require.NoError(t, err)
 	assert.Equal(t, 20, capturedLimit)

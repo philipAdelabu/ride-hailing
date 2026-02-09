@@ -55,7 +55,7 @@ func (h *Handler) CreateTicket(c *gin.Context) {
 }
 
 // GetMyTickets returns the current user's tickets
-// GET /api/v1/support/tickets?status=open&page=1&page_size=20
+// GET /api/v1/support/tickets?status=open&limit=20&offset=0
 func (h *Handler) GetMyTickets(c *gin.Context) {
 	userID, err := middleware.GetUserID(c)
 	if err != nil {
@@ -248,7 +248,7 @@ func (h *Handler) GetFAQArticle(c *gin.Context) {
 // ========================================
 
 // AdminGetTickets returns all tickets with filters
-// GET /api/v1/admin/support/tickets?status=open&priority=urgent&category=safety&page=1
+// GET /api/v1/admin/support/tickets?status=open&priority=urgent&category=safety&limit=20&offset=0
 func (h *Handler) AdminGetTickets(c *gin.Context) {
 	params := pagination.ParseParams(c)
 

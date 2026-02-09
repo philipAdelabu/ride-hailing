@@ -27,20 +27,20 @@ type MockServiceInterface struct {
 	mock.Mock
 }
 
-func (m *MockServiceInterface) GetRiderHistory(ctx context.Context, riderID uuid.UUID, filters *HistoryFilters, page, pageSize int) (*HistoryResponse, error) {
-	args := m.Called(ctx, riderID, filters, page, pageSize)
+func (m *MockServiceInterface) GetRiderHistory(ctx context.Context, riderID uuid.UUID, filters *HistoryFilters, limit, offset int) ([]RideHistoryEntry, int, error) {
+	args := m.Called(ctx, riderID, filters, limit, offset)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		return nil, args.Int(1), args.Error(2)
 	}
-	return args.Get(0).(*HistoryResponse), args.Error(1)
+	return args.Get(0).([]RideHistoryEntry), args.Int(1), args.Error(2)
 }
 
-func (m *MockServiceInterface) GetDriverHistory(ctx context.Context, driverID uuid.UUID, filters *HistoryFilters, page, pageSize int) (*HistoryResponse, error) {
-	args := m.Called(ctx, driverID, filters, page, pageSize)
+func (m *MockServiceInterface) GetDriverHistory(ctx context.Context, driverID uuid.UUID, filters *HistoryFilters, limit, offset int) ([]RideHistoryEntry, int, error) {
+	args := m.Called(ctx, driverID, filters, limit, offset)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		return nil, args.Int(1), args.Error(2)
 	}
-	return args.Get(0).(*HistoryResponse), args.Error(1)
+	return args.Get(0).([]RideHistoryEntry), args.Int(1), args.Error(2)
 }
 
 func (m *MockServiceInterface) GetRideDetails(ctx context.Context, rideID uuid.UUID, userID uuid.UUID) (*RideHistoryEntry, error) {
@@ -109,15 +109,6 @@ func parseResponse(w *httptest.ResponseRecorder) map[string]interface{} {
 	return response
 }
 
-func createTestHandler(mockService *MockServiceInterface) *Handler {
-	// Create a real service with nil repo (we won't use it directly)
-	service := &Service{}
-	handler := NewHandler(service)
-	// Replace the service with our mock for testing
-	handler.service = &Service{repo: nil}
-	return handler
-}
-
 func createTestHandlerWithMockService(mockService *MockServiceInterface) *handlerWithMock {
 	return &handlerWithMock{mockService: mockService}
 }
@@ -134,22 +125,24 @@ func (h *handlerWithMock) GetRiderHistory(c *gin.Context) {
 		return
 	}
 
-	// Parse pagination params
-	page := 1
-	pageSize := 20
+	limit := 20
+	offset := 0
 
 	filters := &HistoryFilters{}
 	if status := c.Query("status"); status != "" {
 		filters.Status = &status
 	}
 
-	resp, err := h.mockService.GetRiderHistory(c.Request.Context(), riderID.(uuid.UUID), filters, page, pageSize)
+	rides, total, err := h.mockService.GetRiderHistory(c.Request.Context(), riderID.(uuid.UUID), filters, limit, offset)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get ride history")
 		return
 	}
 
-	common.SuccessResponse(c, resp)
+	common.SuccessResponse(c, gin.H{
+		"rides": rides,
+		"total": total,
+	})
 }
 
 func (h *handlerWithMock) GetRideDetails(c *gin.Context) {
@@ -245,21 +238,24 @@ func (h *handlerWithMock) GetDriverHistory(c *gin.Context) {
 		return
 	}
 
-	page := 1
-	pageSize := 20
+	limit := 20
+	offset := 0
 
 	filters := &HistoryFilters{}
 	if status := c.Query("status"); status != "" {
 		filters.Status = &status
 	}
 
-	resp, err := h.mockService.GetDriverHistory(c.Request.Context(), driverID.(uuid.UUID), filters, page, pageSize)
+	rides, total, err := h.mockService.GetDriverHistory(c.Request.Context(), driverID.(uuid.UUID), filters, limit, offset)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get ride history")
 		return
 	}
 
-	common.SuccessResponse(c, resp)
+	common.SuccessResponse(c, gin.H{
+		"rides": rides,
+		"total": total,
+	})
 }
 
 func createTestRideHistoryEntry(riderID uuid.UUID, driverID *uuid.UUID, status string) *RideHistoryEntry {
@@ -272,9 +268,8 @@ func createTestRideHistoryEntry(riderID uuid.UUID, driverID *uuid.UUID, status s
 		DropoffAddress: "456 Oak Ave",
 		Distance:       10.5,
 		Duration:       25,
-		TotalFare:      35.00,
+		EstimatedFare:  35.00,
 		Currency:       "USD",
-		PaymentMethod:  "card",
 		RequestedAt:    time.Now().Add(-1 * time.Hour),
 	}
 }
@@ -291,14 +286,13 @@ func createTestReceipt(rideID uuid.UUID) *Receipt {
 		TripDate:       "January 15, 2024",
 		TripStartTime:  "2:30 PM",
 		TripEndTime:    "2:55 PM",
-		FareBreakdown:  []FareLineItem{{Label: "Base fare", Amount: 5.00, Type: "charge"}},
-		Subtotal:       30.00,
-		Fees:           2.50,
+		FareBreakdown:  []FareLineItem{{Label: "Fare", Amount: 35.00, Type: "charge"}},
+		Subtotal:       35.00,
+		Fees:           0,
 		Discounts:      0,
-		Tip:            3.00,
-		Total:          35.50,
+		Tip:            0,
+		Total:          35.00,
 		Currency:       "USD",
-		PaymentMethod:  "card",
 	}
 }
 
@@ -334,13 +328,8 @@ func TestHandler_GetRiderHistory_Success(t *testing.T) {
 		*createTestRideHistoryEntry(riderID, nil, "completed"),
 	}
 
-	mockService.On("GetRiderHistory", mock.Anything, riderID, mock.AnythingOfType("*ridehistory.HistoryFilters"), 1, 20).
-		Return(&HistoryResponse{
-			Rides:    rides,
-			Total:    2,
-			Page:     1,
-			PageSize: 20,
-		}, nil)
+	mockService.On("GetRiderHistory", mock.Anything, riderID, mock.AnythingOfType("*ridehistory.HistoryFilters"), 20, 0).
+		Return(rides, 2, nil)
 
 	c, w := setupTestContext("GET", "/api/v1/rides/history", nil)
 	setUserContext(c, riderID, models.RoleRider)
@@ -377,8 +366,8 @@ func TestHandler_GetRiderHistory_ServiceError(t *testing.T) {
 
 	riderID := uuid.New()
 
-	mockService.On("GetRiderHistory", mock.Anything, riderID, mock.AnythingOfType("*ridehistory.HistoryFilters"), 1, 20).
-		Return(nil, errors.New("database error"))
+	mockService.On("GetRiderHistory", mock.Anything, riderID, mock.AnythingOfType("*ridehistory.HistoryFilters"), 20, 0).
+		Return(nil, 0, errors.New("database error"))
 
 	c, w := setupTestContext("GET", "/api/v1/rides/history", nil)
 	setUserContext(c, riderID, models.RoleRider)
@@ -399,13 +388,8 @@ func TestHandler_GetRiderHistory_EmptyList(t *testing.T) {
 
 	riderID := uuid.New()
 
-	mockService.On("GetRiderHistory", mock.Anything, riderID, mock.AnythingOfType("*ridehistory.HistoryFilters"), 1, 20).
-		Return(&HistoryResponse{
-			Rides:    []RideHistoryEntry{},
-			Total:    0,
-			Page:     1,
-			PageSize: 20,
-		}, nil)
+	mockService.On("GetRiderHistory", mock.Anything, riderID, mock.AnythingOfType("*ridehistory.HistoryFilters"), 20, 0).
+		Return([]RideHistoryEntry{}, 0, nil)
 
 	c, w := setupTestContext("GET", "/api/v1/rides/history", nil)
 	setUserContext(c, riderID, models.RoleRider)
@@ -426,13 +410,8 @@ func TestHandler_GetRiderHistory_WithStatusFilter(t *testing.T) {
 
 	riderID := uuid.New()
 
-	mockService.On("GetRiderHistory", mock.Anything, riderID, mock.AnythingOfType("*ridehistory.HistoryFilters"), 1, 20).
-		Return(&HistoryResponse{
-			Rides:    []RideHistoryEntry{},
-			Total:    0,
-			Page:     1,
-			PageSize: 20,
-		}, nil)
+	mockService.On("GetRiderHistory", mock.Anything, riderID, mock.AnythingOfType("*ridehistory.HistoryFilters"), 20, 0).
+		Return([]RideHistoryEntry{}, 0, nil)
 
 	c, w := setupTestContext("GET", "/api/v1/rides/history?status=completed", nil)
 	c.Request.URL.RawQuery = "status=completed"
@@ -930,13 +909,8 @@ func TestHandler_GetDriverHistory_Success(t *testing.T) {
 		*createTestRideHistoryEntry(riderID, &driverID, "completed"),
 	}
 
-	mockService.On("GetDriverHistory", mock.Anything, driverID, mock.AnythingOfType("*ridehistory.HistoryFilters"), 1, 20).
-		Return(&HistoryResponse{
-			Rides:    rides,
-			Total:    1,
-			Page:     1,
-			PageSize: 20,
-		}, nil)
+	mockService.On("GetDriverHistory", mock.Anything, driverID, mock.AnythingOfType("*ridehistory.HistoryFilters"), 20, 0).
+		Return(rides, 1, nil)
 
 	c, w := setupTestContext("GET", "/api/v1/driver/rides/history", nil)
 	setUserContext(c, driverID, models.RoleDriver)
@@ -971,8 +945,8 @@ func TestHandler_GetDriverHistory_ServiceError(t *testing.T) {
 
 	driverID := uuid.New()
 
-	mockService.On("GetDriverHistory", mock.Anything, driverID, mock.AnythingOfType("*ridehistory.HistoryFilters"), 1, 20).
-		Return(nil, errors.New("database error"))
+	mockService.On("GetDriverHistory", mock.Anything, driverID, mock.AnythingOfType("*ridehistory.HistoryFilters"), 20, 0).
+		Return(nil, 0, errors.New("database error"))
 
 	c, w := setupTestContext("GET", "/api/v1/driver/rides/history", nil)
 	setUserContext(c, driverID, models.RoleDriver)
@@ -991,13 +965,8 @@ func TestHandler_GetDriverHistory_Empty(t *testing.T) {
 
 	driverID := uuid.New()
 
-	mockService.On("GetDriverHistory", mock.Anything, driverID, mock.AnythingOfType("*ridehistory.HistoryFilters"), 1, 20).
-		Return(&HistoryResponse{
-			Rides:    []RideHistoryEntry{},
-			Total:    0,
-			Page:     1,
-			PageSize: 20,
-		}, nil)
+	mockService.On("GetDriverHistory", mock.Anything, driverID, mock.AnythingOfType("*ridehistory.HistoryFilters"), 20, 0).
+		Return([]RideHistoryEntry{}, 0, nil)
 
 	c, w := setupTestContext("GET", "/api/v1/driver/rides/history", nil)
 	setUserContext(c, driverID, models.RoleDriver)
@@ -1188,13 +1157,8 @@ func TestHandler_GetRiderHistory_ResponseFormat(t *testing.T) {
 		*createTestRideHistoryEntry(riderID, nil, "completed"),
 	}
 
-	mockService.On("GetRiderHistory", mock.Anything, riderID, mock.AnythingOfType("*ridehistory.HistoryFilters"), 1, 20).
-		Return(&HistoryResponse{
-			Rides:    rides,
-			Total:    1,
-			Page:     1,
-			PageSize: 20,
-		}, nil)
+	mockService.On("GetRiderHistory", mock.Anything, riderID, mock.AnythingOfType("*ridehistory.HistoryFilters"), 20, 0).
+		Return(rides, 1, nil)
 
 	c, w := setupTestContext("GET", "/api/v1/rides/history", nil)
 	setUserContext(c, riderID, models.RoleRider)
@@ -1218,8 +1182,8 @@ func TestHandler_ErrorResponse_Format(t *testing.T) {
 
 	riderID := uuid.New()
 
-	mockService.On("GetRiderHistory", mock.Anything, riderID, mock.AnythingOfType("*ridehistory.HistoryFilters"), 1, 20).
-		Return(nil, errors.New("database error"))
+	mockService.On("GetRiderHistory", mock.Anything, riderID, mock.AnythingOfType("*ridehistory.HistoryFilters"), 20, 0).
+		Return(nil, 0, errors.New("database error"))
 
 	c, w := setupTestContext("GET", "/api/v1/rides/history", nil)
 	setUserContext(c, riderID, models.RoleRider)

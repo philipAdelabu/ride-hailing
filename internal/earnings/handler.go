@@ -78,7 +78,7 @@ func (h *Handler) GetDailyBreakdown(c *gin.Context) {
 }
 
 // GetHistory returns paginated earnings history
-// GET /api/v1/driver/earnings/history?period=this_month&page=1&page_size=20
+// GET /api/v1/driver/earnings/history?period=this_month&limit=20&offset=0
 func (h *Handler) GetHistory(c *gin.Context) {
 	driverID, err := middleware.GetUserID(c)
 	if err != nil {
@@ -156,7 +156,7 @@ func (h *Handler) RequestPayout(c *gin.Context) {
 }
 
 // GetPayoutHistory returns payout history
-// GET /api/v1/driver/earnings/payouts?page=1&page_size=20
+// GET /api/v1/driver/earnings/payouts?limit=20&offset=0
 func (h *Handler) GetPayoutHistory(c *gin.Context) {
 	driverID, err := middleware.GetUserID(c)
 	if err != nil {

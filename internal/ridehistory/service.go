@@ -23,55 +23,27 @@ func NewService(repo RepositoryInterface) *Service {
 }
 
 // GetRiderHistory returns paginated ride history for a rider
-func (s *Service) GetRiderHistory(ctx context.Context, riderID uuid.UUID, filters *HistoryFilters, page, pageSize int) (*HistoryResponse, error) {
-	if page < 1 {
-		page = 1
-	}
-	if pageSize <= 0 || pageSize > 50 {
-		pageSize = 20
-	}
-	offset := (page - 1) * pageSize
-
-	rides, total, err := s.repo.GetRiderHistory(ctx, riderID, filters, pageSize, offset)
+func (s *Service) GetRiderHistory(ctx context.Context, riderID uuid.UUID, filters *HistoryFilters, limit, offset int) ([]RideHistoryEntry, int, error) {
+	rides, total, err := s.repo.GetRiderHistory(ctx, riderID, filters, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if rides == nil {
 		rides = []RideHistoryEntry{}
 	}
-
-	return &HistoryResponse{
-		Rides:    rides,
-		Total:    total,
-		Page:     page,
-		PageSize: pageSize,
-	}, nil
+	return rides, total, nil
 }
 
 // GetDriverHistory returns paginated ride history for a driver
-func (s *Service) GetDriverHistory(ctx context.Context, driverID uuid.UUID, filters *HistoryFilters, page, pageSize int) (*HistoryResponse, error) {
-	if page < 1 {
-		page = 1
-	}
-	if pageSize <= 0 || pageSize > 50 {
-		pageSize = 20
-	}
-	offset := (page - 1) * pageSize
-
-	rides, total, err := s.repo.GetDriverHistory(ctx, driverID, filters, pageSize, offset)
+func (s *Service) GetDriverHistory(ctx context.Context, driverID uuid.UUID, filters *HistoryFilters, limit, offset int) ([]RideHistoryEntry, int, error) {
+	rides, total, err := s.repo.GetDriverHistory(ctx, driverID, filters, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if rides == nil {
 		rides = []RideHistoryEntry{}
 	}
-
-	return &HistoryResponse{
-		Rides:    rides,
-		Total:    total,
-		Page:     page,
-		PageSize: pageSize,
-	}, nil
+	return rides, total, nil
 }
 
 // GetRideDetails returns full details of a specific ride
@@ -103,18 +75,21 @@ func (s *Service) GetReceipt(ctx context.Context, rideID uuid.UUID, userID uuid.
 		return nil, common.NewBadRequestError("receipts are only available for completed rides", nil)
 	}
 
+	// Determine final total
+	total := ride.EstimatedFare
+	if ride.FinalFare != nil {
+		total = *ride.FinalFare
+	}
+
 	receipt := &Receipt{
-		ReceiptID:     generateReceiptID(),
-		RideID:        ride.ID,
-		IssuedAt:      time.Now(),
-		PickupAddress: ride.PickupAddress,
+		ReceiptID:      generateReceiptID(),
+		RideID:         ride.ID,
+		IssuedAt:       time.Now(),
+		PickupAddress:  ride.PickupAddress,
 		DropoffAddress: ride.DropoffAddress,
-		Distance:      ride.Distance,
-		Duration:      ride.Duration,
-		Currency:      ride.Currency,
-		PaymentMethod: ride.PaymentMethod,
-		DriverName:    ride.DriverName,
-		LicensePlate:  ride.LicensePlate,
+		Distance:       ride.Distance,
+		Duration:       ride.Duration,
+		Currency:       ride.Currency,
 	}
 
 	// Format timestamps
@@ -124,62 +99,36 @@ func (s *Service) GetReceipt(ctx context.Context, rideID uuid.UUID, userID uuid.
 		receipt.TripEndTime = ride.CompletedAt.Format("3:04 PM")
 	}
 
-	// Vehicle info
-	if ride.VehicleMake != nil && ride.VehicleModel != nil {
-		info := fmt.Sprintf("%s %s", *ride.VehicleMake, *ride.VehicleModel)
-		if ride.VehicleColor != nil {
-			info = *ride.VehicleColor + " " + info
-		}
-		receipt.VehicleInfo = &info
-	}
-
 	// Build fare breakdown
 	var breakdown []FareLineItem
 
-	if ride.BaseFare > 0 {
-		breakdown = append(breakdown, FareLineItem{Label: "Base fare", Amount: ride.BaseFare, Type: "charge"})
-	}
-	if ride.DistanceFare > 0 {
-		breakdown = append(breakdown, FareLineItem{
-			Label:  fmt.Sprintf("Distance (%.1f km)", ride.Distance),
-			Amount: ride.DistanceFare, Type: "charge",
-		})
-	}
-	if ride.TimeFare > 0 {
-		breakdown = append(breakdown, FareLineItem{
-			Label:  fmt.Sprintf("Time (%d min)", ride.Duration),
-			Amount: ride.TimeFare, Type: "charge",
-		})
-	}
-	if ride.SurgeAmount > 0 {
+	breakdown = append(breakdown, FareLineItem{
+		Label:  "Fare",
+		Amount: total,
+		Type:   "charge",
+	})
+
+	if ride.SurgeMultiplier > 1 {
+		surgeAmount := total * (ride.SurgeMultiplier - 1) / ride.SurgeMultiplier
 		breakdown = append(breakdown, FareLineItem{
 			Label:  fmt.Sprintf("Surge (%.1fx)", ride.SurgeMultiplier),
-			Amount: ride.SurgeAmount, Type: "charge",
+			Amount: surgeAmount,
+			Type:   "charge",
 		})
 	}
-	if ride.WaitTimeCharge > 0 {
-		breakdown = append(breakdown, FareLineItem{Label: "Wait time", Amount: ride.WaitTimeCharge, Type: "fee"})
-	}
-	if ride.TollFees > 0 {
-		breakdown = append(breakdown, FareLineItem{Label: "Tolls", Amount: ride.TollFees, Type: "fee"})
-	}
+
 	if ride.DiscountAmount > 0 {
-		label := "Discount"
-		if ride.PromoCode != nil {
-			label = fmt.Sprintf("Promo (%s)", *ride.PromoCode)
-		}
-		breakdown = append(breakdown, FareLineItem{Label: label, Amount: -ride.DiscountAmount, Type: "discount"})
-	}
-	if ride.TipAmount > 0 {
-		breakdown = append(breakdown, FareLineItem{Label: "Tip", Amount: ride.TipAmount, Type: "tip"})
+		breakdown = append(breakdown, FareLineItem{
+			Label:  "Discount",
+			Amount: -ride.DiscountAmount,
+			Type:   "discount",
+		})
 	}
 
 	receipt.FareBreakdown = breakdown
-	receipt.Subtotal = ride.BaseFare + ride.DistanceFare + ride.TimeFare + ride.SurgeAmount
-	receipt.Fees = ride.TollFees + ride.WaitTimeCharge
+	receipt.Subtotal = total
 	receipt.Discounts = ride.DiscountAmount
-	receipt.Tip = ride.TipAmount
-	receipt.Total = ride.TotalFare
+	receipt.Total = total - ride.DiscountAmount
 
 	return receipt, nil
 }

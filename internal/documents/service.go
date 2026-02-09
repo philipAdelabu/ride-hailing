@@ -516,16 +516,14 @@ func (s *Service) ReviewDocument(ctx context.Context, documentID uuid.UUID, revi
 }
 
 // GetPendingReviews gets documents pending review
-func (s *Service) GetPendingReviews(ctx context.Context, page, pageSize int) ([]*PendingReviewDocument, int, error) {
-	if page < 1 {
-		page = 1
+func (s *Service) GetPendingReviews(ctx context.Context, limit, offset int) ([]*PendingReviewDocument, int, error) {
+	if limit < 1 || limit > 100 {
+		limit = 20
 	}
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
+	if offset < 0 {
+		offset = 0
 	}
-
-	offset := (page - 1) * pageSize
-	return s.repo.GetPendingReviews(ctx, pageSize, offset)
+	return s.repo.GetPendingReviews(ctx, limit, offset)
 }
 
 // GetExpiringDocuments gets documents expiring soon

@@ -24,48 +24,23 @@ type RideHistoryEntry struct {
 	Duration         int        `json:"duration_minutes" db:"duration"`
 
 	// Pricing
-	BaseFare         float64    `json:"base_fare" db:"base_fare"`
-	DistanceFare     float64    `json:"distance_fare" db:"distance_fare"`
-	TimeFare         float64    `json:"time_fare" db:"time_fare"`
+	EstimatedFare    float64    `json:"estimated_fare" db:"estimated_fare"`
+	FinalFare        *float64   `json:"final_fare,omitempty" db:"final_fare"`
 	SurgeMultiplier  float64    `json:"surge_multiplier" db:"surge_multiplier"`
-	SurgeAmount      float64    `json:"surge_amount" db:"surge_amount"`
-	TollFees         float64    `json:"toll_fees" db:"toll_fees"`
-	WaitTimeCharge   float64    `json:"wait_time_charge" db:"wait_time_charge"`
-	TipAmount        float64    `json:"tip_amount" db:"tip_amount"`
 	DiscountAmount   float64    `json:"discount_amount" db:"discount_amount"`
-	PromoCode        *string    `json:"promo_code,omitempty" db:"promo_code"`
-	TotalFare        float64    `json:"total_fare" db:"total_fare"`
 	Currency         string     `json:"currency" db:"currency"`
 
-	// Payment
-	PaymentMethod    string     `json:"payment_method" db:"payment_method"`
-	PaymentStatus    string     `json:"payment_status" db:"payment_status"`
-
-	// Vehicle & Driver info
-	DriverName       *string    `json:"driver_name,omitempty" db:"driver_name"`
-	DriverPhoto      *string    `json:"driver_photo,omitempty" db:"driver_photo"`
-	VehicleMake      *string    `json:"vehicle_make,omitempty" db:"vehicle_make"`
-	VehicleModel     *string    `json:"vehicle_model,omitempty" db:"vehicle_model"`
-	VehicleColor     *string    `json:"vehicle_color,omitempty" db:"vehicle_color"`
-	LicensePlate     *string    `json:"license_plate,omitempty" db:"license_plate"`
-	VehicleCategory  *string    `json:"vehicle_category,omitempty" db:"vehicle_category"`
-
 	// Rating
-	RiderRating      *int       `json:"rider_rating,omitempty" db:"rider_rating"`
-	DriverRating     *int       `json:"driver_rating,omitempty" db:"driver_rating"`
-
-	// Route polyline
-	RoutePolyline    *string    `json:"route_polyline,omitempty" db:"route_polyline"`
+	Rating           *int       `json:"rating,omitempty" db:"rating"`
+	Feedback         *string    `json:"feedback,omitempty" db:"feedback"`
 
 	// Cancellation
-	CancelledBy      *string    `json:"cancelled_by,omitempty" db:"cancelled_by"`
-	CancelReason     *string    `json:"cancel_reason,omitempty" db:"cancel_reason"`
-	CancellationFee  float64    `json:"cancellation_fee" db:"cancellation_fee"`
+	CancellationReason *string  `json:"cancellation_reason,omitempty" db:"cancellation_reason"`
 
 	// Timestamps
 	RequestedAt      time.Time  `json:"requested_at" db:"requested_at"`
 	AcceptedAt       *time.Time `json:"accepted_at,omitempty" db:"accepted_at"`
-	PickedUpAt       *time.Time `json:"picked_up_at,omitempty" db:"picked_up_at"`
+	StartedAt        *time.Time `json:"started_at,omitempty" db:"started_at"`
 	CompletedAt      *time.Time `json:"completed_at,omitempty" db:"completed_at"`
 	CancelledAt      *time.Time `json:"cancelled_at,omitempty" db:"cancelled_at"`
 }
@@ -127,14 +102,6 @@ type HistoryFilters struct {
 	ToDate   *time.Time `json:"to_date,omitempty"`
 	MinFare  *float64   `json:"min_fare,omitempty"`
 	MaxFare  *float64   `json:"max_fare,omitempty"`
-}
-
-// HistoryResponse returns paginated ride history
-type HistoryResponse struct {
-	Rides    []RideHistoryEntry `json:"rides"`
-	Total    int                `json:"total"`
-	Page     int                `json:"page"`
-	PageSize int                `json:"page_size"`
 }
 
 // RideStats summarizes a user's ride activity

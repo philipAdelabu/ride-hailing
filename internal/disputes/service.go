@@ -116,15 +116,14 @@ func (s *Service) CreateDispute(ctx context.Context, userID uuid.UUID, req *Crea
 }
 
 // GetMyDisputes returns the current user's disputes
-func (s *Service) GetMyDisputes(ctx context.Context, userID uuid.UUID, status *DisputeStatus, page, pageSize int) ([]DisputeSummary, int, error) {
-	if page < 1 {
-		page = 1
+func (s *Service) GetMyDisputes(ctx context.Context, userID uuid.UUID, status *DisputeStatus, limit, offset int) ([]DisputeSummary, int, error) {
+	if limit < 1 || limit > 50 {
+		limit = 20
 	}
-	if pageSize < 1 || pageSize > 50 {
-		pageSize = 20
+	if offset < 0 {
+		offset = 0
 	}
-	offset := (page - 1) * pageSize
-	return s.repo.GetUserDisputes(ctx, userID, status, pageSize, offset)
+	return s.repo.GetUserDisputes(ctx, userID, status, limit, offset)
 }
 
 // GetDisputeDetail returns full dispute details with ride context and comments
@@ -210,15 +209,14 @@ func (s *Service) GetDisputeReasons() *DisputeReasonsResponse {
 // ========================================
 
 // AdminGetDisputes returns all disputes with filters
-func (s *Service) AdminGetDisputes(ctx context.Context, status *DisputeStatus, reason *DisputeReason, page, pageSize int) ([]DisputeSummary, int, error) {
-	if page < 1 {
-		page = 1
+func (s *Service) AdminGetDisputes(ctx context.Context, status *DisputeStatus, reason *DisputeReason, limit, offset int) ([]DisputeSummary, int, error) {
+	if limit < 1 || limit > 100 {
+		limit = 20
 	}
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
+	if offset < 0 {
+		offset = 0
 	}
-	offset := (page - 1) * pageSize
-	return s.repo.GetAllDisputes(ctx, status, reason, pageSize, offset)
+	return s.repo.GetAllDisputes(ctx, status, reason, limit, offset)
 }
 
 // AdminGetDisputeDetail returns full dispute details (admin view with internal comments)

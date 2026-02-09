@@ -1659,11 +1659,9 @@ func TestHandler_AdminGetPending_Success(t *testing.T) {
 		*createTestVehicle(uuid.New()),
 	}
 
-	// Note: The handler passes params.Limit and params.Offset to service.GetPendingReviews
-	// which treats them as (page, pageSize). With defaults limit=20, offset=0,
-	// the service calculates: if pageSize <= 0, pageSize = 20; offset = (page-1)*pageSize = (20-1)*20 = 380
-	// This is a quirk in the handler/service interface
-	mockRepo.On("GetPendingReviewVehicles", mock.Anything, mock.Anything, mock.Anything).Return(vehicles, 2, nil)
+	// Handler passes params.Limit and params.Offset directly to service.GetPendingReviews.
+	// With defaults limit=20, offset=0, the service passes (20, 0) to the repo.
+	mockRepo.On("GetPendingReviewVehicles", mock.Anything, 20, 0).Return(vehicles, 2, nil)
 
 	c, w := setupTestContext("GET", "/api/v1/admin/vehicles/pending", nil)
 	setUserContext(c, adminID, models.RoleAdmin)
@@ -1684,7 +1682,7 @@ func TestHandler_AdminGetPending_EmptyList(t *testing.T) {
 
 	adminID := uuid.New()
 
-	mockRepo.On("GetPendingReviewVehicles", mock.Anything, mock.Anything, mock.Anything).Return([]Vehicle{}, 0, nil)
+	mockRepo.On("GetPendingReviewVehicles", mock.Anything, 20, 0).Return([]Vehicle{}, 0, nil)
 
 	c, w := setupTestContext("GET", "/api/v1/admin/vehicles/pending", nil)
 	setUserContext(c, adminID, models.RoleAdmin)
@@ -1706,10 +1704,10 @@ func TestHandler_AdminGetPending_WithPagination(t *testing.T) {
 		*createTestVehicle(uuid.New()),
 	}
 
-	mockRepo.On("GetPendingReviewVehicles", mock.Anything, mock.Anything, mock.Anything).Return(vehicles, 10, nil)
+	mockRepo.On("GetPendingReviewVehicles", mock.Anything, 5, 10).Return(vehicles, 10, nil)
 
-	c, w := setupTestContext("GET", "/api/v1/admin/vehicles/pending?page=2&page_size=5", nil)
-	c.Request.URL.RawQuery = "page=2&page_size=5"
+	c, w := setupTestContext("GET", "/api/v1/admin/vehicles/pending?limit=5&offset=10", nil)
+	c.Request.URL.RawQuery = "limit=5&offset=10"
 	setUserContext(c, adminID, models.RoleAdmin)
 
 	handler.AdminGetPending(c)
@@ -1726,7 +1724,7 @@ func TestHandler_AdminGetPending_ServiceError(t *testing.T) {
 
 	adminID := uuid.New()
 
-	mockRepo.On("GetPendingReviewVehicles", mock.Anything, mock.Anything, mock.Anything).Return(nil, 0, errors.New("database error"))
+	mockRepo.On("GetPendingReviewVehicles", mock.Anything, 20, 0).Return(nil, 0, errors.New("database error"))
 
 	c, w := setupTestContext("GET", "/api/v1/admin/vehicles/pending", nil)
 	setUserContext(c, adminID, models.RoleAdmin)
@@ -2413,7 +2411,7 @@ func TestHandler_AdminGetPending_NullVehicles(t *testing.T) {
 	adminID := uuid.New()
 
 	// Return nil instead of empty slice - handler should handle this gracefully
-	mockRepo.On("GetPendingReviewVehicles", mock.Anything, mock.Anything, mock.Anything).Return(([]Vehicle)(nil), 0, nil)
+	mockRepo.On("GetPendingReviewVehicles", mock.Anything, 20, 0).Return(([]Vehicle)(nil), 0, nil)
 
 	c, w := setupTestContext("GET", "/api/v1/admin/vehicles/pending", nil)
 	setUserContext(c, adminID, models.RoleAdmin)

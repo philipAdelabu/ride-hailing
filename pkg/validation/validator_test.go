@@ -607,28 +607,28 @@ func TestValidateStruct_CreateDriverRequest_InvalidYear(t *testing.T) {
 
 func TestValidateStruct_PaginationRequest_Valid(t *testing.T) {
 	req := PaginationRequest{
-		Page:     1,
-		PageSize: 20,
-		SortBy:   "created",
-		SortDir:  "desc",
+		Limit:   20,
+		Offset:  0,
+		SortBy:  "created",
+		SortDir: "desc",
 	}
 	assert.NoError(t, ValidateStruct(&req))
 }
 
 func TestValidateStruct_PaginationRequest_InvalidSortDir(t *testing.T) {
 	req := PaginationRequest{
-		Page:     1,
-		PageSize: 20,
-		SortDir:  "up",
+		Limit:   20,
+		Offset:  0,
+		SortDir: "up",
 	}
 	err := ValidateStruct(&req)
 	assert.Error(t, err)
 }
 
-func TestValidateStruct_PaginationRequest_PageSizeTooLarge(t *testing.T) {
+func TestValidateStruct_PaginationRequest_LimitTooLarge(t *testing.T) {
 	req := PaginationRequest{
-		Page:     1,
-		PageSize: 101,
+		Limit:  101,
+		Offset: 0,
 	}
 	err := ValidateStruct(&req)
 	assert.Error(t, err)

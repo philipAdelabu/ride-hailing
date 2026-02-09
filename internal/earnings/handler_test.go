@@ -528,9 +528,9 @@ func createTestEarningsHistoryResponse() *EarningsHistoryResponse {
 				CreatedAt:   time.Now(),
 			},
 		},
-		Total:    1,
-		Page:     1,
-		PageSize: 20,
+		Total:  1,
+		Limit:  20,
+		Offset: 0,
 	}
 }
 
@@ -552,9 +552,9 @@ func createTestPayoutHistoryResponse() *PayoutHistoryResponse {
 				UpdatedAt:    time.Now(),
 			},
 		},
-		Total:    1,
-		Page:     1,
-		PageSize: 20,
+		Total:  1,
+		Limit:  20,
+		Offset: 0,
 	}
 }
 
@@ -1188,10 +1188,10 @@ func TestHandler_GetPayoutHistory_EmptyList(t *testing.T) {
 
 	driverID := uuid.New()
 	expectedResp := &PayoutHistoryResponse{
-		Payouts:  []DriverPayout{},
-		Total:    0,
-		Page:     1,
-		PageSize: 20,
+		Payouts: []DriverPayout{},
+		Total:   0,
+		Limit:   20,
+		Offset:  0,
 	}
 
 	mockService.On("GetPayoutHistory", mock.Anything, driverID, 20, 0).Return(expectedResp, nil)

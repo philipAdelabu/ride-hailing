@@ -214,15 +214,14 @@ func (s *Service) GetMyCancellationStats(ctx context.Context, userID uuid.UUID) 
 }
 
 // GetMyCancellationHistory returns the current user's cancellation history
-func (s *Service) GetMyCancellationHistory(ctx context.Context, userID uuid.UUID, page, pageSize int) ([]CancellationRecord, int, error) {
-	if page < 1 {
-		page = 1
+func (s *Service) GetMyCancellationHistory(ctx context.Context, userID uuid.UUID, limit, offset int) ([]CancellationRecord, int, error) {
+	if limit < 1 || limit > 50 {
+		limit = 20
 	}
-	if pageSize < 1 || pageSize > 50 {
-		pageSize = 20
+	if offset < 0 {
+		offset = 0
 	}
-	offset := (page - 1) * pageSize
-	return s.repo.GetUserCancellationHistory(ctx, userID, pageSize, offset)
+	return s.repo.GetUserCancellationHistory(ctx, userID, limit, offset)
 }
 
 // GetCancellationReasons returns the available cancellation reasons for a user type

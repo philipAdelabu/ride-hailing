@@ -327,7 +327,7 @@ func (h *Handler) AdminReview(c *gin.Context) {
 }
 
 // AdminGetPending returns vehicles pending review
-// GET /api/v1/admin/vehicles/pending?page=1&page_size=20
+// GET /api/v1/admin/vehicles/pending?limit=20&offset=0
 func (h *Handler) AdminGetPending(c *gin.Context) {
 	params := pagination.ParseParams(c)
 
