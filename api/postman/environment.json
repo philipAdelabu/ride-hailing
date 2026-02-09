@@ -94,6 +94,13 @@
 			"description": "Fraud Service"
 		},
 		{
+			"key": "negotiation_base_url",
+			"value": "http://localhost:8095",
+			"type": "default",
+			"enabled": true,
+			"description": "Negotiation Service"
+		},
+		{
 			"key": "ml_eta_base_url",
 			"value": "http://localhost:8093",
 			"type": "default",

@@ -10356,6 +10356,3541 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "Get Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{notifications_base_url}}/api/v1/notifications",
+              "host": [
+                "{{notifications_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": true
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get user notifications (paginated)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Unread Count",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{notifications_base_url}}/api/v1/notifications/unread/count",
+              "host": [
+                "{{notifications_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "unread",
+                "count"
+              ]
+            },
+            "description": "Get count of unread notifications"
+          },
+          "response": []
+        },
+        {
+          "name": "Mark As Read",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{notifications_base_url}}/api/v1/notifications/:id/read",
+              "host": [
+                "{{notifications_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                ":id",
+                "read"
+              ]
+            },
+            "description": "Mark a notification as read"
+          },
+          "response": []
+        },
+        {
+          "name": "Send Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{notifications_base_url}}/api/v1/notifications/send",
+              "host": [
+                "{{notifications_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "send"
+              ]
+            },
+            "description": "Send a notification to a user",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{user_id}}\",\n  \"type\": \"ride_update\",\n  \"channel\": \"push\",\n  \"title\": \"Ride Update\",\n  \"body\": \"Your ride is on the way\",\n  \"data\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Schedule Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{notifications_base_url}}/api/v1/notifications/schedule",
+              "host": [
+                "{{notifications_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "schedule"
+              ]
+            },
+            "description": "Schedule a notification for later",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{user_id}}\",\n  \"type\": \"promo\",\n  \"channel\": \"push\",\n  \"title\": \"Special Offer\",\n  \"body\": \"50% off your next ride!\",\n  \"data\": {},\n  \"scheduled_at\": \"2025-12-31T10:00:00Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Notify Ride Requested",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{notifications_base_url}}/api/v1/notifications/ride/requested",
+              "host": [
+                "{{notifications_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "ride",
+                "requested"
+              ]
+            },
+            "description": "Send ride requested notification to driver",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{driver_id}}\",\n  \"ride_id\": \"{{ride_id}}\",\n  \"data\": {\n    \"pickup_location\": \"Amir Temur Square\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Notify Ride Accepted",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{notifications_base_url}}/api/v1/notifications/ride/accepted",
+              "host": [
+                "{{notifications_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "ride",
+                "accepted"
+              ]
+            },
+            "description": "Send ride accepted notification to rider",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{user_id}}\",\n  \"ride_id\": \"{{ride_id}}\",\n  \"data\": {\n    \"driver_name\": \"John\",\n    \"eta\": 5\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Notify Ride Started",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{notifications_base_url}}/api/v1/notifications/ride/started",
+              "host": [
+                "{{notifications_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "ride",
+                "started"
+              ]
+            },
+            "description": "Send ride started notification",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{user_id}}\",\n  \"ride_id\": \"{{ride_id}}\",\n  \"data\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Notify Ride Completed",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{notifications_base_url}}/api/v1/notifications/ride/completed",
+              "host": [
+                "{{notifications_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "ride",
+                "completed"
+              ]
+            },
+            "description": "Send ride completed notification",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rider_id\": \"{{user_id}}\",\n  \"driver_id\": \"{{driver_id}}\",\n  \"fare\": 25000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Notify Ride Cancelled",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{notifications_base_url}}/api/v1/notifications/ride/cancelled",
+              "host": [
+                "{{notifications_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "ride",
+                "cancelled"
+              ]
+            },
+            "description": "Send ride cancelled notification",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{user_id}}\",\n  \"cancelled_by\": \"rider\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Send Bulk Notification (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{notifications_base_url}}/api/v1/admin/notifications/bulk",
+              "host": [
+                "{{notifications_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "notifications",
+                "bulk"
+              ]
+            },
+            "description": "Send notification to multiple users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_ids\": [\n    \"{{user_id}}\"\n  ],\n  \"type\": \"announcement\",\n  \"channel\": \"push\",\n  \"title\": \"System Update\",\n  \"body\": \"We have new features!\",\n  \"data\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Rides (Standalone)",
+      "item": [
+        {
+          "name": "Request Ride",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{rides_base_url}}/api/v1/rides",
+              "host": [
+                "{{rides_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rides"
+              ]
+            },
+            "description": "Request a new ride",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pickup_latitude\": 41.2995,\n  \"pickup_longitude\": 69.2401,\n  \"pickup_address\": \"Tashkent, Amir Temur Square\",\n  \"dropoff_latitude\": 41.3111,\n  \"dropoff_longitude\": 69.2797,\n  \"dropoff_address\": \"Tashkent, Chorsu Bazaar\",\n  \"ride_type\": \"standard\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Ride",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{rides_base_url}}/api/v1/rides/:id",
+              "host": [
+                "{{rides_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rides",
+                ":id"
+              ]
+            },
+            "description": "Get ride details"
+          },
+          "response": []
+        },
+        {
+          "name": "Get My Rides",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{rides_base_url}}/api/v1/rides",
+              "host": [
+                "{{rides_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rides"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": true
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get user's rides"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Surge Info",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{rides_base_url}}/api/v1/rides/surge-info",
+              "host": [
+                "{{rides_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rides",
+                "surge-info"
+              ],
+              "query": [
+                {
+                  "key": "lat",
+                  "value": "41.2995",
+                  "disabled": true
+                },
+                {
+                  "key": "lon",
+                  "value": "69.2401",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get surge pricing info"
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Ride",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{rides_base_url}}/api/v1/rides/:id/cancel",
+              "host": [
+                "{{rides_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rides",
+                ":id",
+                "cancel"
+              ]
+            },
+            "description": "Cancel a ride",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Changed plans\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Rate Ride",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{rides_base_url}}/api/v1/rides/:id/rate",
+              "host": [
+                "{{rides_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rides",
+                ":id",
+                "rate"
+              ]
+            },
+            "description": "Rate a completed ride",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": 5,\n  \"feedback\": \"Great ride!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Match Drivers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{rides_base_url}}/api/v1/rides/match-drivers",
+              "host": [
+                "{{rides_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rides",
+                "match-drivers"
+              ],
+              "query": [
+                {
+                  "key": "latitude",
+                  "value": "41.2995",
+                  "disabled": true
+                },
+                {
+                  "key": "longitude",
+                  "value": "69.2401",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Find matching drivers"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Available Rides (Driver)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{rides_base_url}}/api/v1/driver/rides/available",
+              "host": [
+                "{{rides_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "driver",
+                "rides",
+                "available"
+              ]
+            },
+            "description": "Get available rides for driver"
+          },
+          "response": []
+        },
+        {
+          "name": "Accept Ride (Driver)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{rides_base_url}}/api/v1/driver/rides/:id/accept",
+              "host": [
+                "{{rides_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "driver",
+                "rides",
+                ":id",
+                "accept"
+              ]
+            },
+            "description": "Driver accepts a ride"
+          },
+          "response": []
+        },
+        {
+          "name": "Start Ride (Driver)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{rides_base_url}}/api/v1/driver/rides/:id/start",
+              "host": [
+                "{{rides_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "driver",
+                "rides",
+                ":id",
+                "start"
+              ]
+            },
+            "description": "Driver starts a ride"
+          },
+          "response": []
+        },
+        {
+          "name": "Complete Ride (Driver)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{rides_base_url}}/api/v1/driver/rides/:id/complete",
+              "host": [
+                "{{rides_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "driver",
+                "rides",
+                ":id",
+                "complete"
+              ]
+            },
+            "description": "Driver completes a ride",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"actual_distance\": 5.2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Geo",
+      "item": [
+        {
+          "name": "Update Driver Location",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{geo_base_url}}/api/v1/geo/location",
+              "host": [
+                "{{geo_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "geo",
+                "location"
+              ]
+            },
+            "description": "Update driver's current location",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": 41.2995,\n  \"longitude\": 69.2401,\n  \"heading\": 90.0,\n  \"speed\": 30.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Driver Location",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{geo_base_url}}/api/v1/geo/drivers/:id/location",
+              "host": [
+                "{{geo_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "geo",
+                "drivers",
+                ":id",
+                "location"
+              ]
+            },
+            "description": "Get driver's current location"
+          },
+          "response": []
+        },
+        {
+          "name": "Find Nearby Drivers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{geo_base_url}}/api/v1/geo/drivers/nearby",
+              "host": [
+                "{{geo_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "geo",
+                "drivers",
+                "nearby"
+              ],
+              "query": [
+                {
+                  "key": "latitude",
+                  "value": "41.2995",
+                  "disabled": true
+                },
+                {
+                  "key": "longitude",
+                  "value": "69.2401",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Find drivers near a location"
+          },
+          "response": []
+        },
+        {
+          "name": "Calculate Distance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{geo_base_url}}/api/v1/geo/distance",
+              "host": [
+                "{{geo_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "geo",
+                "distance"
+              ]
+            },
+            "description": "Calculate distance between two points",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from_latitude\": 41.2995,\n  \"from_longitude\": 69.2401,\n  \"to_latitude\": 41.3111,\n  \"to_longitude\": 69.2797\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get H3 Cell",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{geo_base_url}}/api/v1/geo/h3/cell",
+              "host": [
+                "{{geo_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "geo",
+                "h3",
+                "cell"
+              ],
+              "query": [
+                {
+                  "key": "latitude",
+                  "value": "41.2995",
+                  "disabled": true
+                },
+                {
+                  "key": "longitude",
+                  "value": "69.2401",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get H3 cell for coordinates"
+          },
+          "response": []
+        },
+        {
+          "name": "Get H3 Surge Info",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{geo_base_url}}/api/v1/geo/h3/surge",
+              "host": [
+                "{{geo_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "geo",
+                "h3",
+                "surge"
+              ],
+              "query": [
+                {
+                  "key": "latitude",
+                  "value": "41.2995",
+                  "disabled": true
+                },
+                {
+                  "key": "longitude",
+                  "value": "69.2401",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get surge info for area"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Demand Heatmap",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{geo_base_url}}/api/v1/geo/h3/demand-heatmap",
+              "host": [
+                "{{geo_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "geo",
+                "h3",
+                "demand-heatmap"
+              ],
+              "query": [
+                {
+                  "key": "latitude",
+                  "value": "41.2995",
+                  "disabled": true
+                },
+                {
+                  "key": "longitude",
+                  "value": "69.2401",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get demand heatmap"
+          },
+          "response": []
+        },
+        {
+          "name": "Forward Geocode",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{geo_base_url}}/api/v1/geo/geocode",
+              "host": [
+                "{{geo_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "geo",
+                "geocode"
+              ],
+              "query": [
+                {
+                  "key": "address",
+                  "value": "Amir Temur Square, Tashkent",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Convert address to coordinates"
+          },
+          "response": []
+        },
+        {
+          "name": "Reverse Geocode",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{geo_base_url}}/api/v1/geo/geocode/reverse",
+              "host": [
+                "{{geo_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "geo",
+                "geocode",
+                "reverse"
+              ],
+              "query": [
+                {
+                  "key": "latitude",
+                  "value": "41.2995",
+                  "disabled": true
+                },
+                {
+                  "key": "longitude",
+                  "value": "69.2401",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Convert coordinates to address"
+          },
+          "response": []
+        },
+        {
+          "name": "Place Autocomplete",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{geo_base_url}}/api/v1/geo/geocode/autocomplete",
+              "host": [
+                "{{geo_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "geo",
+                "geocode",
+                "autocomplete"
+              ],
+              "query": [
+                {
+                  "key": "input",
+                  "value": "Amir Temur",
+                  "disabled": true
+                },
+                {
+                  "key": "latitude",
+                  "value": "41.2995",
+                  "disabled": true
+                },
+                {
+                  "key": "longitude",
+                  "value": "69.2401",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Autocomplete place search"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Place Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{geo_base_url}}/api/v1/geo/geocode/place",
+              "host": [
+                "{{geo_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "geo",
+                "geocode",
+                "place"
+              ],
+              "query": [
+                {
+                  "key": "place_id",
+                  "value": "ChIJ...",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get details for a place"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Payments (Standalone)",
+      "item": [
+        {
+          "name": "Get Wallet",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{payments_base_url}}/api/v1/wallet",
+              "host": [
+                "{{payments_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "wallet"
+              ]
+            },
+            "description": "Get user's wallet balance"
+          },
+          "response": []
+        },
+        {
+          "name": "Top Up Wallet",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{payments_base_url}}/api/v1/wallet/topup",
+              "host": [
+                "{{payments_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "wallet",
+                "topup"
+              ]
+            },
+            "description": "Add funds to wallet",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 50000,\n  \"stripe_payment_method\": \"pm_xxx\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Wallet Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{payments_base_url}}/api/v1/wallet/transactions",
+              "host": [
+                "{{payments_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "wallet",
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": true
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get wallet transaction history"
+          },
+          "response": []
+        },
+        {
+          "name": "Process Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{payments_base_url}}/api/v1/payments/process",
+              "host": [
+                "{{payments_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payments",
+                "process"
+              ]
+            },
+            "description": "Process a ride payment",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ride_id\": \"{{ride_id}}\",\n  \"amount\": 25000,\n  \"payment_method\": \"wallet\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Refund Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{payments_base_url}}/api/v1/payments/:id/refund",
+              "host": [
+                "{{payments_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payments",
+                ":id",
+                "refund"
+              ]
+            },
+            "description": "Refund a payment",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Overcharged\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Payment",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{payments_base_url}}/api/v1/payments/:id",
+              "host": [
+                "{{payments_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payments",
+                ":id"
+              ]
+            },
+            "description": "Get payment details"
+          },
+          "response": []
+        },
+        {
+          "name": "Stripe Webhook",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{payments_base_url}}/api/v1/webhooks/stripe",
+              "host": [
+                "{{payments_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "webhooks",
+                "stripe"
+              ]
+            },
+            "description": "Handle Stripe webhook callback"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Realtime",
+      "item": [
+        {
+          "name": "WebSocket Connect",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{realtime_base_url}}/api/v1/ws",
+              "host": [
+                "{{realtime_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ws"
+              ]
+            },
+            "description": "WebSocket connection for real-time updates"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Chat History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{realtime_base_url}}/api/v1/rides/:ride_id/chat",
+              "host": [
+                "{{realtime_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rides",
+                ":ride_id",
+                "chat"
+              ]
+            },
+            "description": "Get chat history for a ride"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Driver Location (Realtime)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{realtime_base_url}}/api/v1/drivers/:driver_id/location",
+              "host": [
+                "{{realtime_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "drivers",
+                ":driver_id",
+                "location"
+              ]
+            },
+            "description": "Get driver location via realtime service"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Stats (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{realtime_base_url}}/api/v1/stats",
+              "host": [
+                "{{realtime_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "stats"
+              ]
+            },
+            "description": "Get realtime service stats"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Get Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{admin_base_url}}/api/v1/admin/dashboard",
+              "host": [
+                "{{admin_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "dashboard"
+              ]
+            },
+            "description": "Get admin dashboard overview"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Realtime Metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{admin_base_url}}/api/v1/admin/dashboard/realtime",
+              "host": [
+                "{{admin_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "dashboard",
+                "realtime"
+              ]
+            },
+            "description": "Get realtime dashboard metrics"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Dashboard Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{admin_base_url}}/api/v1/admin/dashboard/summary",
+              "host": [
+                "{{admin_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "dashboard",
+                "summary"
+              ],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "week",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get dashboard summary"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Revenue Trend",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{admin_base_url}}/api/v1/admin/dashboard/revenue-trend",
+              "host": [
+                "{{admin_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "dashboard",
+                "revenue-trend"
+              ],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "month",
+                  "disabled": true
+                },
+                {
+                  "key": "group_by",
+                  "value": "day",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get revenue trend data"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Action Items",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{admin_base_url}}/api/v1/admin/dashboard/action-items",
+              "host": [
+                "{{admin_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "dashboard",
+                "action-items"
+              ]
+            },
+            "description": "Get pending admin action items"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{admin_base_url}}/api/v1/admin/users",
+              "host": [
+                "{{admin_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": true
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "disabled": true
+                },
+                {
+                  "key": "role",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all users"
+          },
+          "response": []
+        },
+        {
+          "name": "Get User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{admin_base_url}}/api/v1/admin/users/:id",
+              "host": [
+                "{{admin_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                ":id"
+              ]
+            },
+            "description": "Get user details"
+          },
+          "response": []
+        },
+        {
+          "name": "Suspend User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{admin_base_url}}/api/v1/admin/users/:id/suspend",
+              "host": [
+                "{{admin_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                ":id",
+                "suspend"
+              ]
+            },
+            "description": "Suspend a user"
+          },
+          "response": []
+        },
+        {
+          "name": "Activate User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{admin_base_url}}/api/v1/admin/users/:id/activate",
+              "host": [
+                "{{admin_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                ":id",
+                "activate"
+              ]
+            },
+            "description": "Activate a user"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Drivers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{admin_base_url}}/api/v1/admin/drivers",
+              "host": [
+                "{{admin_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "drivers"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": true
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all drivers"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Pending Drivers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{admin_base_url}}/api/v1/admin/drivers/pending",
+              "host": [
+                "{{admin_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "drivers",
+                "pending"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": true
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get drivers pending approval"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Driver",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{admin_base_url}}/api/v1/admin/drivers/:id",
+              "host": [
+                "{{admin_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "drivers",
+                ":id"
+              ]
+            },
+            "description": "Get driver details"
+          },
+          "response": []
+        },
+        {
+          "name": "Approve Driver",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{admin_base_url}}/api/v1/admin/drivers/:id/approve",
+              "host": [
+                "{{admin_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "drivers",
+                ":id",
+                "approve"
+              ]
+            },
+            "description": "Approve a driver"
+          },
+          "response": []
+        },
+        {
+          "name": "Reject Driver",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{admin_base_url}}/api/v1/admin/drivers/:id/reject",
+              "host": [
+                "{{admin_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "drivers",
+                ":id",
+                "reject"
+              ]
+            },
+            "description": "Reject a driver"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Recent Rides",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{admin_base_url}}/api/v1/admin/rides/recent",
+              "host": [
+                "{{admin_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "rides",
+                "recent"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": true
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get recent rides"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Ride Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{admin_base_url}}/api/v1/admin/rides/stats",
+              "host": [
+                "{{admin_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "rides",
+                "stats"
+              ],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2025-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "2025-12-31",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get ride statistics"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Ride (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{admin_base_url}}/api/v1/admin/rides/:id",
+              "host": [
+                "{{admin_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "rides",
+                ":id"
+              ]
+            },
+            "description": "Get ride details (admin)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Promos",
+      "item": [
+        {
+          "name": "Get Ride Types",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{promos_base_url}}/api/v1/ride-types",
+              "host": [
+                "{{promos_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ride-types"
+              ]
+            },
+            "description": "Get available ride types"
+          },
+          "response": []
+        },
+        {
+          "name": "Calculate Fare",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{promos_base_url}}/api/v1/ride-types/calculate-fare",
+              "host": [
+                "{{promos_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ride-types",
+                "calculate-fare"
+              ]
+            },
+            "description": "Calculate fare estimate",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ride_type_id\": \"{{ride_type_id}}\",\n  \"distance\": 5.2,\n  \"duration\": 15,\n  \"surge_multiplier\": 1.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Validate Promo Code",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{promos_base_url}}/api/v1/promo-codes/validate",
+              "host": [
+                "{{promos_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "promo-codes",
+                "validate"
+              ]
+            },
+            "description": "Validate a promo code",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"SAVE50\",\n  \"ride_amount\": 25000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get My Referral Code",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{promos_base_url}}/api/v1/referrals/my-code",
+              "host": [
+                "{{promos_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "referrals",
+                "my-code"
+              ]
+            },
+            "description": "Get current user's referral code"
+          },
+          "response": []
+        },
+        {
+          "name": "Get My Referral Earnings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{promos_base_url}}/api/v1/referrals/my-earnings",
+              "host": [
+                "{{promos_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "referrals",
+                "my-earnings"
+              ]
+            },
+            "description": "Get referral earnings"
+          },
+          "response": []
+        },
+        {
+          "name": "Apply Referral Code",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{promos_base_url}}/api/v1/referrals/apply",
+              "host": [
+                "{{promos_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "referrals",
+                "apply"
+              ]
+            },
+            "description": "Apply a referral code",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"referral_code\": \"REF123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Promo Code (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{promos_base_url}}/api/v1/admin/promo-codes",
+              "host": [
+                "{{promos_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "promo-codes"
+              ]
+            },
+            "description": "Create a new promo code",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"SUMMER2025\",\n  \"description\": \"Summer discount\",\n  \"discount_type\": \"percentage\",\n  \"discount_value\": 20,\n  \"max_discount_amount\": 50000,\n  \"min_ride_amount\": 10000,\n  \"max_uses\": 1000,\n  \"uses_per_user\": 3,\n  \"valid_from\": \"2025-06-01T00:00:00Z\",\n  \"valid_until\": \"2025-09-01T00:00:00Z\",\n  \"is_active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Promo Codes (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{promos_base_url}}/api/v1/admin/promo-codes",
+              "host": [
+                "{{promos_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "promo-codes"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": true
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all promo codes"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Promo Code (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{promos_base_url}}/api/v1/admin/promo-codes/:id",
+              "host": [
+                "{{promos_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "promo-codes",
+                ":id"
+              ]
+            },
+            "description": "Get promo code details"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Promo Code (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{promos_base_url}}/api/v1/admin/promo-codes/:id",
+              "host": [
+                "{{promos_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "promo-codes",
+                ":id"
+              ]
+            },
+            "description": "Update a promo code",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Updated summer discount\",\n  \"is_active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Deactivate Promo Code (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{promos_base_url}}/api/v1/admin/promo-codes/:id",
+              "host": [
+                "{{promos_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "promo-codes",
+                ":id"
+              ]
+            },
+            "description": "Deactivate a promo code"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Promo Usage Stats (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{promos_base_url}}/api/v1/admin/promo-codes/:id/usage",
+              "host": [
+                "{{promos_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "promo-codes",
+                ":id",
+                "usage"
+              ]
+            },
+            "description": "Get promo code usage statistics"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Referral Codes (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{promos_base_url}}/api/v1/admin/referral-codes",
+              "host": [
+                "{{promos_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "referral-codes"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": true
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all referral codes"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Referral Details (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{promos_base_url}}/api/v1/admin/referrals/:id",
+              "host": [
+                "{{promos_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "referrals",
+                ":id"
+              ]
+            },
+            "description": "Get referral details"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Analytics",
+      "item": [
+        {
+          "name": "Get Dashboard Metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{analytics_base_url}}/api/v1/analytics/dashboard",
+              "host": [
+                "{{analytics_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "analytics",
+                "dashboard"
+              ]
+            },
+            "description": "Get analytics dashboard"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Revenue Metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{analytics_base_url}}/api/v1/analytics/revenue",
+              "host": [
+                "{{analytics_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "analytics",
+                "revenue"
+              ],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2025-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "2025-12-31",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get revenue analytics"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Financial Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{analytics_base_url}}/api/v1/analytics/financial-report",
+              "host": [
+                "{{analytics_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "analytics",
+                "financial-report"
+              ],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2025-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "2025-12-31",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get financial report"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Revenue Time Series",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{analytics_base_url}}/api/v1/analytics/revenue/timeseries",
+              "host": [
+                "{{analytics_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "analytics",
+                "revenue",
+                "timeseries"
+              ],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2025-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "2025-12-31",
+                  "disabled": true
+                },
+                {
+                  "key": "granularity",
+                  "value": "day",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get revenue over time"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Hourly Distribution",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{analytics_base_url}}/api/v1/analytics/rides/hourly",
+              "host": [
+                "{{analytics_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "analytics",
+                "rides",
+                "hourly"
+              ],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2025-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "2025-12-31",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get rides hourly distribution"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Driver Performance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{analytics_base_url}}/api/v1/analytics/drivers/performance",
+              "host": [
+                "{{analytics_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "analytics",
+                "drivers",
+                "performance"
+              ],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2025-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "2025-12-31",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get driver performance analytics"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Top Drivers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{analytics_base_url}}/api/v1/analytics/top-drivers",
+              "host": [
+                "{{analytics_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "analytics",
+                "top-drivers"
+              ],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2025-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "2025-12-31",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get top performing drivers"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Top Drivers Detailed",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{analytics_base_url}}/api/v1/analytics/top-drivers/detailed",
+              "host": [
+                "{{analytics_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "analytics",
+                "top-drivers",
+                "detailed"
+              ],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2025-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "2025-12-31",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get top drivers with full details"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Rider Growth",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{analytics_base_url}}/api/v1/analytics/riders/growth",
+              "host": [
+                "{{analytics_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "analytics",
+                "riders",
+                "growth"
+              ],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2025-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "2025-12-31",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get rider growth metrics"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Ride Metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{analytics_base_url}}/api/v1/analytics/rides/metrics",
+              "host": [
+                "{{analytics_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "analytics",
+                "rides",
+                "metrics"
+              ],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2025-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "2025-12-31",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get ride metrics"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Ride Type Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{analytics_base_url}}/api/v1/analytics/ride-types",
+              "host": [
+                "{{analytics_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "analytics",
+                "ride-types"
+              ],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2025-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "2025-12-31",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get ride type statistics"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Demand Heat Map",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{analytics_base_url}}/api/v1/analytics/heat-map",
+              "host": [
+                "{{analytics_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "analytics",
+                "heat-map"
+              ],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2025-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "2025-12-31",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get demand heat map"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Demand Zones",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{analytics_base_url}}/api/v1/analytics/demand-zones",
+              "host": [
+                "{{analytics_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "analytics",
+                "demand-zones"
+              ],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2025-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "2025-12-31",
+                  "disabled": true
+                },
+                {
+                  "key": "min_rides",
+                  "value": "10",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get demand zones"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Period Comparison",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{analytics_base_url}}/api/v1/analytics/comparison",
+              "host": [
+                "{{analytics_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "analytics",
+                "comparison"
+              ],
+              "query": [
+                {
+                  "key": "current_start",
+                  "value": "2025-06-01",
+                  "disabled": true
+                },
+                {
+                  "key": "current_end",
+                  "value": "2025-06-30",
+                  "disabled": true
+                },
+                {
+                  "key": "previous_start",
+                  "value": "2025-05-01",
+                  "disabled": true
+                },
+                {
+                  "key": "previous_end",
+                  "value": "2025-05-31",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Compare two periods"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Promo Code Performance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{analytics_base_url}}/api/v1/analytics/promo-codes",
+              "host": [
+                "{{analytics_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "analytics",
+                "promo-codes"
+              ],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2025-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "2025-12-31",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get promo code analytics"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Referral Metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{analytics_base_url}}/api/v1/analytics/referrals",
+              "host": [
+                "{{analytics_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "analytics",
+                "referrals"
+              ],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2025-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "2025-12-31",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get referral analytics"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "ML-ETA",
+      "item": [
+        {
+          "name": "Predict ETA",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{ml_eta_base_url}}/api/v1/eta/predict",
+              "host": [
+                "{{ml_eta_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "eta",
+                "predict"
+              ]
+            },
+            "description": "Predict ETA for a route",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pickup_lat\": 41.2995,\n  \"pickup_lng\": 69.2401,\n  \"dropoff_lat\": 41.3111,\n  \"dropoff_lng\": 69.2797,\n  \"traffic_level\": \"medium\",\n  \"weather\": \"clear\",\n  \"driver_id\": \"{{driver_id}}\",\n  \"ride_type_id\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Batch Predict ETA",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{ml_eta_base_url}}/api/v1/eta/predict/batch",
+              "host": [
+                "{{ml_eta_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "eta",
+                "predict",
+                "batch"
+              ]
+            },
+            "description": "Predict ETA for multiple routes",
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"pickup_lat\": 41.2995,\n    \"pickup_lng\": 69.2401,\n    \"dropoff_lat\": 41.3111,\n    \"dropoff_lng\": 69.2797,\n    \"traffic_level\": \"medium\",\n    \"weather\": \"clear\"\n  }\n]",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Trigger Model Training (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{ml_eta_base_url}}/api/v1/eta/train",
+              "host": [
+                "{{ml_eta_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "eta",
+                "train"
+              ]
+            },
+            "description": "Trigger ML model retraining"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Model Stats (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{ml_eta_base_url}}/api/v1/eta/model/stats",
+              "host": [
+                "{{ml_eta_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "eta",
+                "model",
+                "stats"
+              ]
+            },
+            "description": "Get ML model performance stats"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Model Accuracy (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{ml_eta_base_url}}/api/v1/eta/model/accuracy",
+              "host": [
+                "{{ml_eta_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "eta",
+                "model",
+                "accuracy"
+              ],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "30",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get model accuracy metrics"
+          },
+          "response": []
+        },
+        {
+          "name": "Tune Hyperparameters (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{ml_eta_base_url}}/api/v1/eta/model/tune",
+              "host": [
+                "{{ml_eta_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "eta",
+                "model",
+                "tune"
+              ]
+            },
+            "description": "Tune ML model hyperparameters",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"distance_weight\": 0.3,\n  \"traffic_weight\": 0.25,\n  \"time_of_day_weight\": 0.15,\n  \"weather_weight\": 0.1,\n  \"historical_weight\": 0.2,\n  \"base_speed\": 40.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Prediction History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{ml_eta_base_url}}/api/v1/eta/analytics/predictions",
+              "host": [
+                "{{ml_eta_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "eta",
+                "analytics",
+                "predictions"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": true
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get historical predictions"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Accuracy Trends",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{ml_eta_base_url}}/api/v1/eta/analytics/accuracy",
+              "host": [
+                "{{ml_eta_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "eta",
+                "analytics",
+                "accuracy"
+              ],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "30",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get accuracy trends"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Feature Importance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{ml_eta_base_url}}/api/v1/eta/analytics/features",
+              "host": [
+                "{{ml_eta_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "eta",
+                "analytics",
+                "features"
+              ]
+            },
+            "description": "Get feature importance scores"
+          },
+          "response": []
+        }
+      ]
     }
   ]
 }
