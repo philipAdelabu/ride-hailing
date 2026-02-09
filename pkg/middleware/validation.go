@@ -1,8 +1,10 @@
 package middleware
 
 import (
-	"encoding/json"
+	"bytes"
+	"io"
 	"net/http"
+	"reflect"
 
 	"github.com/gin-gonic/gin"
 	"github.com/richxcame/ride-hailing/pkg/validation"
@@ -11,12 +13,18 @@ import (
 // ValidateRequest is a generic middleware that validates request body against a struct
 // Usage: router.POST("/endpoint", middleware.ValidateRequest(&validation.CreateRideRequest{}), handler)
 func ValidateRequest(requestType interface{}) gin.HandlerFunc {
+	// Capture the type once at registration time
+	t := reflect.TypeOf(requestType)
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+
 	return func(c *gin.Context) {
-		// Create a new instance of the request type
-		req := requestType
+		// Create a fresh instance per request to avoid data races
+		req := reflect.New(t).Interface()
 
 		// Bind JSON to the request struct
-		if err := c.ShouldBindJSON(&req); err != nil {
+		if err := c.ShouldBindJSON(req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error":   "Invalid request format",
 				"details": err.Error(),
@@ -168,12 +176,15 @@ func ValidateJSONContentType() gin.HandlerFunc {
 // MaxBodySize limits the request body size
 func MaxBodySize(maxSize int64) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxSize)
+		if c.Request.Body == nil {
+			c.Next()
+			return
+		}
 
-		// Try to read one byte beyond the limit to check if body is too large
-		var jsonData interface{}
-		decoder := json.NewDecoder(c.Request.Body)
-		if err := decoder.Decode(&jsonData); err != nil {
+		// Wrap the body with a size limiter and read it.
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxSize)
+		bodyBytes, err := io.ReadAll(c.Request.Body)
+		if err != nil {
 			if err.Error() == "http: request body too large" {
 				c.JSON(http.StatusRequestEntityTooLarge, gin.H{
 					"error":          "Request body too large",
@@ -184,6 +195,8 @@ func MaxBodySize(maxSize int64) gin.HandlerFunc {
 			}
 		}
 
+		// Restore the body so downstream handlers can read it.
+		c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 		c.Next()
 	}
 }
