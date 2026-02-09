@@ -10,6 +10,13 @@
 			"description": "Mobile Aggregator (all services)"
 		},
 		{
+			"key": "auth_base_url",
+			"value": "http://localhost:8081",
+			"type": "default",
+			"enabled": true,
+			"description": "Auth Service"
+		},
+		{
 			"key": "rides_base_url",
 			"value": "http://localhost:8082",
 			"type": "default",
