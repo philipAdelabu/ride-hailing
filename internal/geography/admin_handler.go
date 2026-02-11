@@ -35,6 +35,9 @@ func getAdminID(c *gin.Context) uuid.UUID {
 func (h *AdminHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	geo := rg.Group("/geography")
 	{
+		// Stats
+		geo.GET("/stats", h.GetStats)
+
 		// Countries
 		countries := geo.Group("/countries")
 		{
@@ -656,4 +659,18 @@ func (h *AdminHandler) DeleteZone(c *gin.Context) {
 	}
 
 	common.SuccessResponseWithStatus(c, http.StatusOK, nil, "Zone deleted successfully")
+}
+
+// --- Stats ---
+
+// GetStats returns aggregate counts for all geography entities
+func (h *AdminHandler) GetStats(c *gin.Context) {
+	stats, err := h.service.GetGeographyStats(c.Request.Context())
+	if err != nil {
+		logger.Error("Failed to fetch geography stats", zap.Error(err))
+		common.ErrorResponse(c, http.StatusInternalServerError, "Failed to fetch geography stats")
+		return
+	}
+
+	common.SuccessResponse(c, stats)
 }

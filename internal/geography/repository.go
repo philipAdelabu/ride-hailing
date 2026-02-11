@@ -934,6 +934,34 @@ func (r *Repository) GetPricingZoneByID(ctx context.Context, id uuid.UUID) (*Pri
 	return zone, nil
 }
 
+// GetGeographyStats returns aggregate counts for all geography entities
+func (r *Repository) GetGeographyStats(ctx context.Context) (*GeographyStats, error) {
+	query := `
+		SELECT
+			(SELECT COUNT(*) FROM countries) AS countries_total,
+			(SELECT COUNT(*) FROM countries WHERE is_active = true) AS countries_active,
+			(SELECT COUNT(*) FROM regions) AS regions_total,
+			(SELECT COUNT(*) FROM regions WHERE is_active = true) AS regions_active,
+			(SELECT COUNT(*) FROM cities) AS cities_total,
+			(SELECT COUNT(*) FROM cities WHERE is_active = true) AS cities_active,
+			(SELECT COUNT(*) FROM pricing_zones) AS zones_total,
+			(SELECT COUNT(*) FROM pricing_zones WHERE is_active = true) AS zones_active
+	`
+
+	stats := &GeographyStats{}
+	err := r.db.QueryRow(ctx, query).Scan(
+		&stats.Countries.Total, &stats.Countries.Active,
+		&stats.Regions.Total, &stats.Regions.Active,
+		&stats.Cities.Total, &stats.Cities.Active,
+		&stats.PricingZones.Total, &stats.PricingZones.Active,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get geography stats: %w", err)
+	}
+
+	return stats, nil
+}
+
 // CreatePricingZone creates a new pricing zone
 func (r *Repository) CreatePricingZone(ctx context.Context, zone *PricingZone) error {
 	metadataJSON := marshalJSON(zone.Metadata)

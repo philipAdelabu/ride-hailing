@@ -284,3 +284,17 @@ type UpdateZoneRequest struct {
 	IsActive        *bool    `json:"is_active,omitempty"`
 	Metadata        JSON     `json:"metadata,omitempty"`
 }
+
+// GeographyStats contains aggregate counts for geography entities
+type GeographyStats struct {
+	Countries    EntityStats `json:"countries"`
+	Regions      EntityStats `json:"regions"`
+	Cities       EntityStats `json:"cities"`
+	PricingZones EntityStats `json:"pricing_zones"`
+}
+
+// EntityStats contains total and active counts for an entity type
+type EntityStats struct {
+	Total  int64 `json:"total"`
+	Active int64 `json:"active"`
+}

@@ -201,6 +201,11 @@ func (s *Service) CreatePricingZone(ctx context.Context, zone *PricingZone) erro
 	return s.repo.CreatePricingZone(ctx, zone)
 }
 
+// GetGeographyStats returns aggregate stats for all geography entities
+func (s *Service) GetGeographyStats(ctx context.Context) (*GeographyStats, error) {
+	return s.repo.GetGeographyStats(ctx)
+}
+
 // GetAllCountries returns all countries with pagination
 func (s *Service) GetAllCountries(ctx context.Context, limit, offset int, search string) ([]*Country, int64, error) {
 	return s.repo.GetAllCountries(ctx, limit, offset, search)

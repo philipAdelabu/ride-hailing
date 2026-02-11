@@ -22,6 +22,9 @@ type RepositoryInterface interface {
 	GetPricingZoneByID(ctx context.Context, id uuid.UUID) (*PricingZone, error)
 	GetDriverRegions(ctx context.Context, driverID uuid.UUID) ([]*DriverRegion, error)
 
+	// Stats
+	GetGeographyStats(ctx context.Context) (*GeographyStats, error)
+
 	// Paginated list operations (admin)
 	GetAllCountries(ctx context.Context, limit, offset int, search string) ([]*Country, int64, error)
 	GetAllRegions(ctx context.Context, countryID *uuid.UUID, limit, offset int, search string) ([]*Region, int64, error)

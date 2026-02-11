@@ -137,6 +137,14 @@ func (m *MockRepository) GetPricingZoneByID(ctx context.Context, id uuid.UUID) (
 	return args.Get(0).(*PricingZone), args.Error(1)
 }
 
+func (m *MockRepository) GetGeographyStats(ctx context.Context) (*GeographyStats, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*GeographyStats), args.Error(1)
+}
+
 func (m *MockRepository) GetAllCountries(ctx context.Context, limit, offset int, search string) ([]*Country, int64, error) {
 	args := m.Called(ctx, limit, offset, search)
 	if args.Get(0) == nil {
