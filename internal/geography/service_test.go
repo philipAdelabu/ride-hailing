@@ -129,6 +129,86 @@ func (m *MockRepository) CreatePricingZone(ctx context.Context, zone *PricingZon
 	return args.Error(0)
 }
 
+func (m *MockRepository) GetPricingZoneByID(ctx context.Context, id uuid.UUID) (*PricingZone, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*PricingZone), args.Error(1)
+}
+
+func (m *MockRepository) GetAllCountries(ctx context.Context, limit, offset int, search string) ([]*Country, int64, error) {
+	args := m.Called(ctx, limit, offset, search)
+	if args.Get(0) == nil {
+		return nil, args.Get(1).(int64), args.Error(2)
+	}
+	return args.Get(0).([]*Country), args.Get(1).(int64), args.Error(2)
+}
+
+func (m *MockRepository) GetAllRegions(ctx context.Context, countryID *uuid.UUID, limit, offset int, search string) ([]*Region, int64, error) {
+	args := m.Called(ctx, countryID, limit, offset, search)
+	if args.Get(0) == nil {
+		return nil, args.Get(1).(int64), args.Error(2)
+	}
+	return args.Get(0).([]*Region), args.Get(1).(int64), args.Error(2)
+}
+
+func (m *MockRepository) GetAllCities(ctx context.Context, regionID *uuid.UUID, limit, offset int, search string) ([]*City, int64, error) {
+	args := m.Called(ctx, regionID, limit, offset, search)
+	if args.Get(0) == nil {
+		return nil, args.Get(1).(int64), args.Error(2)
+	}
+	return args.Get(0).([]*City), args.Get(1).(int64), args.Error(2)
+}
+
+func (m *MockRepository) GetAllPricingZones(ctx context.Context, cityID *uuid.UUID, limit, offset int, search string) ([]*PricingZone, int64, error) {
+	args := m.Called(ctx, cityID, limit, offset, search)
+	if args.Get(0) == nil {
+		return nil, args.Get(1).(int64), args.Error(2)
+	}
+	return args.Get(0).([]*PricingZone), args.Get(1).(int64), args.Error(2)
+}
+
+func (m *MockRepository) UpdateCountry(ctx context.Context, country *Country) error {
+	args := m.Called(ctx, country)
+	return args.Error(0)
+}
+
+func (m *MockRepository) UpdateRegion(ctx context.Context, region *Region) error {
+	args := m.Called(ctx, region)
+	return args.Error(0)
+}
+
+func (m *MockRepository) UpdateCity(ctx context.Context, city *City) error {
+	args := m.Called(ctx, city)
+	return args.Error(0)
+}
+
+func (m *MockRepository) UpdatePricingZone(ctx context.Context, zone *PricingZone) error {
+	args := m.Called(ctx, zone)
+	return args.Error(0)
+}
+
+func (m *MockRepository) DeleteCountry(ctx context.Context, id uuid.UUID) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockRepository) DeleteRegion(ctx context.Context, id uuid.UUID) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockRepository) DeleteCity(ctx context.Context, id uuid.UUID) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockRepository) DeletePricingZone(ctx context.Context, id uuid.UUID) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
 // =============================================================================
 // Test Helper Functions
 // =============================================================================

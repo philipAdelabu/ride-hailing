@@ -15,6 +15,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/richxcame/ride-hailing/internal/admin"
+	"github.com/richxcame/ride-hailing/internal/geography"
+	"github.com/richxcame/ride-hailing/internal/pricing"
+	"github.com/richxcame/ride-hailing/internal/ridetypes"
 	"github.com/richxcame/ride-hailing/pkg/common"
 	"github.com/richxcame/ride-hailing/pkg/config"
 	"github.com/richxcame/ride-hailing/pkg/errors"
@@ -138,6 +141,21 @@ func main() {
 	service := admin.NewService(repo)
 	handler := admin.NewHandler(service)
 
+	// Initialize geography admin
+	geoRepo := geography.NewRepository(db)
+	geoSvc := geography.NewService(geoRepo)
+	geoAdminHandler := geography.NewAdminHandler(geoSvc)
+
+	// Initialize pricing admin
+	pricingRepo := pricing.NewRepository(db)
+	pricingSvc := pricing.NewService(pricingRepo, geoSvc, nil)
+	pricingAdminHandler := pricing.NewAdminHandler(pricingRepo, pricingSvc)
+
+	// Initialize ride types admin
+	rideTypeRepo := ridetypes.NewRepository(db)
+	rideTypeSvc := ridetypes.NewService(rideTypeRepo)
+	rideTypeHandler := ridetypes.NewAdminHandler(rideTypeSvc)
+
 	// Set up Gin router
 	router := gin.New()
 	router.HandleMethodNotAllowed = true
@@ -233,6 +251,15 @@ func main() {
 			rides.GET("/stats", handler.GetRideStats)
 			rides.GET("/:id", handler.GetRide)
 		}
+
+		// Geography management (countries, regions, cities, pricing zones)
+		geoAdminHandler.RegisterRoutes(api)
+
+		// Pricing management (versions, configs, multipliers, zone fees, surge)
+		pricingAdminHandler.RegisterRoutes(api)
+
+		// Ride type management
+		rideTypeHandler.RegisterRoutes(api)
 	}
 
 	// Create HTTP server with timeouts

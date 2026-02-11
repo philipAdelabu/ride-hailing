@@ -201,6 +201,86 @@ func (s *Service) CreatePricingZone(ctx context.Context, zone *PricingZone) erro
 	return s.repo.CreatePricingZone(ctx, zone)
 }
 
+// GetAllCountries returns all countries with pagination
+func (s *Service) GetAllCountries(ctx context.Context, limit, offset int, search string) ([]*Country, int64, error) {
+	return s.repo.GetAllCountries(ctx, limit, offset, search)
+}
+
+// GetAllRegions returns all regions with pagination
+func (s *Service) GetAllRegions(ctx context.Context, countryID *uuid.UUID, limit, offset int, search string) ([]*Region, int64, error) {
+	return s.repo.GetAllRegions(ctx, countryID, limit, offset, search)
+}
+
+// GetAllCities returns all cities with pagination
+func (s *Service) GetAllCities(ctx context.Context, regionID *uuid.UUID, limit, offset int, search string) ([]*City, int64, error) {
+	return s.repo.GetAllCities(ctx, regionID, limit, offset, search)
+}
+
+// GetAllPricingZones returns all pricing zones with pagination
+func (s *Service) GetAllPricingZones(ctx context.Context, cityID *uuid.UUID, limit, offset int, search string) ([]*PricingZone, int64, error) {
+	return s.repo.GetAllPricingZones(ctx, cityID, limit, offset, search)
+}
+
+// GetPricingZoneByID returns a pricing zone by its ID
+func (s *Service) GetPricingZoneByID(ctx context.Context, id uuid.UUID) (*PricingZone, error) {
+	return s.repo.GetPricingZoneByID(ctx, id)
+}
+
+// UpdateCountry updates a country
+func (s *Service) UpdateCountry(ctx context.Context, country *Country) error {
+	return s.repo.UpdateCountry(ctx, country)
+}
+
+// DeleteCountry soft-deletes a country
+func (s *Service) DeleteCountry(ctx context.Context, id uuid.UUID) error {
+	return s.repo.DeleteCountry(ctx, id)
+}
+
+// UpdateRegion updates a region
+func (s *Service) UpdateRegion(ctx context.Context, region *Region) error {
+	// Verify country exists
+	_, err := s.repo.GetCountryByID(ctx, region.CountryID)
+	if err != nil {
+		return fmt.Errorf("country not found: %w", err)
+	}
+	return s.repo.UpdateRegion(ctx, region)
+}
+
+// DeleteRegion soft-deletes a region
+func (s *Service) DeleteRegion(ctx context.Context, id uuid.UUID) error {
+	return s.repo.DeleteRegion(ctx, id)
+}
+
+// UpdateCity updates a city
+func (s *Service) UpdateCity(ctx context.Context, city *City) error {
+	// Verify region exists
+	_, err := s.repo.GetRegionByID(ctx, city.RegionID)
+	if err != nil {
+		return fmt.Errorf("region not found: %w", err)
+	}
+	return s.repo.UpdateCity(ctx, city)
+}
+
+// DeleteCity soft-deletes a city
+func (s *Service) DeleteCity(ctx context.Context, id uuid.UUID) error {
+	return s.repo.DeleteCity(ctx, id)
+}
+
+// UpdatePricingZone updates a pricing zone
+func (s *Service) UpdatePricingZone(ctx context.Context, zone *PricingZone) error {
+	// Verify city exists
+	_, err := s.repo.GetCityByID(ctx, zone.CityID)
+	if err != nil {
+		return fmt.Errorf("city not found: %w", err)
+	}
+	return s.repo.UpdatePricingZone(ctx, zone)
+}
+
+// DeletePricingZone soft-deletes a pricing zone
+func (s *Service) DeletePricingZone(ctx context.Context, id uuid.UUID) error {
+	return s.repo.DeletePricingZone(ctx, id)
+}
+
 // ToCountryResponse converts Country to API response
 func ToCountryResponse(c *Country) *CountryResponse {
 	if c == nil {

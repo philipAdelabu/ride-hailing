@@ -2,6 +2,7 @@ package geography
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -467,8 +468,24 @@ func (r *Repository) AddDriverRegion(ctx context.Context, driverID, regionID uui
 	return nil
 }
 
+// marshalJSON marshals a JSON map to bytes, defaulting to {} if nil
+func marshalJSON(j JSON) []byte {
+	if j == nil {
+		return []byte("{}")
+	}
+	b, err := json.Marshal(j)
+	if err != nil {
+		return []byte("{}")
+	}
+	return b
+}
+
 // CreateCountry creates a new country
 func (r *Repository) CreateCountry(ctx context.Context, country *Country) error {
+	regulationsJSON := marshalJSON(country.Regulations)
+	paymentMethodsJSON := marshalJSON(country.PaymentMethods)
+	requiredDocsJSON := marshalJSON(country.RequiredDriverDocuments)
+
 	query := `
 		INSERT INTO countries (id, code, code3, name, native_name, currency_code,
 		                       default_language, timezone, phone_prefix, is_active,
@@ -481,8 +498,8 @@ func (r *Repository) CreateCountry(ctx context.Context, country *Country) error 
 	err := r.db.QueryRow(ctx, query,
 		country.ID, country.Code, country.Code3, country.Name, country.NativeName,
 		country.CurrencyCode, country.DefaultLanguage, country.Timezone,
-		country.PhonePrefix, country.IsActive, country.Regulations,
-		country.PaymentMethods, country.RequiredDriverDocuments,
+		country.PhonePrefix, country.IsActive, regulationsJSON,
+		paymentMethodsJSON, requiredDocsJSON,
 	).Scan(&country.CreatedAt, &country.UpdatedAt)
 
 	if err != nil {
@@ -538,8 +555,389 @@ func (r *Repository) CreateCity(ctx context.Context, city *City) error {
 	return nil
 }
 
+// GetAllCountries retrieves all countries with pagination and search
+func (r *Repository) GetAllCountries(ctx context.Context, limit, offset int, search string) ([]*Country, int64, error) {
+	whereClause := "WHERE 1=1"
+	args := make([]interface{}, 0)
+	argIndex := 1
+
+	if search != "" {
+		whereClause += fmt.Sprintf(" AND (name ILIKE $%d OR code ILIKE $%d OR native_name ILIKE $%d)", argIndex, argIndex, argIndex)
+		args = append(args, "%"+search+"%")
+		argIndex++
+	}
+
+	var total int64
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM countries %s", whereClause)
+	if err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("failed to count countries: %w", err)
+	}
+
+	query := fmt.Sprintf(`
+		SELECT id, code, code3, name, native_name, currency_code, default_language,
+		       timezone, phone_prefix, is_active, launched_at, regulations,
+		       payment_methods, required_driver_documents, created_at, updated_at
+		FROM countries %s
+		ORDER BY name
+		LIMIT $%d OFFSET $%d
+	`, whereClause, argIndex, argIndex+1)
+	args = append(args, limit, offset)
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get countries: %w", err)
+	}
+	defer rows.Close()
+
+	countries := make([]*Country, 0)
+	for rows.Next() {
+		c := &Country{}
+		err := rows.Scan(
+			&c.ID, &c.Code, &c.Code3, &c.Name, &c.NativeName, &c.CurrencyCode,
+			&c.DefaultLanguage, &c.Timezone, &c.PhonePrefix, &c.IsActive,
+			&c.LaunchedAt, &c.Regulations, &c.PaymentMethods,
+			&c.RequiredDriverDocuments, &c.CreatedAt, &c.UpdatedAt,
+		)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to scan country: %w", err)
+		}
+		countries = append(countries, c)
+	}
+
+	return countries, total, nil
+}
+
+// GetAllRegions retrieves all regions for a country with pagination and search
+func (r *Repository) GetAllRegions(ctx context.Context, countryID *uuid.UUID, limit, offset int, search string) ([]*Region, int64, error) {
+	whereClause := "WHERE 1=1"
+	args := make([]interface{}, 0)
+	argIndex := 1
+
+	if countryID != nil {
+		whereClause += fmt.Sprintf(" AND country_id = $%d", argIndex)
+		args = append(args, *countryID)
+		argIndex++
+	}
+	if search != "" {
+		whereClause += fmt.Sprintf(" AND (name ILIKE $%d OR code ILIKE $%d OR native_name ILIKE $%d)", argIndex, argIndex, argIndex)
+		args = append(args, "%"+search+"%")
+		argIndex++
+	}
+
+	var total int64
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM regions %s", whereClause)
+	if err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("failed to count regions: %w", err)
+	}
+
+	query := fmt.Sprintf(`
+		SELECT id, country_id, code, name, native_name, timezone, is_active,
+		       launched_at, created_at, updated_at
+		FROM regions %s
+		ORDER BY name
+		LIMIT $%d OFFSET $%d
+	`, whereClause, argIndex, argIndex+1)
+	args = append(args, limit, offset)
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get regions: %w", err)
+	}
+	defer rows.Close()
+
+	regions := make([]*Region, 0)
+	for rows.Next() {
+		reg := &Region{}
+		err := rows.Scan(
+			&reg.ID, &reg.CountryID, &reg.Code, &reg.Name, &reg.NativeName,
+			&reg.Timezone, &reg.IsActive, &reg.LaunchedAt, &reg.CreatedAt, &reg.UpdatedAt,
+		)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to scan region: %w", err)
+		}
+		regions = append(regions, reg)
+	}
+
+	return regions, total, nil
+}
+
+// GetAllCities retrieves all cities for a region with pagination and search
+func (r *Repository) GetAllCities(ctx context.Context, regionID *uuid.UUID, limit, offset int, search string) ([]*City, int64, error) {
+	whereClause := "WHERE 1=1"
+	args := make([]interface{}, 0)
+	argIndex := 1
+
+	if regionID != nil {
+		whereClause += fmt.Sprintf(" AND region_id = $%d", argIndex)
+		args = append(args, *regionID)
+		argIndex++
+	}
+	if search != "" {
+		whereClause += fmt.Sprintf(" AND (name ILIKE $%d OR native_name ILIKE $%d)", argIndex, argIndex)
+		args = append(args, "%"+search+"%")
+		argIndex++
+	}
+
+	var total int64
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM cities %s", whereClause)
+	if err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("failed to count cities: %w", err)
+	}
+
+	query := fmt.Sprintf(`
+		SELECT id, region_id, name, native_name, timezone, center_latitude,
+		       center_longitude, ST_AsText(boundary), population, is_active,
+		       launched_at, created_at, updated_at
+		FROM cities %s
+		ORDER BY name
+		LIMIT $%d OFFSET $%d
+	`, whereClause, argIndex, argIndex+1)
+	args = append(args, limit, offset)
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get cities: %w", err)
+	}
+	defer rows.Close()
+
+	cities := make([]*City, 0)
+	for rows.Next() {
+		city := &City{}
+		err := rows.Scan(
+			&city.ID, &city.RegionID, &city.Name, &city.NativeName, &city.Timezone,
+			&city.CenterLatitude, &city.CenterLongitude, &city.Boundary,
+			&city.Population, &city.IsActive, &city.LaunchedAt,
+			&city.CreatedAt, &city.UpdatedAt,
+		)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to scan city: %w", err)
+		}
+		cities = append(cities, city)
+	}
+
+	return cities, total, nil
+}
+
+// GetAllPricingZones retrieves all pricing zones for a city with pagination and search
+func (r *Repository) GetAllPricingZones(ctx context.Context, cityID *uuid.UUID, limit, offset int, search string) ([]*PricingZone, int64, error) {
+	whereClause := "WHERE 1=1"
+	args := make([]interface{}, 0)
+	argIndex := 1
+
+	if cityID != nil {
+		whereClause += fmt.Sprintf(" AND city_id = $%d", argIndex)
+		args = append(args, *cityID)
+		argIndex++
+	}
+	if search != "" {
+		whereClause += fmt.Sprintf(" AND (name ILIKE $%d OR zone_type ILIKE $%d)", argIndex, argIndex)
+		args = append(args, "%"+search+"%")
+		argIndex++
+	}
+
+	var total int64
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM pricing_zones %s", whereClause)
+	if err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("failed to count pricing zones: %w", err)
+	}
+
+	query := fmt.Sprintf(`
+		SELECT id, city_id, name, zone_type, ST_AsText(boundary),
+		       center_latitude, center_longitude, priority, is_active,
+		       metadata, created_at, updated_at
+		FROM pricing_zones %s
+		ORDER BY priority DESC, name
+		LIMIT $%d OFFSET $%d
+	`, whereClause, argIndex, argIndex+1)
+	args = append(args, limit, offset)
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get pricing zones: %w", err)
+	}
+	defer rows.Close()
+
+	zones := make([]*PricingZone, 0)
+	for rows.Next() {
+		zone := &PricingZone{}
+		err := rows.Scan(
+			&zone.ID, &zone.CityID, &zone.Name, &zone.ZoneType, &zone.Boundary,
+			&zone.CenterLatitude, &zone.CenterLongitude, &zone.Priority,
+			&zone.IsActive, &zone.Metadata, &zone.CreatedAt, &zone.UpdatedAt,
+		)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to scan pricing zone: %w", err)
+		}
+		zones = append(zones, zone)
+	}
+
+	return zones, total, nil
+}
+
+// UpdateCountry updates a country
+func (r *Repository) UpdateCountry(ctx context.Context, country *Country) error {
+	regulationsJSON := marshalJSON(country.Regulations)
+	paymentMethodsJSON := marshalJSON(country.PaymentMethods)
+	requiredDocsJSON := marshalJSON(country.RequiredDriverDocuments)
+
+	query := `
+		UPDATE countries SET
+			code = $2, code3 = $3, name = $4, native_name = $5, currency_code = $6,
+			default_language = $7, timezone = $8, phone_prefix = $9, is_active = $10,
+			regulations = $11, payment_methods = $12, required_driver_documents = $13,
+			updated_at = NOW()
+		WHERE id = $1
+		RETURNING updated_at
+	`
+
+	err := r.db.QueryRow(ctx, query,
+		country.ID, country.Code, country.Code3, country.Name, country.NativeName,
+		country.CurrencyCode, country.DefaultLanguage, country.Timezone,
+		country.PhonePrefix, country.IsActive, regulationsJSON,
+		paymentMethodsJSON, requiredDocsJSON,
+	).Scan(&country.UpdatedAt)
+	if err != nil {
+		return fmt.Errorf("failed to update country: %w", err)
+	}
+
+	return nil
+}
+
+// DeleteCountry soft-deletes a country by setting is_active to false
+func (r *Repository) DeleteCountry(ctx context.Context, id uuid.UUID) error {
+	_, err := r.db.Exec(ctx, `UPDATE countries SET is_active = false, updated_at = NOW() WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete country: %w", err)
+	}
+	return nil
+}
+
+// UpdateRegion updates a region
+func (r *Repository) UpdateRegion(ctx context.Context, region *Region) error {
+	query := `
+		UPDATE regions SET
+			country_id = $2, code = $3, name = $4, native_name = $5,
+			timezone = $6, is_active = $7, updated_at = NOW()
+		WHERE id = $1
+		RETURNING updated_at
+	`
+
+	err := r.db.QueryRow(ctx, query,
+		region.ID, region.CountryID, region.Code, region.Name,
+		region.NativeName, region.Timezone, region.IsActive,
+	).Scan(&region.UpdatedAt)
+	if err != nil {
+		return fmt.Errorf("failed to update region: %w", err)
+	}
+
+	return nil
+}
+
+// DeleteRegion soft-deletes a region by setting is_active to false
+func (r *Repository) DeleteRegion(ctx context.Context, id uuid.UUID) error {
+	_, err := r.db.Exec(ctx, `UPDATE regions SET is_active = false, updated_at = NOW() WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete region: %w", err)
+	}
+	return nil
+}
+
+// UpdateCity updates a city
+func (r *Repository) UpdateCity(ctx context.Context, city *City) error {
+	query := `
+		UPDATE cities SET
+			region_id = $2, name = $3, native_name = $4, timezone = $5,
+			center_latitude = $6, center_longitude = $7,
+			boundary = CASE WHEN $8::text IS NOT NULL THEN ST_GeomFromText($8, 4326) ELSE boundary END,
+			population = $9, is_active = $10, updated_at = NOW()
+		WHERE id = $1
+		RETURNING updated_at
+	`
+
+	err := r.db.QueryRow(ctx, query,
+		city.ID, city.RegionID, city.Name, city.NativeName, city.Timezone,
+		city.CenterLatitude, city.CenterLongitude, city.Boundary,
+		city.Population, city.IsActive,
+	).Scan(&city.UpdatedAt)
+	if err != nil {
+		return fmt.Errorf("failed to update city: %w", err)
+	}
+
+	return nil
+}
+
+// DeleteCity soft-deletes a city by setting is_active to false
+func (r *Repository) DeleteCity(ctx context.Context, id uuid.UUID) error {
+	_, err := r.db.Exec(ctx, `UPDATE cities SET is_active = false, updated_at = NOW() WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete city: %w", err)
+	}
+	return nil
+}
+
+// UpdatePricingZone updates a pricing zone
+func (r *Repository) UpdatePricingZone(ctx context.Context, zone *PricingZone) error {
+	metadataJSON := marshalJSON(zone.Metadata)
+
+	query := `
+		UPDATE pricing_zones SET
+			city_id = $2, name = $3, zone_type = $4,
+			boundary = ST_GeomFromText($5, 4326),
+			center_latitude = $6, center_longitude = $7,
+			priority = $8, is_active = $9, metadata = $10,
+			updated_at = NOW()
+		WHERE id = $1
+		RETURNING updated_at
+	`
+
+	err := r.db.QueryRow(ctx, query,
+		zone.ID, zone.CityID, zone.Name, zone.ZoneType, zone.Boundary,
+		zone.CenterLatitude, zone.CenterLongitude, zone.Priority,
+		zone.IsActive, metadataJSON,
+	).Scan(&zone.UpdatedAt)
+	if err != nil {
+		return fmt.Errorf("failed to update pricing zone: %w", err)
+	}
+
+	return nil
+}
+
+// DeletePricingZone soft-deletes a pricing zone by setting is_active to false
+func (r *Repository) DeletePricingZone(ctx context.Context, id uuid.UUID) error {
+	_, err := r.db.Exec(ctx, `UPDATE pricing_zones SET is_active = false, updated_at = NOW() WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete pricing zone: %w", err)
+	}
+	return nil
+}
+
+// GetPricingZoneByID retrieves a pricing zone by its ID
+func (r *Repository) GetPricingZoneByID(ctx context.Context, id uuid.UUID) (*PricingZone, error) {
+	query := `
+		SELECT id, city_id, name, zone_type, ST_AsText(boundary),
+		       center_latitude, center_longitude, priority, is_active,
+		       metadata, created_at, updated_at
+		FROM pricing_zones
+		WHERE id = $1
+	`
+
+	zone := &PricingZone{}
+	err := r.db.QueryRow(ctx, query, id).Scan(
+		&zone.ID, &zone.CityID, &zone.Name, &zone.ZoneType, &zone.Boundary,
+		&zone.CenterLatitude, &zone.CenterLongitude, &zone.Priority,
+		&zone.IsActive, &zone.Metadata, &zone.CreatedAt, &zone.UpdatedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pricing zone: %w", err)
+	}
+
+	return zone, nil
+}
+
 // CreatePricingZone creates a new pricing zone
 func (r *Repository) CreatePricingZone(ctx context.Context, zone *PricingZone) error {
+	metadataJSON := marshalJSON(zone.Metadata)
+
 	query := `
 		INSERT INTO pricing_zones (id, city_id, name, zone_type, boundary,
 		                           center_latitude, center_longitude, priority,
@@ -552,7 +950,7 @@ func (r *Repository) CreatePricingZone(ctx context.Context, zone *PricingZone) e
 	err := r.db.QueryRow(ctx, query,
 		zone.ID, zone.CityID, zone.Name, zone.ZoneType, zone.Boundary,
 		zone.CenterLatitude, zone.CenterLongitude, zone.Priority,
-		zone.IsActive, zone.Metadata,
+		zone.IsActive, metadataJSON,
 	).Scan(&zone.CreatedAt, &zone.UpdatedAt)
 
 	if err != nil {

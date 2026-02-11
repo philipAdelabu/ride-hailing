@@ -12,7 +12,7 @@ import (
 
 // Service handles pricing business logic
 type Service struct {
-	repo        *Repository
+	repo        RepositoryInterface
 	resolver    *Resolver
 	calculator  *Calculator
 	geoSvc      *geography.Service
@@ -20,7 +20,7 @@ type Service struct {
 }
 
 // NewService creates a new pricing service
-func NewService(repo *Repository, geoSvc *geography.Service, currencySvc *currency.Service) *Service {
+func NewService(repo RepositoryInterface, geoSvc *geography.Service, currencySvc *currency.Service) *Service {
 	resolver := NewResolver(repo)
 	calculator := NewCalculator(repo, resolver, geoSvc)
 

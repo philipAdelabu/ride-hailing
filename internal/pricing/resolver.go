@@ -9,11 +9,11 @@ import (
 
 // Resolver handles hierarchical pricing resolution
 type Resolver struct {
-	repo *Repository
+	repo RepositoryInterface
 }
 
 // NewResolver creates a new pricing resolver
-func NewResolver(repo *Repository) *Resolver {
+func NewResolver(repo RepositoryInterface) *Resolver {
 	return &Resolver{repo: repo}
 }
 

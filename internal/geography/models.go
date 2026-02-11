@@ -184,3 +184,103 @@ type PricingZoneResponse struct {
 	ZoneType string    `json:"zone_type"`
 	Priority int       `json:"priority"`
 }
+
+// Admin request DTOs
+
+// CreateCountryRequest is the request body for creating a country
+type CreateCountryRequest struct {
+	Code                    string   `json:"code" binding:"required,len=2"`
+	Code3                   string   `json:"code3" binding:"required,len=3"`
+	Name                    string   `json:"name" binding:"required"`
+	NativeName              *string  `json:"native_name,omitempty"`
+	CurrencyCode            string   `json:"currency_code" binding:"required,len=3"`
+	DefaultLanguage         string   `json:"default_language" binding:"required"`
+	Timezone                string   `json:"timezone" binding:"required"`
+	PhonePrefix             string   `json:"phone_prefix" binding:"required"`
+	IsActive                bool     `json:"is_active"`
+	Regulations             JSON     `json:"regulations,omitempty"`
+	PaymentMethods          JSON     `json:"payment_methods,omitempty"`
+	RequiredDriverDocuments JSON     `json:"required_driver_documents,omitempty"`
+}
+
+// UpdateCountryRequest is the request body for updating a country
+type UpdateCountryRequest struct {
+	Code                    *string  `json:"code,omitempty"`
+	Code3                   *string  `json:"code3,omitempty"`
+	Name                    *string  `json:"name,omitempty"`
+	NativeName              *string  `json:"native_name,omitempty"`
+	CurrencyCode            *string  `json:"currency_code,omitempty"`
+	DefaultLanguage         *string  `json:"default_language,omitempty"`
+	Timezone                *string  `json:"timezone,omitempty"`
+	PhonePrefix             *string  `json:"phone_prefix,omitempty"`
+	IsActive                *bool    `json:"is_active,omitempty"`
+	Regulations             JSON     `json:"regulations,omitempty"`
+	PaymentMethods          JSON     `json:"payment_methods,omitempty"`
+	RequiredDriverDocuments JSON     `json:"required_driver_documents,omitempty"`
+}
+
+// CreateRegionRequest is the request body for creating a region
+type CreateRegionRequest struct {
+	Code       string  `json:"code" binding:"required"`
+	Name       string  `json:"name" binding:"required"`
+	NativeName *string `json:"native_name,omitempty"`
+	Timezone   *string `json:"timezone,omitempty"`
+	IsActive   bool    `json:"is_active"`
+}
+
+// UpdateRegionRequest is the request body for updating a region
+type UpdateRegionRequest struct {
+	Code       *string `json:"code,omitempty"`
+	Name       *string `json:"name,omitempty"`
+	NativeName *string `json:"native_name,omitempty"`
+	Timezone   *string `json:"timezone,omitempty"`
+	IsActive   *bool   `json:"is_active,omitempty"`
+}
+
+// CreateCityRequest is the request body for creating a city
+type CreateCityRequest struct {
+	Name            string  `json:"name" binding:"required"`
+	NativeName      *string `json:"native_name,omitempty"`
+	Timezone        *string `json:"timezone,omitempty"`
+	CenterLatitude  float64 `json:"center_latitude" binding:"required"`
+	CenterLongitude float64 `json:"center_longitude" binding:"required"`
+	Boundary        *string `json:"boundary,omitempty"`
+	Population      *int    `json:"population,omitempty"`
+	IsActive        bool    `json:"is_active"`
+}
+
+// UpdateCityRequest is the request body for updating a city
+type UpdateCityRequest struct {
+	Name            *string  `json:"name,omitempty"`
+	NativeName      *string  `json:"native_name,omitempty"`
+	Timezone        *string  `json:"timezone,omitempty"`
+	CenterLatitude  *float64 `json:"center_latitude,omitempty"`
+	CenterLongitude *float64 `json:"center_longitude,omitempty"`
+	Boundary        *string  `json:"boundary,omitempty"`
+	Population      *int     `json:"population,omitempty"`
+	IsActive        *bool    `json:"is_active,omitempty"`
+}
+
+// CreateZoneRequest is the request body for creating a pricing zone
+type CreateZoneRequest struct {
+	Name            string  `json:"name" binding:"required"`
+	ZoneType        string  `json:"zone_type" binding:"required"`
+	Boundary        string  `json:"boundary" binding:"required"`
+	CenterLatitude  float64 `json:"center_latitude" binding:"required"`
+	CenterLongitude float64 `json:"center_longitude" binding:"required"`
+	Priority        int     `json:"priority"`
+	IsActive        bool    `json:"is_active"`
+	Metadata        JSON    `json:"metadata,omitempty"`
+}
+
+// UpdateZoneRequest is the request body for updating a pricing zone
+type UpdateZoneRequest struct {
+	Name            *string  `json:"name,omitempty"`
+	ZoneType        *string  `json:"zone_type,omitempty"`
+	Boundary        *string  `json:"boundary,omitempty"`
+	CenterLatitude  *float64 `json:"center_latitude,omitempty"`
+	CenterLongitude *float64 `json:"center_longitude,omitempty"`
+	Priority        *int     `json:"priority,omitempty"`
+	IsActive        *bool    `json:"is_active,omitempty"`
+	Metadata        JSON     `json:"metadata,omitempty"`
+}

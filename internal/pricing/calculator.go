@@ -11,13 +11,13 @@ import (
 
 // Calculator handles fare calculation
 type Calculator struct {
-	repo     *Repository
+	repo     RepositoryInterface
 	resolver *Resolver
 	geoSvc   *geography.Service
 }
 
 // NewCalculator creates a new pricing calculator
-func NewCalculator(repo *Repository, resolver *Resolver, geoSvc *geography.Service) *Calculator {
+func NewCalculator(repo RepositoryInterface, resolver *Resolver, geoSvc *geography.Service) *Calculator {
 	return &Calculator{
 		repo:     repo,
 		resolver: resolver,

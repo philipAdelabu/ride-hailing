@@ -257,6 +257,170 @@ const (
 	EventTypeOther      = "other"
 )
 
+// PricingConfigVersion represents a version of pricing configuration
+type PricingConfigVersion struct {
+	ID               uuid.UUID  `json:"id" db:"id"`
+	VersionNumber    int        `json:"version_number" db:"version_number"`
+	Name             string     `json:"name" db:"name"`
+	Description      *string    `json:"description,omitempty" db:"description"`
+	Status           string     `json:"status" db:"status"` // draft, active, archived, ab_test
+	ABTestPercentage *int       `json:"ab_test_percentage,omitempty" db:"ab_test_percentage"`
+	EffectiveFrom    *time.Time `json:"effective_from,omitempty" db:"effective_from"`
+	EffectiveUntil   *time.Time `json:"effective_until,omitempty" db:"effective_until"`
+	CreatedBy        *uuid.UUID `json:"created_by,omitempty" db:"created_by"`
+	ApprovedBy       *uuid.UUID `json:"approved_by,omitempty" db:"approved_by"`
+	ApprovedAt       *time.Time `json:"approved_at,omitempty" db:"approved_at"`
+	CreatedAt        time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at" db:"updated_at"`
+}
+
+// PricingAuditLog represents a pricing audit trail entry
+type PricingAuditLog struct {
+	ID         uuid.UUID              `json:"id" db:"id"`
+	AdminID    uuid.UUID              `json:"admin_id" db:"admin_id"`
+	Action     string                 `json:"action" db:"action"`
+	EntityType string                 `json:"entity_type" db:"entity_type"`
+	EntityID   uuid.UUID              `json:"entity_id" db:"entity_id"`
+	OldValues  map[string]interface{} `json:"old_values,omitempty" db:"old_values"`
+	NewValues  map[string]interface{} `json:"new_values,omitempty" db:"new_values"`
+	Reason     *string                `json:"reason,omitempty" db:"reason"`
+	CreatedAt  time.Time              `json:"created_at" db:"created_at"`
+}
+
+// Version status constants
+const (
+	VersionStatusDraft    = "draft"
+	VersionStatusActive   = "active"
+	VersionStatusArchived = "archived"
+	VersionStatusABTest   = "ab_test"
+)
+
+// Admin request DTOs
+
+// CreateVersionRequest is the request body for creating a pricing version
+type CreateVersionRequest struct {
+	Name           string     `json:"name" binding:"required"`
+	Description    *string    `json:"description,omitempty"`
+	EffectiveFrom  *time.Time `json:"effective_from,omitempty"`
+	EffectiveUntil *time.Time `json:"effective_until,omitempty"`
+}
+
+// UpdateVersionRequest is the request body for updating a pricing version
+type UpdateVersionRequest struct {
+	Name           *string    `json:"name,omitempty"`
+	Description    *string    `json:"description,omitempty"`
+	EffectiveFrom  *time.Time `json:"effective_from,omitempty"`
+	EffectiveUntil *time.Time `json:"effective_until,omitempty"`
+}
+
+// CloneVersionRequest is the request body for cloning a version
+type CloneVersionRequest struct {
+	Name string `json:"name" binding:"required"`
+}
+
+// CreateConfigRequest is the request body for creating a pricing config
+type CreateConfigRequest struct {
+	CountryID            *uuid.UUID        `json:"country_id,omitempty"`
+	RegionID             *uuid.UUID        `json:"region_id,omitempty"`
+	CityID               *uuid.UUID        `json:"city_id,omitempty"`
+	ZoneID               *uuid.UUID        `json:"zone_id,omitempty"`
+	RideTypeID           *uuid.UUID        `json:"ride_type_id,omitempty"`
+	BaseFare             *float64          `json:"base_fare,omitempty"`
+	PerKmRate            *float64          `json:"per_km_rate,omitempty"`
+	PerMinuteRate        *float64          `json:"per_minute_rate,omitempty"`
+	MinimumFare          *float64          `json:"minimum_fare,omitempty"`
+	BookingFee           *float64          `json:"booking_fee,omitempty"`
+	PlatformCommissionPct *float64         `json:"platform_commission_pct,omitempty"`
+	DriverIncentivePct   *float64          `json:"driver_incentive_pct,omitempty"`
+	SurgeMinMultiplier   *float64          `json:"surge_min_multiplier,omitempty"`
+	SurgeMaxMultiplier   *float64          `json:"surge_max_multiplier,omitempty"`
+	TaxRatePct           *float64          `json:"tax_rate_pct,omitempty"`
+	TaxInclusive         *bool             `json:"tax_inclusive,omitempty"`
+	CancellationFees     []CancellationFee `json:"cancellation_fees,omitempty"`
+	IsActive             bool              `json:"is_active"`
+}
+
+// UpdateConfigRequest is the request body for updating a pricing config
+type UpdateConfigRequest = CreateConfigRequest
+
+// CreateTimeMultiplierRequest is the request body for creating a time multiplier
+type CreateTimeMultiplierRequest struct {
+	CountryID  *uuid.UUID `json:"country_id,omitempty"`
+	RegionID   *uuid.UUID `json:"region_id,omitempty"`
+	CityID     *uuid.UUID `json:"city_id,omitempty"`
+	Name       string     `json:"name" binding:"required"`
+	DaysOfWeek []int      `json:"days_of_week" binding:"required"`
+	StartTime  string     `json:"start_time" binding:"required"`
+	EndTime    string     `json:"end_time" binding:"required"`
+	Multiplier float64    `json:"multiplier" binding:"required,gt=0"`
+	Priority   int        `json:"priority"`
+	IsActive   bool       `json:"is_active"`
+}
+
+// UpdateTimeMultiplierRequest is the request body for updating a time multiplier
+type UpdateTimeMultiplierRequest = CreateTimeMultiplierRequest
+
+// CreateWeatherMultiplierRequest is the request body for creating a weather multiplier
+type CreateWeatherMultiplierRequest struct {
+	CountryID        *uuid.UUID `json:"country_id,omitempty"`
+	RegionID         *uuid.UUID `json:"region_id,omitempty"`
+	CityID           *uuid.UUID `json:"city_id,omitempty"`
+	WeatherCondition string     `json:"weather_condition" binding:"required"`
+	Multiplier       float64    `json:"multiplier" binding:"required,gt=0"`
+	IsActive         bool       `json:"is_active"`
+}
+
+// UpdateWeatherMultiplierRequest is the request body for updating a weather multiplier
+type UpdateWeatherMultiplierRequest = CreateWeatherMultiplierRequest
+
+// CreateEventMultiplierRequest is the request body for creating an event multiplier
+type CreateEventMultiplierRequest struct {
+	ZoneID                 *uuid.UUID `json:"zone_id,omitempty"`
+	CityID                 *uuid.UUID `json:"city_id,omitempty"`
+	EventName              string     `json:"event_name" binding:"required"`
+	EventType              string     `json:"event_type" binding:"required"`
+	StartsAt               time.Time  `json:"starts_at" binding:"required"`
+	EndsAt                 time.Time  `json:"ends_at" binding:"required"`
+	PreEventMinutes        int        `json:"pre_event_minutes"`
+	PostEventMinutes       int        `json:"post_event_minutes"`
+	Multiplier             float64    `json:"multiplier" binding:"required,gt=0"`
+	ExpectedDemandIncrease *int       `json:"expected_demand_increase,omitempty"`
+	IsActive               bool       `json:"is_active"`
+}
+
+// UpdateEventMultiplierRequest is the request body for updating an event multiplier
+type UpdateEventMultiplierRequest = CreateEventMultiplierRequest
+
+// CreateZoneFeeRequest is the request body for creating a zone fee
+type CreateZoneFeeRequest struct {
+	ZoneID        uuid.UUID  `json:"zone_id" binding:"required"`
+	FeeType       string     `json:"fee_type" binding:"required"`
+	RideTypeID    *uuid.UUID `json:"ride_type_id,omitempty"`
+	Amount        float64    `json:"amount" binding:"required"`
+	IsPercentage  bool       `json:"is_percentage"`
+	AppliesPickup bool       `json:"applies_pickup"`
+	AppliesDropoff bool      `json:"applies_dropoff"`
+	Schedule      *FeeSchedule `json:"schedule,omitempty"`
+	IsActive      bool       `json:"is_active"`
+}
+
+// UpdateZoneFeeRequest is the request body for updating a zone fee
+type UpdateZoneFeeRequest = CreateZoneFeeRequest
+
+// CreateSurgeThresholdRequest is the request body for creating a surge threshold
+type CreateSurgeThresholdRequest struct {
+	CountryID            *uuid.UUID `json:"country_id,omitempty"`
+	RegionID             *uuid.UUID `json:"region_id,omitempty"`
+	CityID               *uuid.UUID `json:"city_id,omitempty"`
+	DemandSupplyRatioMin float64    `json:"demand_supply_ratio_min" binding:"required"`
+	DemandSupplyRatioMax *float64   `json:"demand_supply_ratio_max,omitempty"`
+	Multiplier           float64    `json:"multiplier" binding:"required,gt=0"`
+	IsActive             bool       `json:"is_active"`
+}
+
+// UpdateSurgeThresholdRequest is the request body for updating a surge threshold
+type UpdateSurgeThresholdRequest = CreateSurgeThresholdRequest
+
 // Default values for global fallback
 var DefaultPricing = ResolvedPricing{
 	BaseFare:              3.00,
