@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/richxcame/ride-hailing/internal/pricing"
 	"github.com/richxcame/ride-hailing/pkg/common"
 	"github.com/richxcame/ride-hailing/pkg/eventbus"
 	"github.com/richxcame/ride-hailing/pkg/httpclient"
@@ -48,6 +49,7 @@ type Service struct {
 	matcher         *Matcher
 	eventBus        *eventbus.Bus
 	pricingConfig   *PricingConfig
+	pricingService  *pricing.Service
 }
 
 // SurgeCalculator defines the interface for surge pricing calculation
@@ -90,6 +92,11 @@ func (s *Service) SetMatcher(matcher *Matcher) {
 // SetEventBus sets the NATS event bus for publishing ride lifecycle events.
 func (s *Service) SetEventBus(bus *eventbus.Bus) {
 	s.eventBus = bus
+}
+
+// SetPricingService sets the hierarchical pricing service for fare calculation.
+func (s *Service) SetPricingService(svc *pricing.Service) {
+	s.pricingService = svc
 }
 
 // publishEvent publishes an event asynchronously. Failures are logged but don't affect the caller.
@@ -147,35 +154,63 @@ func (s *Service) RequestRide(ctx context.Context, riderID uuid.UUID, req *model
 		duration = int(math.Round(mlDuration))
 	}
 
-	// Use dynamic surge pricing if available, otherwise fall back to time-based
+	var fare float64
 	var surgeMultiplier float64
-	if s.surgeCalculator != nil {
-		var err error
-		surgeMultiplier, err = s.surgeCalculator.CalculateSurgeMultiplier(ctx, req.PickupLatitude, req.PickupLongitude)
+	var rideTypeID *uuid.UUID
+	var currencyCode string
+	var pricingVersionID *uuid.UUID
+	var countryID, regionID, cityID, pickupZoneID, dropoffZoneID *uuid.UUID
+
+	rideTypeID = req.RideTypeID
+
+	// Use hierarchical pricing engine when available
+	if s.pricingService != nil {
+		calculation, err := s.pricingService.CalculateFare(ctx, pricing.CalculateInput{
+			PickupLatitude:   req.PickupLatitude,
+			PickupLongitude:  req.PickupLongitude,
+			DropoffLatitude:  req.DropoffLatitude,
+			DropoffLongitude: req.DropoffLongitude,
+			DistanceKm:       distance,
+			DurationMin:      duration,
+			RideTypeID:       rideTypeID,
+			Currency:         "USD", // Will be resolved by pricing engine
+		})
 		if err != nil {
-			// Fallback to time-based surge on error
+			logger.Warn("hierarchical pricing failed, falling back to flat pricing", zap.Error(err))
+			surgeMultiplier = calculateSurgeMultiplier(time.Now())
+			fare = s.calculateFare(distance, duration, surgeMultiplier)
+			currencyCode = "USD"
+		} else {
+			fare = calculation.TotalFare
+			surgeMultiplier = calculation.TotalMultiplier
+			currencyCode = calculation.Currency
+			if calculation.PricingVersionID != uuid.Nil {
+				pricingVersionID = &calculation.PricingVersionID
+			}
+		}
+	} else {
+		// Fallback: use dynamic surge pricing if available, otherwise time-based
+		if s.surgeCalculator != nil {
+			var err error
+			surgeMultiplier, err = s.surgeCalculator.CalculateSurgeMultiplier(ctx, req.PickupLatitude, req.PickupLongitude)
+			if err != nil {
+				surgeMultiplier = calculateSurgeMultiplier(time.Now())
+			}
+		} else {
 			surgeMultiplier = calculateSurgeMultiplier(time.Now())
 		}
-	} else {
-		surgeMultiplier = calculateSurgeMultiplier(time.Now())
-	}
 
-	var fare float64
-	var rideTypeID *uuid.UUID
-
-	// If ride type is specified, calculate fare using ride type pricing
-	if req.RideTypeID != nil {
-		rideTypeID = req.RideTypeID
-		calculatedFare, err := s.calculateFareWithRideType(ctx, *req.RideTypeID, distance, duration, surgeMultiplier)
-		if err != nil {
-			// Fall back to default pricing if ride type calculation fails
-			fare = s.calculateFare(distance, duration, surgeMultiplier)
+		if rideTypeID != nil {
+			calculatedFare, err := s.calculateFareWithRideType(ctx, *rideTypeID, distance, duration, surgeMultiplier)
+			if err != nil {
+				fare = s.calculateFare(distance, duration, surgeMultiplier)
+			} else {
+				fare = calculatedFare
+			}
 		} else {
-			fare = calculatedFare
+			fare = s.calculateFare(distance, duration, surgeMultiplier)
 		}
-	} else {
-		// Use default fare calculation
-		fare = s.calculateFare(distance, duration, surgeMultiplier)
+		currencyCode = "USD"
 	}
 
 	// Apply promo code if provided
@@ -208,6 +243,13 @@ func (s *Service) RequestRide(ctx context.Context, riderID uuid.UUID, req *model
 		RideTypeID:        rideTypeID,
 		PromoCodeID:       promoCodeID,
 		DiscountAmount:    discountAmount,
+		CountryID:         countryID,
+		RegionID:          regionID,
+		CityID:            cityID,
+		PickupZoneID:      pickupZoneID,
+		DropoffZoneID:     dropoffZoneID,
+		CurrencyCode:      currencyCode,
+		PricingVersionID:  pricingVersionID,
 	}
 
 	// Handle scheduled rides
@@ -368,7 +410,27 @@ func (s *Service) CompleteRide(ctx context.Context, rideID, driverID uuid.UUID, 
 	actualDuration := int(time.Since(*ride.StartedAt).Minutes())
 
 	// Calculate final fare based on actual distance and duration
-	finalFare := s.calculateFare(actualDistance, actualDuration, ride.SurgeMultiplier)
+	var finalFare float64
+	if s.pricingService != nil {
+		calculation, err := s.pricingService.CalculateFare(ctx, pricing.CalculateInput{
+			PickupLatitude:   ride.PickupLatitude,
+			PickupLongitude:  ride.PickupLongitude,
+			DropoffLatitude:  ride.DropoffLatitude,
+			DropoffLongitude: ride.DropoffLongitude,
+			DistanceKm:       actualDistance,
+			DurationMin:      actualDuration,
+			RideTypeID:       ride.RideTypeID,
+			Currency:         ride.CurrencyCode,
+		})
+		if err != nil {
+			logger.Warn("hierarchical pricing failed on completion, falling back to flat pricing", zap.Error(err))
+			finalFare = s.calculateFare(actualDistance, actualDuration, ride.SurgeMultiplier)
+		} else {
+			finalFare = calculation.TotalFare
+		}
+	} else {
+		finalFare = s.calculateFare(actualDistance, actualDuration, ride.SurgeMultiplier)
+	}
 
 	tracing.AddSpanAttributes(ctx,
 		tracing.DurationKey.Int(actualDuration),

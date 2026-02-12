@@ -246,6 +246,7 @@ func main() {
 	geographyService := geography.NewService(geographyRepo)
 	currencyService := currency.NewService(currencyRepo, getEnv("BASE_CURRENCY", "USD"))
 	pricingService := pricing.NewService(pricingRepo, geographyService, currencyService)
+	ridesService.SetPricingService(pricingService)
 	negotiationService := negotiation.NewService(negotiationRepo, pricingService, geographyService)
 	safetyService := safety.NewService(safetyRepo, safety.Config{
 		EmergencyNumber: getEnv("EMERGENCY_NUMBER", "112"),

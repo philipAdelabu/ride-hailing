@@ -50,6 +50,15 @@ type Ride struct {
 	ScheduledAt               *time.Time `json:"scheduled_at,omitempty" db:"scheduled_at"`
 	IsScheduled               bool       `json:"is_scheduled" db:"is_scheduled"`
 	ScheduledNotificationSent bool       `json:"scheduled_notification_sent" db:"scheduled_notification_sent"`
+	CountryID                 *uuid.UUID `json:"country_id,omitempty" db:"country_id"`
+	RegionID                  *uuid.UUID `json:"region_id,omitempty" db:"region_id"`
+	CityID                    *uuid.UUID `json:"city_id,omitempty" db:"city_id"`
+	PickupZoneID              *uuid.UUID `json:"pickup_zone_id,omitempty" db:"pickup_zone_id"`
+	DropoffZoneID             *uuid.UUID `json:"dropoff_zone_id,omitempty" db:"dropoff_zone_id"`
+	CurrencyCode              string     `json:"currency_code" db:"currency_code"`
+	PricingVersionID          *uuid.UUID `json:"pricing_version_id,omitempty" db:"pricing_version_id"`
+	WasNegotiated             bool       `json:"was_negotiated" db:"was_negotiated"`
+	NegotiationSessionID      *uuid.UUID `json:"negotiation_session_id,omitempty" db:"negotiation_session_id"`
 	CreatedAt                 time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt                 time.Time  `json:"updated_at" db:"updated_at"`
 }

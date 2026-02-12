@@ -28,9 +28,12 @@ func (r *Repository) CreateRide(ctx context.Context, ride *models.Ride) error {
 			dropoff_latitude, dropoff_longitude, dropoff_address, estimated_distance,
 			estimated_duration, estimated_fare, surge_multiplier, requested_at,
 			ride_type_id, promo_code_id, discount_amount, scheduled_at, is_scheduled,
-			scheduled_notification_sent
+			scheduled_notification_sent,
+			country_id, region_id, city_id, pickup_zone_id, dropoff_zone_id,
+			currency_code, pricing_version_id, was_negotiated, negotiation_session_id
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
+				$21, $22, $23, $24, $25, $26, $27, $28, $29)
 		RETURNING created_at, updated_at
 	`
 
@@ -55,6 +58,15 @@ func (r *Repository) CreateRide(ctx context.Context, ride *models.Ride) error {
 		ride.ScheduledAt,
 		ride.IsScheduled,
 		ride.ScheduledNotificationSent,
+		ride.CountryID,
+		ride.RegionID,
+		ride.CityID,
+		ride.PickupZoneID,
+		ride.DropoffZoneID,
+		ride.CurrencyCode,
+		ride.PricingVersionID,
+		ride.WasNegotiated,
+		ride.NegotiationSessionID,
 	).Scan(&ride.CreatedAt, &ride.UpdatedAt)
 
 	if err != nil {
@@ -73,7 +85,9 @@ func (r *Repository) GetRideByID(ctx context.Context, id uuid.UUID) (*models.Rid
 			   actual_duration, final_fare, surge_multiplier, requested_at, accepted_at,
 			   started_at, completed_at, cancelled_at, cancellation_reason, rating,
 			   feedback, created_at, updated_at, ride_type_id, promo_code_id,
-			   discount_amount, scheduled_at, is_scheduled, scheduled_notification_sent
+			   discount_amount, scheduled_at, is_scheduled, scheduled_notification_sent,
+			   country_id, region_id, city_id, pickup_zone_id, dropoff_zone_id,
+			   currency_code, pricing_version_id, was_negotiated, negotiation_session_id
 		FROM rides
 		WHERE id = $1
 	`
@@ -113,6 +127,15 @@ func (r *Repository) GetRideByID(ctx context.Context, id uuid.UUID) (*models.Rid
 		&ride.ScheduledAt,
 		&ride.IsScheduled,
 		&ride.ScheduledNotificationSent,
+		&ride.CountryID,
+		&ride.RegionID,
+		&ride.CityID,
+		&ride.PickupZoneID,
+		&ride.DropoffZoneID,
+		&ride.CurrencyCode,
+		&ride.PricingVersionID,
+		&ride.WasNegotiated,
+		&ride.NegotiationSessionID,
 	)
 
 	if err != nil {
@@ -235,7 +258,9 @@ func (r *Repository) GetRidesByRider(ctx context.Context, riderID uuid.UUID, lim
 			   actual_duration, final_fare, surge_multiplier, requested_at, accepted_at,
 			   started_at, completed_at, cancelled_at, cancellation_reason, rating,
 			   feedback, created_at, updated_at, ride_type_id, promo_code_id,
-			   discount_amount, scheduled_at, is_scheduled, scheduled_notification_sent
+			   discount_amount, scheduled_at, is_scheduled, scheduled_notification_sent,
+			   country_id, region_id, city_id, pickup_zone_id, dropoff_zone_id,
+			   currency_code, pricing_version_id, was_negotiated, negotiation_session_id
 		FROM rides
 		WHERE rider_id = $1
 		ORDER BY created_at DESC
@@ -304,7 +329,9 @@ func (r *Repository) GetRidesByDriver(ctx context.Context, driverID uuid.UUID, l
 			   actual_duration, final_fare, surge_multiplier, requested_at, accepted_at,
 			   started_at, completed_at, cancelled_at, cancellation_reason, rating,
 			   feedback, created_at, updated_at, ride_type_id, promo_code_id,
-			   discount_amount, scheduled_at, is_scheduled, scheduled_notification_sent
+			   discount_amount, scheduled_at, is_scheduled, scheduled_notification_sent,
+			   country_id, region_id, city_id, pickup_zone_id, dropoff_zone_id,
+			   currency_code, pricing_version_id, was_negotiated, negotiation_session_id
 		FROM rides
 		WHERE driver_id = $1
 		ORDER BY created_at DESC
@@ -411,7 +438,9 @@ func (r *Repository) GetPendingRides(ctx context.Context) ([]*models.Ride, error
 			   actual_duration, final_fare, surge_multiplier, requested_at, accepted_at,
 			   started_at, completed_at, cancelled_at, cancellation_reason, rating,
 			   feedback, created_at, updated_at, ride_type_id, promo_code_id,
-			   discount_amount, scheduled_at, is_scheduled, scheduled_notification_sent
+			   discount_amount, scheduled_at, is_scheduled, scheduled_notification_sent,
+			   country_id, region_id, city_id, pickup_zone_id, dropoff_zone_id,
+			   currency_code, pricing_version_id, was_negotiated, negotiation_session_id
 		FROM rides
 		WHERE status = 'requested'
 		ORDER BY requested_at ASC
@@ -487,7 +516,9 @@ func (r *Repository) GetRidesByRiderWithFilters(ctx context.Context, riderID uui
 			   actual_duration, final_fare, surge_multiplier, requested_at, accepted_at,
 			   started_at, completed_at, cancelled_at, cancellation_reason, rating,
 			   feedback, created_at, updated_at, ride_type_id, promo_code_id,
-			   discount_amount, scheduled_at, is_scheduled, scheduled_notification_sent
+			   discount_amount, scheduled_at, is_scheduled, scheduled_notification_sent,
+			   country_id, region_id, city_id, pickup_zone_id, dropoff_zone_id,
+			   currency_code, pricing_version_id, was_negotiated, negotiation_session_id
 		FROM rides
 		WHERE rider_id = $1
 	`
