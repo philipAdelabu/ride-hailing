@@ -249,11 +249,15 @@ func (r *Repository) CreateWalletTransaction(ctx context.Context, tx *models.Wal
 
 // GetWalletTransactions retrieves wallet transaction history
 func (r *Repository) GetWalletTransactions(ctx context.Context, walletID uuid.UUID, limit, offset int) ([]*models.WalletTransaction, error) {
+	// Note: The new schema (migration 000018) uses user_id instead of wallet_id
+	// For backward compatibility, we treat walletID parameter as userID
+	// New schema columns: id, user_id, payment_method_id, type, amount, balance_before,
+	//                     balance_after, description, ride_id, reference_id, created_at
 	query := `
-		SELECT id, wallet_id, type, amount, description, reference_type,
-			reference_id, balance_before, balance_after, created_at
+		SELECT id, user_id, type, amount, description, reference_id,
+			balance_before, balance_after, created_at, ride_id
 		FROM wallet_transactions
-		WHERE wallet_id = $1
+		WHERE user_id = $1
 		ORDER BY created_at DESC
 		LIMIT $2 OFFSET $3`
 
@@ -266,20 +270,33 @@ func (r *Repository) GetWalletTransactions(ctx context.Context, walletID uuid.UU
 	transactions := make([]*models.WalletTransaction, 0)
 	for rows.Next() {
 		tx := &models.WalletTransaction{}
+		var referenceID *string
+		var rideID *uuid.UUID
 		err := rows.Scan(
 			&tx.ID,
-			&tx.WalletID,
+			&tx.WalletID, // Actually user_id in new schema, but we keep field name for compatibility
 			&tx.Type,
 			&tx.Amount,
 			&tx.Description,
-			&tx.ReferenceType,
-			&tx.ReferenceID,
+			&referenceID, // VARCHAR(255) in new schema
 			&tx.BalanceBefore,
 			&tx.BalanceAfter,
 			&tx.CreatedAt,
+			&rideID,
 		)
 		if err != nil {
 			return nil, common.NewInternalError("failed to scan wallet transaction", err)
+		}
+		// Set reference type and ID based on ride_id or reference_id
+		if rideID != nil {
+			tx.ReferenceType = "ride"
+			tx.ReferenceID = rideID
+		} else if referenceID != nil && *referenceID != "" {
+			// Try to parse as UUID for backward compatibility
+			if refUUID, err := uuid.Parse(*referenceID); err == nil {
+				tx.ReferenceID = &refUUID
+				tx.ReferenceType = "other"
+			}
 		}
 		transactions = append(transactions, tx)
 	}
@@ -290,8 +307,9 @@ func (r *Repository) GetWalletTransactions(ctx context.Context, walletID uuid.UU
 // GetWalletTransactionsWithTotal retrieves wallet transaction history with total count
 func (r *Repository) GetWalletTransactionsWithTotal(ctx context.Context, walletID uuid.UUID, limit, offset int) ([]*models.WalletTransaction, int64, error) {
 	// Get total count
+	// Note: The new schema (migration 000018) uses user_id instead of wallet_id
 	var total int64
-	countQuery := `SELECT COUNT(*) FROM wallet_transactions WHERE wallet_id = $1`
+	countQuery := `SELECT COUNT(*) FROM wallet_transactions WHERE user_id = $1`
 	err := r.db.QueryRow(ctx, countQuery, walletID).Scan(&total)
 	if err != nil {
 		return nil, 0, common.NewInternalError("failed to count wallet transactions", err)

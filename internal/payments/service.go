@@ -387,12 +387,9 @@ func (s *Service) GetWallet(ctx context.Context, userID uuid.UUID) (*models.Wall
 
 // GetWalletTransactions retrieves wallet transaction history
 func (s *Service) GetWalletTransactions(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*models.WalletTransaction, int64, error) {
-	wallet, err := s.repo.GetWalletByUserID(ctx, userID)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	return s.repo.GetWalletTransactionsWithTotal(ctx, wallet.ID, limit, offset)
+	// Note: New schema (migration 000018) uses user_id directly in wallet_transactions
+	// We pass userID directly instead of fetching wallet first
+	return s.repo.GetWalletTransactionsWithTotal(ctx, userID, limit, offset)
 }
 
 // HandleStripeWebhook handles Stripe webhook events
