@@ -19202,6 +19202,605 @@
         }
       ],
       "name": "Rides (Standalone)"
+    },
+    {
+      "name": "Documents",
+      "item": [
+        {
+          "name": "GET /api/v1/documents/types - Get Required Document Types",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{driver_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/documents/types",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "documents",
+                "types"
+              ]
+            },
+            "description": "Get list of required document types for driver onboarding"
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/documents - Get My Documents",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{driver_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/documents",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "documents"
+              ]
+            },
+            "description": "Get all documents uploaded by the current driver"
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/documents/verification-status - Get Verification Status",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{driver_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/documents/verification-status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "documents",
+                "verification-status"
+              ]
+            },
+            "description": "Get current verification status and missing documents"
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/documents/upload - Upload Document (Direct)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{driver_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "document_type_id",
+                  "value": "",
+                  "type": "text",
+                  "description": "UUID of the document type"
+                },
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "Document file to upload"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/documents/upload",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "documents",
+                "upload"
+              ]
+            },
+            "description": "Direct document upload (multipart/form-data)"
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/documents/presigned-upload - Get Presigned Upload URL",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{driver_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_type_id\": \"uuid-here\",\n  \"file_name\": \"license_front.jpg\",\n  \"content_type\": \"image/jpeg\",\n  \"file_size\": 2048576\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/documents/presigned-upload",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "documents",
+                "presigned-upload"
+              ]
+            },
+            "description": "Get presigned S3 URL for direct upload (recommended method)"
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/documents/upload-complete - Complete Direct Upload",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{driver_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_id\": \"uuid-here\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/documents/upload-complete",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "documents",
+                "upload-complete"
+              ]
+            },
+            "description": "Notify backend that S3 upload is complete"
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/documents/:id - Get Document Details",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{driver_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/documents/:id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "documents",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Document ID"
+                }
+              ]
+            },
+            "description": "Get specific document details and status"
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/documents/:id/back - Upload Document Back Side",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{driver_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "Back side of document"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/documents/:id/back",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "documents",
+                ":id",
+                "back"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Document ID"
+                }
+              ]
+            },
+            "description": "Upload back side of document (e.g., driver's license back)"
+          },
+          "response": []
+        },
+        {
+          "name": "Admin - Documents",
+          "item": [
+            {
+              "name": "GET /api/v1/admin/documents/pending - Get Pending Reviews",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{admin_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{admin_base_url}}/api/v1/admin/documents/pending?limit=20&offset=0",
+                  "host": [
+                    "{{admin_base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "documents",
+                    "pending"
+                  ],
+                  "query": [
+                    {
+                      "key": "limit",
+                      "value": "20",
+                      "description": "Number of records to return"
+                    },
+                    {
+                      "key": "offset",
+                      "value": "0",
+                      "description": "Number of records to skip"
+                    }
+                  ]
+                },
+                "description": "Get documents pending review"
+              },
+              "response": []
+            },
+            {
+              "name": "GET /api/v1/admin/documents/expiring - Get Expiring Documents",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{admin_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{admin_base_url}}/api/v1/admin/documents/expiring?days=30&limit=20&offset=0",
+                  "host": [
+                    "{{admin_base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "documents",
+                    "expiring"
+                  ],
+                  "query": [
+                    {
+                      "key": "days",
+                      "value": "30",
+                      "description": "Number of days before expiry"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20",
+                      "description": "Number of records to return"
+                    },
+                    {
+                      "key": "offset",
+                      "value": "0",
+                      "description": "Number of records to skip"
+                    }
+                  ]
+                },
+                "description": "Get documents expiring within specified days"
+              },
+              "response": []
+            },
+            {
+              "name": "POST /api/v1/admin/documents/:id/start-review - Start Document Review",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{admin_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{admin_base_url}}/api/v1/admin/documents/:id/start-review",
+                  "host": [
+                    "{{admin_base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "documents",
+                    ":id",
+                    "start-review"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "",
+                      "description": "Document ID"
+                    }
+                  ]
+                },
+                "description": "Assign document to admin for review"
+              },
+              "response": []
+            },
+            {
+              "name": "POST /api/v1/admin/documents/:id/review - Review Document",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{admin_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"approved\",\n  \"notes\": \"Document verified successfully\",\n  \"expiry_date\": \"2025-12-31T00:00:00Z\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{admin_base_url}}/api/v1/admin/documents/:id/review",
+                  "host": [
+                    "{{admin_base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "documents",
+                    ":id",
+                    "review"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "",
+                      "description": "Document ID"
+                    }
+                  ]
+                },
+                "description": "Approve or reject document (status: approved/rejected)"
+              },
+              "response": []
+            },
+            {
+              "name": "GET /api/v1/admin/documents/drivers/:driver_id - Get Driver Documents",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{admin_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{admin_base_url}}/api/v1/admin/documents/drivers/:driver_id",
+                  "host": [
+                    "{{admin_base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "documents",
+                    "drivers",
+                    ":driver_id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "driver_id",
+                      "value": "",
+                      "description": "Driver ID"
+                    }
+                  ]
+                },
+                "description": "Get all documents for a specific driver"
+              },
+              "response": []
+            },
+            {
+              "name": "GET /api/v1/admin/documents/drivers/:driver_id/verification-status - Get Driver Verification Status",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{admin_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{admin_base_url}}/api/v1/admin/documents/drivers/:driver_id/verification-status",
+                  "host": [
+                    "{{admin_base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "documents",
+                    "drivers",
+                    ":driver_id",
+                    "verification-status"
+                  ],
+                  "variable": [
+                    {
+                      "key": "driver_id",
+                      "value": "",
+                      "description": "Driver ID"
+                    }
+                  ]
+                },
+                "description": "Get verification status for a specific driver"
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
     }
   ],
   "variable": [
@@ -19299,6 +19898,14 @@
     },
     {
       "key": "rideTypeId",
+      "value": ""
+    },
+    {
+      "key": "driver_token",
+      "value": ""
+    },
+    {
+      "key": "admin_token",
       "value": ""
     }
   ]
