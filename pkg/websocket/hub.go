@@ -79,9 +79,16 @@ func (h *Hub) registerClient(client *Client) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	// Remove existing client with same ID
+	// Remove existing client with same ID (e.g., reconnection)
 	if existingClient, ok := h.clients[client.ID]; ok {
-		close(existingClient.Send)
+		// Safely close the old client's channel
+		existingClient.mu.Lock()
+		existingClient.closed = true
+		existingClient.mu.Unlock()
+		existingClient.closeOnce.Do(func() {
+			close(existingClient.Send)
+		})
+		logger.Info("Replaced existing client connection", zap.String("client_id", client.ID))
 	}
 
 	h.clients[client.ID] = client
