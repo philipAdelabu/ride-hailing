@@ -21,6 +21,7 @@ import (
 	"github.com/richxcame/ride-hailing/internal/delivery"
 	"github.com/richxcame/ride-hailing/internal/demandforecast"
 	"github.com/richxcame/ride-hailing/internal/disputes"
+	"github.com/richxcame/ride-hailing/internal/documents"
 	"github.com/richxcame/ride-hailing/internal/earnings"
 	"github.com/richxcame/ride-hailing/internal/experiments"
 	"github.com/richxcame/ride-hailing/internal/family"
@@ -238,6 +239,7 @@ func main() {
 	negotiationRepo := negotiation.NewRepository(db)
 	safetyRepo := safety.NewRepository(db)
 	rideTypesRepo := ridetypes.NewRepository(db)
+	documentsRepo := documents.NewRepository(db)
 
 	// Initialize services
 	ridesService := rides.NewService(ridesRepo, promosServiceURL, nil) // CircuitBreaker is nil-safe
@@ -278,6 +280,11 @@ func main() {
 	safetyService := safety.NewService(safetyRepo, safety.Config{
 		EmergencyNumber: getEnv("EMERGENCY_NUMBER", "112"),
 	})
+	documentsService := documents.NewService(documentsRepo, &stubStorage{}, documents.ServiceConfig{
+		MaxFileSizeMB:    10,
+		AllowedMimeTypes: []string{"image/jpeg", "image/png", "application/pdf"},
+		OCREnabled:       false,
+	})
 
 	// Initialize handlers
 	ridesHandler := rides.NewHandler(ridesService)
@@ -315,6 +322,7 @@ func main() {
 	negotiationHandler := negotiation.NewHandler(negotiationService)
 	rideTypesHandler := ridetypes.NewHandler(rideTypesService)
 	safetyHandler := safety.NewHandler(safetyService)
+	documentsHandler := documents.NewHandler(documentsService, &stubDriverService{})
 
 	// Set up Gin router
 	router := gin.New()
@@ -439,6 +447,7 @@ func main() {
 	negotiationHandler.RegisterRoutes(apiGroup)
 	rideTypesHandler.RegisterRoutes(apiGroup)
 	safetyHandler.RegisterRoutes(apiGroup)
+	documentsHandler.RegisterRoutesOnGroup(apiGroup)
 
 	// Create HTTP server with timeouts
 	srv := &http.Server{

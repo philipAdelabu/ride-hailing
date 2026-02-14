@@ -11,6 +11,7 @@ import (
 	"github.com/richxcame/ride-hailing/internal/pool"
 	"github.com/richxcame/ride-hailing/internal/ridetypes"
 	"github.com/richxcame/ride-hailing/pkg/logger"
+	"github.com/richxcame/ride-hailing/pkg/models"
 	"github.com/richxcame/ride-hailing/pkg/storage"
 	"go.uber.org/zap"
 )
@@ -144,6 +145,16 @@ func (s *stubSMSSender) SendOTP(to, otp string) (string, error) {
 // ---- DemandForecast stubs (already nil-safe, but let's be explicit) ----
 // demandforecast service nil-guards both weatherSvc and driverSvc, so nil is safe.
 // No stubs needed.
+
+// ---- Documents DriverService stub ----
+
+type stubDriverService struct{}
+
+func (s *stubDriverService) GetDriverByUserID(_ context.Context, userID uuid.UUID) (*models.Driver, error) {
+	logger.Warn("stubDriverService.GetDriverByUserID called — documents handler doesn't need this for driver endpoints",
+		zap.String("user_id", userID.String()))
+	return nil, fmt.Errorf("driver service not configured for documents")
+}
 
 // ---- RideTypes Service Adapter (for pricing bulk estimates) ----
 
