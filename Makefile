@@ -36,12 +36,12 @@ help: ## Display this help screen
 setup: install-tools tidy ## Initial project setup
 	@echo "$(GREEN)✓ Project setup complete!$(NC)"
 	@echo "Next steps:"
-	@echo "  1. Run 'make dev-infra' to start dependencies (Postgres + Redis only)"
+	@echo "  1. Run 'make dev-infra' to start dependencies (Postgres + Redis + NATS)"
 	@echo "  2. Run 'make migrate-up' to run database migrations"
 	@echo "  3. Run 'make db-seed' to seed the database"
 	@echo "  4. Run 'make run-auth' (or any service) to start developing"
 
-dev: dev-infra ## Start lightweight development environment (Postgres + Redis only)
+dev: dev-infra ## Start lightweight development environment (Postgres + Redis + NATS)
 	@echo "$(YELLOW)Waiting for PostgreSQL to be healthy...$(NC)"
 	@timeout=60; \
 	while [ $$timeout -gt 0 ]; do \
@@ -64,13 +64,14 @@ dev: dev-infra ## Start lightweight development environment (Postgres + Redis on
 	@echo "$(GREEN)✓ Development environment ready!$(NC)"
 	@echo "Run 'make run-<service>' to start a service"
 
-dev-infra: ## Start only infrastructure dependencies (Postgres + Redis)
+dev-infra: ## Start only infrastructure dependencies (Postgres + Redis + NATS)
 	@echo "Starting infrastructure dependencies..."
-	@docker-compose -f docker-compose.dev.yml up -d postgres redis
-	@echo "$(GREEN)✓ Infrastructure started (Postgres + Redis)$(NC)"
+	@docker-compose -f docker-compose.dev.yml up -d postgres redis nats
+	@echo "$(GREEN)✓ Infrastructure started (Postgres + Redis + NATS)$(NC)"
 	@echo "$(YELLOW)Services running on:$(NC)"
 	@echo "  - PostgreSQL: localhost:5432"
 	@echo "  - Redis: localhost:6379"
+	@echo "  - NATS: localhost:4222 (monitoring: http://localhost:8222)"
 
 dev-infra-full: ## Start infrastructure + observability (Postgres + Redis + Prometheus + Grafana + Tempo)
 	@echo "Starting infrastructure + observability..."

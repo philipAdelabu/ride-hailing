@@ -41,6 +41,24 @@ services:
     networks:
       - ridehailing-dev
 
+  # NATS Message Broker (required for ride matching)
+  nats:
+    image: nats:2-alpine
+    container_name: ridehailing-nats-dev
+    ports:
+      - "4222:4222"
+      - "8222:8222" # HTTP monitoring
+    command: ["--jetstream", "--store_dir=/data", "-m", "8222"]
+    volumes:
+      - nats_dev_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ridehailing-dev
+
   # Optional: Kong Database (PostgreSQL)
   kong-database:
     image: postgres:15-alpine
@@ -365,6 +383,7 @@ services:
 volumes:
   postgres_dev_data:
   redis_dev_data:
+  nats_dev_data:
   kong_dev_data:
   prometheus_dev_data:
   grafana_dev_data:
