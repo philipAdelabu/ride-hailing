@@ -545,7 +545,7 @@ func TestGetDriverLocation_Success(t *testing.T) {
 	driverID := "driver-123"
 	locationData := `{"latitude":37.7749,"longitude":-122.4194,"timestamp":1234567890}`
 
-	redisMock.ExpectGet("driver:location:" + driverID).SetVal(locationData)
+	redisMock.ExpectGet("driver:ws_location:" + driverID).SetVal(locationData)
 
 	c, w := setupTestContext("GET", "/api/v1/drivers/"+driverID+"/location", nil)
 	c.Params = gin.Params{{Key: "driver_id", Value: driverID}}
@@ -576,7 +576,7 @@ func TestGetDriverLocation_NotFound(t *testing.T) {
 
 	driverID := "driver-nonexistent"
 
-	redisMock.ExpectGet("driver:location:" + driverID).RedisNil()
+	redisMock.ExpectGet("driver:ws_location:" + driverID).RedisNil()
 
 	c, w := setupTestContext("GET", "/api/v1/drivers/"+driverID+"/location", nil)
 	c.Params = gin.Params{{Key: "driver_id", Value: driverID}}
@@ -594,7 +594,7 @@ func TestGetDriverLocation_RedisError(t *testing.T) {
 
 	driverID := "driver-123"
 
-	redisMock.ExpectGet("driver:location:" + driverID).SetErr(context.DeadlineExceeded)
+	redisMock.ExpectGet("driver:ws_location:" + driverID).SetErr(context.DeadlineExceeded)
 
 	c, w := setupTestContext("GET", "/api/v1/drivers/"+driverID+"/location", nil)
 	c.Params = gin.Params{{Key: "driver_id", Value: driverID}}

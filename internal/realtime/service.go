@@ -60,11 +60,13 @@ func (s *Service) handleLocationUpdate(client *ws.Client, msg *ws.Message) {
 		return
 	}
 
-	// Update location in Redis
+	// Cache latest location for real-time broadcasting (separate from geo index).
+	// Uses "driver:ws_location:" prefix to avoid overwriting the geo service's
+	// "driver:location:" key which uses a different JSON format (DriverLocation struct).
 	ctx := context.Background()
-	key := "driver:location:" + client.ID
+	key := "driver:ws_location:" + client.ID
 	locationData := map[string]interface{}{
-		"latitude": latitude,
+		"latitude":  latitude,
 		"longitude": longitude,
 		"timestamp": time.Now().Unix(),
 		"heading":   msg.Data["heading"],
@@ -89,7 +91,7 @@ func (s *Service) handleLocationUpdate(client *ws.Client, msg *ws.Message) {
 					UserID:    client.ID,
 					Timestamp: time.Now(),
 					Data: map[string]interface{}{
-						"latitude": latitude,
+						"latitude":  latitude,
 						"longitude": longitude,
 						"heading":   msg.Data["heading"],
 						"speed":     msg.Data["speed"],
@@ -102,9 +104,8 @@ func (s *Service) handleLocationUpdate(client *ws.Client, msg *ws.Message) {
 
 // handleRideStatus handles ride status updates
 func (s *Service) handleRideStatus(client *ws.Client, msg *ws.Message) {
-	rideID, ok := msg.Data["ride_id"].(string)
-	if !ok {
-		s.logger.Warn("invalid ride_id in status update")
+	if msg.RideID == "" {
+		s.logger.Warn("missing ride_id in status update")
 		return
 	}
 
@@ -115,9 +116,9 @@ func (s *Service) handleRideStatus(client *ws.Client, msg *ws.Message) {
 	}
 
 	// Broadcast status update to all clients in the ride
-	s.hub.SendToRide(rideID, &ws.Message{
+	s.hub.SendToRide(msg.RideID, &ws.Message{
 		Type:      "ride_status_update",
-		RideID:    rideID,
+		RideID:    msg.RideID,
 		UserID:    client.ID,
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
@@ -212,9 +213,8 @@ func (s *Service) handleTyping(client *ws.Client, msg *ws.Message) {
 
 // handleJoinRide handles client joining a ride room
 func (s *Service) handleJoinRide(client *ws.Client, msg *ws.Message) {
-	rideID, ok := msg.Data["ride_id"].(string)
-	if !ok || rideID == "" {
-		s.logger.Warn("invalid ride_id in join_ride request")
+	if msg.RideID == "" {
+		s.logger.Warn("missing ride_id in join_ride request")
 		return
 	}
 
@@ -224,9 +224,9 @@ func (s *Service) handleJoinRide(client *ws.Client, msg *ws.Message) {
 		SELECT COUNT(*) FROM rides
 		WHERE id = $1 AND (rider_id = $2 OR driver_id = $2)
 	`
-	err := s.db.QueryRow(query, rideID, client.ID).Scan(&count)
+	err := s.db.QueryRow(query, msg.RideID, client.ID).Scan(&count)
 	if err != nil || count == 0 {
-		s.logger.Warn("client not authorized for ride", zap.String("client_id", client.ID), zap.String("ride_id", rideID))
+		s.logger.Warn("client not authorized for ride", zap.String("client_id", client.ID), zap.String("ride_id", msg.RideID))
 		client.SendMessage(&ws.Message{
 			Type:      "error",
 			Timestamp: time.Now(),
@@ -238,25 +238,22 @@ func (s *Service) handleJoinRide(client *ws.Client, msg *ws.Message) {
 	}
 
 	// Add client to ride room
-	s.hub.AddClientToRide(client.ID, rideID)
+	s.hub.AddClientToRide(client.ID, msg.RideID)
 
 	// Send confirmation
 	client.SendMessage(&ws.Message{
 		Type:      "joined_ride",
-		RideID:    rideID,
+		RideID:    msg.RideID,
 		Timestamp: time.Now(),
-		Data: map[string]interface{}{
-			"ride_id": rideID,
-		},
 	})
 
 	// Notify other clients in the ride
-	clients := s.hub.GetClientsInRide(rideID)
+	clients := s.hub.GetClientsInRide(msg.RideID)
 	for _, c := range clients {
 		if c.ID != client.ID {
 			c.SendMessage(&ws.Message{
 				Type:      "user_joined",
-				RideID:    rideID,
+				RideID:    msg.RideID,
 				UserID:    client.ID,
 				Timestamp: time.Now(),
 				Data: map[string]interface{}{

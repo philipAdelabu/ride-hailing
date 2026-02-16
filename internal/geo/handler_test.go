@@ -151,6 +151,9 @@ func TestHandler_UpdateLocation_Success(t *testing.T) {
 		return len(key) > len(h3CellDriversPrefix) && key[:len(h3CellDriversPrefix)] == h3CellDriversPrefix
 	}), mock.AnythingOfType("[]uint8"), h3CellDriversTTL).Return(nil)
 
+	// Expire is called to refresh the driver status TTL
+	mockRedis.On("Expire", mock.Anything, "driver:status:"+driverID.String(), driverLocationTTL).Return(nil)
+
 	reqBody := map[string]interface{}{
 		"latitude":  37.7749,
 		"longitude": -122.4194,
@@ -279,6 +282,7 @@ func TestHandler_UpdateLocation_WithHeadingAndSpeed(t *testing.T) {
 	mockRedis.On("SetWithExpiration", mock.Anything, mock.Anything, mock.AnythingOfType("[]uint8"), mock.Anything).Return(nil)
 	mockRedis.On("GeoAdd", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	mockRedis.On("GetString", mock.Anything, mock.Anything).Return("", errors.New("not found"))
+	mockRedis.On("Expire", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	reqBody := map[string]interface{}{
 		"latitude":  37.7749,
@@ -308,6 +312,7 @@ func TestHandler_UpdateLocation_ZeroHeadingAndSpeed(t *testing.T) {
 	mockRedis.On("SetWithExpiration", mock.Anything, mock.Anything, mock.AnythingOfType("[]uint8"), mock.Anything).Return(nil)
 	mockRedis.On("GeoAdd", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	mockRedis.On("GetString", mock.Anything, mock.Anything).Return("", errors.New("not found"))
+	mockRedis.On("Expire", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	reqBody := map[string]interface{}{
 		"latitude":  37.7749,
@@ -1630,6 +1635,7 @@ func TestHandler_UpdateLocation_ExtremeCoordinates(t *testing.T) {
 			mockRedis.On("SetWithExpiration", mock.Anything, mock.Anything, mock.AnythingOfType("[]uint8"), mock.Anything).Return(nil)
 			mockRedis.On("GeoAdd", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 			mockRedis.On("GetString", mock.Anything, mock.Anything).Return("", errors.New("not found"))
+			mockRedis.On("Expire", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 			reqBody := map[string]interface{}{
 				"latitude":  tt.latitude,

@@ -136,6 +136,12 @@ func (s *Service) UpdateDriverLocationFull(ctx context.Context, driverID uuid.UU
 
 	s.updateDriverH3Cell(ctx, driverID, h3Cell)
 
+	// Refresh status TTL so the driver stays visible in FindAvailableDrivers
+	// as long as location updates keep coming. No need to read the value —
+	// if the driver went offline, the key was already deleted by SetDriverStatus.
+	statusKey := fmt.Sprintf("%s%s", driverStatusPrefix, driverID.String())
+	_ = s.redis.Expire(ctx, statusKey, driverLocationTTL)
+
 	return nil
 }
 
@@ -168,12 +174,12 @@ func (s *Service) GetDriverLocation(ctx context.Context, driverID uuid.UUID) (*D
 		return nil, common.NewNotFoundError("driver location not found", nil)
 	}
 
-	var location DriverLocation
-	if err := json.Unmarshal([]byte(data), &location); err != nil {
+	location, err := parseDriverLocation([]byte(data))
+	if err != nil {
 		return nil, common.NewInternalServerError("failed to unmarshal location data")
 	}
 
-	return &location, nil
+	return location, nil
 }
 
 // FindNearbyDrivers finds drivers near a given location using Redis GEO,
@@ -220,8 +226,8 @@ func (s *Service) FindNearbyDrivers(ctx context.Context, latitude, longitude flo
 			continue
 		}
 
-		var location DriverLocation
-		if err := json.Unmarshal([]byte(data), &location); err != nil {
+		location, err := parseDriverLocation([]byte(data))
+		if err != nil {
 			continue
 		}
 
@@ -232,7 +238,7 @@ func (s *Service) FindNearbyDrivers(ctx context.Context, latitude, longitude flo
 
 		distance := s.CalculateDistance(latitude, longitude, location.Latitude, location.Longitude)
 		if distance <= searchRadiusKm {
-			drivers = append(drivers, driverWithDistance{location: &location, distance: distance})
+			drivers = append(drivers, driverWithDistance{location: location, distance: distance})
 		}
 	}
 
@@ -511,6 +517,60 @@ func (s *Service) CalculateETA(distance float64) int {
 	const averageSpeed = 40.0 // km/h in city traffic
 	eta := (distance / averageSpeed) * 60
 	return int(math.Round(eta))
+}
+
+// parseDriverLocation parses driver location JSON that may have been written
+// by different services. The geo service writes time.Time (RFC3339 string) for
+// the timestamp field, while the realtime service writes a Unix integer.
+// Standard json.Unmarshal into DriverLocation fails on the Unix integer format,
+// so this function handles both cases.
+func parseDriverLocation(data []byte) (*DriverLocation, error) {
+	// Try standard unmarshal first (geo service format with RFC3339 timestamp)
+	var location DriverLocation
+	if err := json.Unmarshal(data, &location); err == nil {
+		return &location, nil
+	}
+
+	// Fallback: parse into raw map to handle Unix int timestamp
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	if v, ok := raw["latitude"]; ok {
+		json.Unmarshal(v, &location.Latitude)
+	}
+	if v, ok := raw["longitude"]; ok {
+		json.Unmarshal(v, &location.Longitude)
+	}
+	if v, ok := raw["heading"]; ok {
+		json.Unmarshal(v, &location.Heading)
+	}
+	if v, ok := raw["speed"]; ok {
+		json.Unmarshal(v, &location.Speed)
+	}
+	if v, ok := raw["driver_id"]; ok {
+		json.Unmarshal(v, &location.DriverID)
+	}
+	if v, ok := raw["h3_cell"]; ok {
+		json.Unmarshal(v, &location.H3Cell)
+	}
+	if v, ok := raw["status"]; ok {
+		json.Unmarshal(v, &location.Status)
+	}
+	if v, ok := raw["timestamp"]; ok {
+		// Try as Unix integer
+		var unix int64
+		if json.Unmarshal(v, &unix) == nil {
+			location.Timestamp = time.Unix(unix, 0)
+		}
+	}
+
+	if location.Latitude == 0 && location.Longitude == 0 {
+		return nil, fmt.Errorf("location missing coordinates")
+	}
+
+	return &location, nil
 }
 
 // calculateSurgeMultiplier computes surge based on demand/supply ratio.

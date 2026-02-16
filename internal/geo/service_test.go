@@ -37,6 +37,9 @@ func TestService_UpdateDriverLocation_Success(t *testing.T) {
 		return len(key) > len(h3CellDriversPrefix) && key[:len(h3CellDriversPrefix)] == h3CellDriversPrefix
 	}), mock.AnythingOfType("[]uint8"), h3CellDriversTTL).Return(nil)
 
+	// Expire is called to refresh the driver status TTL
+	mockRedis.On("Expire", ctx, "driver:status:"+driverID.String(), driverLocationTTL).Return(nil)
+
 	// Act
 	err := service.UpdateDriverLocation(ctx, driverID, latitude, longitude)
 

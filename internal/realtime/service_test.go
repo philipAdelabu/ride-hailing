@@ -148,7 +148,7 @@ func TestHandleLocationUpdate(t *testing.T) {
 
 			// Set expectations - skip checking since actual implementation adds timestamp
 			if tt.expectRedis {
-				redisMock.Regexp().ExpectSet("driver:location:"+tt.client.ID, `.*`, 5*time.Minute).SetVal("OK")
+				redisMock.Regexp().ExpectSet("driver:ws_location:"+tt.client.ID, `.*`, 5*time.Minute).SetVal("OK")
 			}
 
 			// Execute
@@ -193,7 +193,7 @@ func TestHandleLocationUpdateWithRide(t *testing.T) {
 	hub.AddClientToRide(rider.ID, rideID)
 
 	// Expect Redis set (use regex to match any JSON value since timestamp is added)
-	redisMock.Regexp().ExpectSet("driver:location:driver-123", `.*`, 5*time.Minute).SetVal("OK")
+	redisMock.Regexp().ExpectSet("driver:ws_location:driver-123", `.*`, 5*time.Minute).SetVal("OK")
 
 	// Send location update
 	msg := &ws.Message{
@@ -786,7 +786,7 @@ func TestConcurrentClientOperations(t *testing.T) {
 	// Expect multiple Redis operations (use regex to match any value)
 	redisMock.MatchExpectationsInOrder(false)
 	for i := 0; i < 10; i++ {
-		redisMock.Regexp().ExpectSet("driver:location:driver-"+string(rune(i)), `.*`, 5*time.Minute).SetVal("OK")
+		redisMock.Regexp().ExpectSet("driver:ws_location:driver-"+string(rune(i)), `.*`, 5*time.Minute).SetVal("OK")
 	}
 
 	// Create multiple clients concurrently

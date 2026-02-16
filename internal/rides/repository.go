@@ -310,6 +310,15 @@ func (r *Repository) GetRidesByRider(ctx context.Context, riderID uuid.UUID, lim
 			&ride.ScheduledAt,
 			&ride.IsScheduled,
 			&ride.ScheduledNotificationSent,
+			&ride.CountryID,
+			&ride.RegionID,
+			&ride.CityID,
+			&ride.PickupZoneID,
+			&ride.DropoffZoneID,
+			&ride.CurrencyCode,
+			&ride.PricingVersionID,
+			&ride.WasNegotiated,
+			&ride.NegotiationSessionID,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan ride: %w", err)
@@ -381,6 +390,15 @@ func (r *Repository) GetRidesByDriver(ctx context.Context, driverID uuid.UUID, l
 			&ride.ScheduledAt,
 			&ride.IsScheduled,
 			&ride.ScheduledNotificationSent,
+			&ride.CountryID,
+			&ride.RegionID,
+			&ride.CityID,
+			&ride.PickupZoneID,
+			&ride.DropoffZoneID,
+			&ride.CurrencyCode,
+			&ride.PricingVersionID,
+			&ride.WasNegotiated,
+			&ride.NegotiationSessionID,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan ride: %w", err)
@@ -489,6 +507,15 @@ func (r *Repository) GetPendingRides(ctx context.Context) ([]*models.Ride, error
 			&ride.ScheduledAt,
 			&ride.IsScheduled,
 			&ride.ScheduledNotificationSent,
+			&ride.CountryID,
+			&ride.RegionID,
+			&ride.CityID,
+			&ride.PickupZoneID,
+			&ride.DropoffZoneID,
+			&ride.CurrencyCode,
+			&ride.PricingVersionID,
+			&ride.WasNegotiated,
+			&ride.NegotiationSessionID,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan ride: %w", err)
@@ -605,6 +632,15 @@ func (r *Repository) GetRidesByRiderWithFilters(ctx context.Context, riderID uui
 			&ride.ScheduledAt,
 			&ride.IsScheduled,
 			&ride.ScheduledNotificationSent,
+			&ride.CountryID,
+			&ride.RegionID,
+			&ride.CityID,
+			&ride.PickupZoneID,
+			&ride.DropoffZoneID,
+			&ride.CurrencyCode,
+			&ride.PricingVersionID,
+			&ride.WasNegotiated,
+			&ride.NegotiationSessionID,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan ride: %w", err)

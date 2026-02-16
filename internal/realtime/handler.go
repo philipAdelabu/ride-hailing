@@ -188,7 +188,7 @@ func (h *Handler) GetDriverLocation(c *gin.Context) {
 	}
 
 	ctx := context.Background()
-	key := "driver:location:" + driverID
+	key := "driver:ws_location:" + driverID
 	location, err := h.service.redis.Get(ctx, key).Result()
 	if err != nil {
 		common.ErrorResponse(c, http.StatusNotFound, "Driver location not found")

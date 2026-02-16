@@ -98,40 +98,40 @@ func (s *PoolMatchingTestSuite) TestPool_MultipleRidersRequestSimilarRoutes() {
 
 	// Multiple riders request rides going in similar directions (SF to Oakland area)
 	rideRequests := []struct {
-		rider         authSession
-		pickupLatitude     float64
-		pickupLongitude     float64
-		pickupAddr    string
-		dropoffLatitude    float64
-		dropoffLongitude    float64
-		dropoffAddr   string
+		rider            authSession
+		pickupLatitude   float64
+		pickupLongitude  float64
+		pickupAddr       string
+		dropoffLatitude  float64
+		dropoffLongitude float64
+		dropoffAddr      string
 	}{
 		{
-			rider:       s.riders[0],
+			rider:            s.riders[0],
 			pickupLatitude:   37.7749,
-			pickupLongitude:   -122.4194,
-			pickupAddr:  "100 Market St, SF",
+			pickupLongitude:  -122.4194,
+			pickupAddr:       "100 Market St, SF",
 			dropoffLatitude:  37.8044,
-			dropoffLongitude:  -122.2712,
-			dropoffAddr: "100 Broadway, Oakland",
+			dropoffLongitude: -122.2712,
+			dropoffAddr:      "100 Broadway, Oakland",
 		},
 		{
-			rider:       s.riders[1],
+			rider:            s.riders[1],
 			pickupLatitude:   37.7755,
-			pickupLongitude:   -122.4180, // Nearby pickup
-			pickupAddr:  "150 Market St, SF",
+			pickupLongitude:  -122.4180, // Nearby pickup
+			pickupAddr:       "150 Market St, SF",
 			dropoffLatitude:  37.8040,
-			dropoffLongitude:  -122.2720, // Nearby dropoff
-			dropoffAddr: "150 Broadway, Oakland",
+			dropoffLongitude: -122.2720, // Nearby dropoff
+			dropoffAddr:      "150 Broadway, Oakland",
 		},
 		{
-			rider:       s.riders[2],
+			rider:            s.riders[2],
 			pickupLatitude:   37.7760,
-			pickupLongitude:   -122.4170, // Nearby pickup
-			pickupAddr:  "200 Market St, SF",
+			pickupLongitude:  -122.4170, // Nearby pickup
+			pickupAddr:       "200 Market St, SF",
 			dropoffLatitude:  37.8050,
-			dropoffLongitude:  -122.2700, // Nearby dropoff
-			dropoffAddr: "200 Broadway, Oakland",
+			dropoffLongitude: -122.2700, // Nearby dropoff
+			dropoffAddr:      "200 Broadway, Oakland",
 		},
 	}
 
@@ -189,10 +189,10 @@ func (s *PoolMatchingTestSuite) TestPool_MatchRidersGoingSimilarDirection() {
 	ride1ID := ride1Resp.Data.ID
 
 	ride2Req := &models.RideRequest{
-		PickupLatitude:   37.7752,   // Very close to ride1 pickup
+		PickupLatitude:   37.7752, // Very close to ride1 pickup
 		PickupLongitude:  -122.4190,
 		PickupAddress:    "Near Market St, SF",
-		DropoffLatitude:  37.8040,   // Very close to ride1 dropoff
+		DropoffLatitude:  37.8040, // Very close to ride1 dropoff
 		DropoffLongitude: -122.2715,
 		DropoffAddress:   "Near Broadway, Oakland",
 		RideTypeID:       &poolRideTypeID,
@@ -292,37 +292,37 @@ func (s *PoolMatchingTestSuite) TestPool_MatchWithinRadius() {
 	poolRideTypeID := s.createPoolRideType(t, ctx)
 
 	// Base location: SF Downtown
-	baseLatitudeitude := 37.7749
-	baseLongitudegitude := -122.4194
+	baseLatitude := 37.7749
+	baseLongitude := -122.4194
 
 	// Create rides at various distances from base
 	testCases := []struct {
-		name         string
-		pickupLatitude    float64
-		pickupLongitude    float64
-		shouldMatch  bool
-		description  string
+		name            string
+		pickupLatitude  float64
+		pickupLongitude float64
+		shouldMatch     bool
+		description     string
 	}{
 		{
-			name:        "within_500m",
-			pickupLatitude:   37.7754,   // ~500m away
-			pickupLongitude:   -122.4189,
-			shouldMatch: true,
-			description: "Pickup within 500m should be matchable",
+			name:            "within_500m",
+			pickupLatitude:  37.7754, // ~500m away
+			pickupLongitude: -122.4189,
+			shouldMatch:     true,
+			description:     "Pickup within 500m should be matchable",
 		},
 		{
-			name:        "within_1km",
-			pickupLatitude:   37.7780,   // ~1km away
-			pickupLongitude:   -122.4150,
-			shouldMatch: true,
-			description: "Pickup within 1km should be matchable",
+			name:            "within_1km",
+			pickupLatitude:  37.7780, // ~1km away
+			pickupLongitude: -122.4150,
+			shouldMatch:     true,
+			description:     "Pickup within 1km should be matchable",
 		},
 		{
-			name:        "far_away",
-			pickupLatitude:   37.8500,   // ~10km away
-			pickupLongitude:   -122.2500,
-			shouldMatch: false,
-			description: "Pickup 10km+ away should not match",
+			name:            "far_away",
+			pickupLatitude:  37.8500, // ~10km away
+			pickupLongitude: -122.2500,
+			shouldMatch:     false,
+			description:     "Pickup 10km+ away should not match",
 		},
 	}
 
@@ -883,40 +883,40 @@ func (s *PoolMatchingTestSuite) TestPool_PoolRideWithMultipleStops() {
 	// Dropoff order: Rider 2 -> Rider 1 -> Rider 3
 
 	rideConfigs := []struct {
-		rider       authSession
+		rider            authSession
 		pickupLatitude   float64
-		pickupLongitude   float64
+		pickupLongitude  float64
 		dropoffLatitude  float64
-		dropoffLongitude  float64
-		pickupAddr  string
-		dropoffAddr string
+		dropoffLongitude float64
+		pickupAddr       string
+		dropoffAddr      string
 	}{
 		{
-			rider:       s.riders[0],
+			rider:            s.riders[0],
 			pickupLatitude:   37.7749,
-			pickupLongitude:   -122.4194,
+			pickupLongitude:  -122.4194,
 			dropoffLatitude:  37.8044,
-			dropoffLongitude:  -122.2712,
-			pickupAddr:  "Stop A - Pickup Rider 1",
-			dropoffAddr: "Stop D - Dropoff Rider 1",
+			dropoffLongitude: -122.2712,
+			pickupAddr:       "Stop A - Pickup Rider 1",
+			dropoffAddr:      "Stop D - Dropoff Rider 1",
 		},
 		{
-			rider:       s.riders[1],
+			rider:            s.riders[1],
 			pickupLatitude:   37.7770,
-			pickupLongitude:   -122.4100,
+			pickupLongitude:  -122.4100,
 			dropoffLatitude:  37.7950,
-			dropoffLongitude:  -122.3000,
-			pickupAddr:  "Stop B - Pickup Rider 2",
-			dropoffAddr: "Stop C - Dropoff Rider 2",
+			dropoffLongitude: -122.3000,
+			pickupAddr:       "Stop B - Pickup Rider 2",
+			dropoffAddr:      "Stop C - Dropoff Rider 2",
 		},
 		{
-			rider:       s.riders[2],
+			rider:            s.riders[2],
 			pickupLatitude:   37.7790,
-			pickupLongitude:   -122.4000,
+			pickupLongitude:  -122.4000,
 			dropoffLatitude:  37.8100,
-			dropoffLongitude:  -122.2600,
-			pickupAddr:  "Stop C - Pickup Rider 3",
-			dropoffAddr: "Stop E - Dropoff Rider 3",
+			dropoffLongitude: -122.2600,
+			pickupAddr:       "Stop C - Pickup Rider 3",
+			dropoffAddr:      "Stop E - Dropoff Rider 3",
 		},
 	}
 
