@@ -3422,7 +3422,7 @@
                 "header": [
                   {
                     "key": "Authorization",
-                    "value": "Bearer {{auth_token}}"
+                    "value": "Bearer {{driver_token}}"
                   },
                   {
                     "key": "Content-Type",
@@ -3441,6 +3441,71 @@
                     "location"
                   ],
                   "raw": "{{geo_base_url}}/api/v1/geo/location"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Driver Status",
+              "request": {
+                "body": {
+                  "mode": "raw",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  },
+                  "raw": "{\n  \"status\": \"available\"\n}"
+                },
+                "description": "Update driver availability status (available/busy/offline)",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{geo_base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "driver",
+                    "status"
+                  ],
+                  "raw": "{{geo_base_url}}/api/v1/driver/status"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Driver Status",
+              "request": {
+                "description": "Get driver's current availability status",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{driver_token}}"
+                  }
+                ],
+                "method": "GET",
+                "url": {
+                  "host": [
+                    "{{geo_base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "driver",
+                    "status"
+                  ],
+                  "raw": "{{geo_base_url}}/api/v1/driver/status"
                 }
               },
               "response": []

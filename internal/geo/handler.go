@@ -3,6 +3,7 @@ package geo
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -442,7 +443,7 @@ func (h *Handler) UpdateDriverStatus(c *gin.Context) {
 	// Build response
 	response := gin.H{
 		"status":     req.Status,
-		"updated_at": c.GetTime("request_time"),
+		"updated_at": time.Now(),
 	}
 
 	// Include session summary if going offline
