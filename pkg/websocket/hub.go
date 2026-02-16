@@ -100,8 +100,10 @@ func (h *Hub) unregisterClient(client *Client) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	if _, ok := h.clients[client.ID]; ok {
-		// Remove from clients map
+	existingClient, ok := h.clients[client.ID]
+	if ok && existingClient == client {
+		// Remove from clients map only if it's the same instance
+		// (a reconnected client may have already replaced this one)
 		delete(h.clients, client.ID)
 
 		// Remove from ride room if in one
@@ -123,6 +125,9 @@ func (h *Hub) unregisterClient(client *Client) {
 			close(client.Send)
 		})
 		logger.Info("Client unregistered", zap.String("client_id", client.ID))
+	} else if ok && existingClient != client {
+		// Old client trying to unregister after being replaced by a new connection
+		logger.Info("Ignoring unregister for replaced client", zap.String("client_id", client.ID))
 	}
 }
 
@@ -135,7 +140,10 @@ func (h *Hub) broadcastMessage(broadcast *BroadcastMessage) {
 	case "user":
 		// Send to specific user
 		if client, ok := h.clients[broadcast.TargetID]; ok {
+			logger.Info("Delivering message to user", zap.String("user_id", broadcast.TargetID), zap.String("type", broadcast.Message.Type))
 			client.SendMessage(broadcast.Message)
+		} else {
+			logger.Warn("User not found in hub for message delivery", zap.String("user_id", broadcast.TargetID), zap.String("type", broadcast.Message.Type), zap.Int("total_clients", len(h.clients)))
 		}
 
 	case "ride":
@@ -358,11 +366,22 @@ func (h *Hub) GetNegotiationCount() int {
 
 // CloseNegotiation closes a negotiation room and notifies all participants
 func (h *Hub) CloseNegotiation(sessionID string, reason string) {
+	// Collect clients and remove room under lock
 	h.mu.Lock()
-	defer h.mu.Unlock()
+	negotiation, ok := h.negotiations[sessionID]
+	var clients []*Client
+	if ok {
+		clients = make([]*Client, 0, len(negotiation))
+		for _, client := range negotiation {
+			clients = append(clients, client)
+		}
+		delete(h.negotiations, sessionID)
+		logger.Info("Negotiation closed", zap.String("session_id", sessionID), zap.String("reason", reason))
+	}
+	h.mu.Unlock()
 
-	if negotiation, ok := h.negotiations[sessionID]; ok {
-		// Notify all clients before removing
+	// Send messages after releasing the lock to avoid deadlock
+	if len(clients) > 0 {
 		closeMsg := &Message{
 			Type: "negotiation.closed",
 			Data: map[string]interface{}{
@@ -370,25 +389,26 @@ func (h *Hub) CloseNegotiation(sessionID string, reason string) {
 				"reason":     reason,
 			},
 		}
-
-		for _, client := range negotiation {
+		for _, client := range clients {
 			client.SendMessage(closeMsg)
 		}
-
-		// Remove the room
-		delete(h.negotiations, sessionID)
-		logger.Info("Negotiation closed", zap.String("session_id", sessionID), zap.String("reason", reason))
 	}
 }
 
 // SendToMultipleUsers sends a message to multiple users
 func (h *Hub) SendToMultipleUsers(userIDs []string, msg *Message) {
+	// Collect clients under lock
 	h.mu.RLock()
-	defer h.mu.RUnlock()
-
+	clients := make([]*Client, 0, len(userIDs))
 	for _, userID := range userIDs {
 		if client, ok := h.clients[userID]; ok {
-			client.SendMessage(msg)
+			clients = append(clients, client)
 		}
+	}
+	h.mu.RUnlock()
+
+	// Send messages after releasing the lock to avoid deadlock
+	for _, client := range clients {
+		client.SendMessage(msg)
 	}
 }
