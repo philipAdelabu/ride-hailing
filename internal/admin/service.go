@@ -351,6 +351,17 @@ func (s *Service) GetActionItems(ctx context.Context) (*ActionItems, error) {
 	return s.repo.GetActionItems(ctx)
 }
 
+// GetActivityFeed retrieves recent activity events across the system
+func (s *Service) GetActivityFeed(ctx context.Context, limit, offset int) ([]*ActivityFeedItem, int64, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	return s.repo.GetActivityFeed(ctx, limit, offset)
+}
+
 // GetAuditLogs retrieves audit logs with pagination and filters
 func (s *Service) GetAuditLogs(ctx context.Context, limit, offset int, filter *AuditLogFilter) ([]*AuditLog, int64, error) {
 	if limit <= 0 || limit > 100 {
@@ -536,4 +547,17 @@ type ExpiredDocItem struct {
 	DriverName   string    `json:"driver_name"`
 	DocumentType string    `json:"document_type"`
 	ExpiredAt    time.Time `json:"expired_at"`
+}
+
+// ActivityFeedItem represents a single event in the activity feed
+type ActivityFeedItem struct {
+	ID          uuid.UUID  `json:"id"`
+	EventType   string     `json:"event_type"`
+	Description string     `json:"description"`
+	ActorName   string     `json:"actor_name"`
+	ActorRole   string     `json:"actor_role"`
+	EntityType  string     `json:"entity_type"`
+	EntityID    *uuid.UUID `json:"entity_id,omitempty"`
+	Metadata    string     `json:"metadata,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
 }

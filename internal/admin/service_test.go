@@ -172,6 +172,14 @@ func (m *mockRepo) GetActionItems(ctx context.Context) (*ActionItems, error) {
 	return args.Get(0).(*ActionItems), args.Error(1)
 }
 
+func (m *mockRepo) GetActivityFeed(ctx context.Context, limit, offset int) ([]*ActivityFeedItem, int64, error) {
+	args := m.Called(ctx, limit, offset)
+	if args.Get(0) == nil {
+		return nil, args.Get(1).(int64), args.Error(2)
+	}
+	return args.Get(0).([]*ActivityFeedItem), args.Get(1).(int64), args.Error(2)
+}
+
 func (m *mockRepo) InsertAuditLog(ctx context.Context, adminID uuid.UUID, action, targetType string, targetID uuid.UUID, metadata map[string]interface{}) {
 	m.Called(ctx, adminID, action, targetType, targetID, metadata)
 }

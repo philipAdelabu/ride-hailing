@@ -1021,6 +1021,113 @@ func (r *Repository) GetRecentRidesWithDetails(ctx context.Context, limit, offse
 	return rides, total, nil
 }
 
+// GetActivityFeed retrieves recent activity events from rides, drivers, and users
+func (r *Repository) GetActivityFeed(ctx context.Context, limit, offset int) ([]*ActivityFeedItem, int64, error) {
+	// Count total events
+	countQuery := `
+		SELECT (
+			SELECT COUNT(*) FROM rides
+		) + (
+			SELECT COUNT(*) FROM drivers
+		) + (
+			SELECT COUNT(*) FROM users WHERE role IN ('rider', 'driver')
+		)
+	`
+	var total int64
+	if err := r.db.QueryRow(ctx, countQuery).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("failed to count activity feed: %w", err)
+	}
+
+	query := `
+		(
+			SELECT r.id,
+			       CASE r.status
+			           WHEN 'requested' THEN 'ride_requested'
+			           WHEN 'accepted' THEN 'ride_accepted'
+			           WHEN 'in_progress' THEN 'ride_started'
+			           WHEN 'completed' THEN 'ride_completed'
+			           WHEN 'cancelled' THEN 'ride_cancelled'
+			       END AS event_type,
+			       CASE r.status
+			           WHEN 'requested' THEN CONCAT(u.first_name, ' ', u.last_name, ' requested a ride from ', r.pickup_address)
+			           WHEN 'accepted' THEN CONCAT(COALESCE(du.first_name, ''), ' ', COALESCE(du.last_name, ''), ' accepted a ride')
+			           WHEN 'in_progress' THEN CONCAT('Ride to ', r.dropoff_address, ' started')
+			           WHEN 'completed' THEN CONCAT('Ride completed — $', COALESCE(r.final_fare::text, r.estimated_fare::text))
+			           WHEN 'cancelled' THEN CONCAT(u.first_name, ' ', u.last_name, ' cancelled a ride', CASE WHEN r.cancellation_reason IS NOT NULL THEN CONCAT(' — ', r.cancellation_reason) ELSE '' END)
+			       END AS description,
+			       CONCAT(u.first_name, ' ', u.last_name) AS actor_name,
+			       u.role AS actor_role,
+			       'ride' AS entity_type,
+			       r.id AS entity_id,
+			       '' AS metadata,
+			       COALESCE(
+			           CASE r.status
+			               WHEN 'completed' THEN r.completed_at
+			               WHEN 'cancelled' THEN r.cancelled_at
+			               WHEN 'accepted' THEN r.accepted_at
+			               WHEN 'in_progress' THEN r.started_at
+			               ELSE r.requested_at
+			           END, r.created_at
+			       ) AS created_at
+			FROM rides r
+			JOIN users u ON r.rider_id = u.id
+			LEFT JOIN users du ON r.driver_id = du.id
+		)
+		UNION ALL
+		(
+			SELECT d.id,
+			       'driver_registered' AS event_type,
+			       CONCAT(u.first_name, ' ', u.last_name, ' registered as a driver') AS description,
+			       CONCAT(u.first_name, ' ', u.last_name) AS actor_name,
+			       'driver' AS actor_role,
+			       'driver' AS entity_type,
+			       d.id AS entity_id,
+			       '' AS metadata,
+			       d.created_at
+			FROM drivers d
+			JOIN users u ON d.user_id = u.id
+		)
+		UNION ALL
+		(
+			SELECT u.id,
+			       'user_registered' AS event_type,
+			       CONCAT(u.first_name, ' ', u.last_name, ' signed up as a ', u.role) AS description,
+			       CONCAT(u.first_name, ' ', u.last_name) AS actor_name,
+			       u.role AS actor_role,
+			       'user' AS entity_type,
+			       u.id AS entity_id,
+			       '' AS metadata,
+			       u.created_at
+			FROM users u
+			WHERE u.role IN ('rider', 'driver')
+		)
+		ORDER BY created_at DESC
+		LIMIT $1 OFFSET $2
+	`
+
+	rows, err := r.db.Query(ctx, query, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get activity feed: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]*ActivityFeedItem, 0)
+	for rows.Next() {
+		item := &ActivityFeedItem{}
+		err := rows.Scan(
+			&item.ID, &item.EventType, &item.Description, &item.ActorName,
+			&item.ActorRole, &item.EntityType, &item.EntityID, &item.Metadata,
+			&item.CreatedAt,
+		)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to scan activity feed item: %w", err)
+		}
+		items = append(items, item)
+	}
+
+	return items, total, nil
+}
+
 // Helper functions for nullable values
 func stringValue(s *string) string {
 	if s == nil {

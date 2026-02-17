@@ -287,6 +287,7 @@ func main() {
 			dashboard.GET("/summary", handler.GetDashboardSummary)
 			dashboard.GET("/revenue-trend", handler.GetRevenueTrend)
 			dashboard.GET("/action-items", handler.GetActionItems)
+			dashboard.GET("/activity-feed", handler.GetActivityFeed)
 		}
 
 		// User management

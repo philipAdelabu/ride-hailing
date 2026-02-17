@@ -37,6 +37,7 @@ type RepositoryInterface interface {
 	GetDashboardSummary(ctx context.Context, period string) (*DashboardSummary, error)
 	GetRevenueTrend(ctx context.Context, period, groupBy string) (*RevenueTrend, error)
 	GetActionItems(ctx context.Context) (*ActionItems, error)
+	GetActivityFeed(ctx context.Context, limit, offset int) ([]*ActivityFeedItem, int64, error)
 
 	// Audit logging
 	InsertAuditLog(ctx context.Context, adminID uuid.UUID, action, targetType string, targetID uuid.UUID, metadata map[string]interface{})

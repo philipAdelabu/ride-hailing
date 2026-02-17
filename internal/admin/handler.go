@@ -423,6 +423,27 @@ func (h *Handler) GetActionItems(c *gin.Context) {
 	common.SuccessResponse(c, items)
 }
 
+// GetActivityFeed retrieves recent activity events across the system
+func (h *Handler) GetActivityFeed(c *gin.Context) {
+	params := pagination.ParseParams(c)
+	if c.Query("limit") == "" {
+		params.Limit = 20
+	}
+
+	items, total, err := h.service.GetActivityFeed(c.Request.Context(), params.Limit, params.Offset)
+	if err != nil {
+		if appErr, ok := err.(*common.AppError); ok {
+			common.AppErrorResponse(c, appErr)
+			return
+		}
+		common.ErrorResponse(c, http.StatusInternalServerError, "Failed to fetch activity feed")
+		return
+	}
+
+	meta := pagination.BuildMeta(params.Limit, params.Offset, total)
+	common.SuccessResponseWithMeta(c, items, meta)
+}
+
 // GetAuditLogs retrieves audit logs with pagination and filters
 func (h *Handler) GetAuditLogs(c *gin.Context) {
 	params := pagination.ParseParams(c)
