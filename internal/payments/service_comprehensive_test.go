@@ -418,22 +418,13 @@ func TestService_GetWalletTransactions_Success(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New()
-	walletID := uuid.New()
-	wallet := &models.Wallet{
-		ID:       walletID,
-		UserID:   userID,
-		Balance:  150.0,
-		Currency: "usd",
-		IsActive: true,
-	}
 
 	transactions := []*models.WalletTransaction{
-		{ID: uuid.New(), WalletID: walletID, Type: "credit", Amount: 100.0},
-		{ID: uuid.New(), WalletID: walletID, Type: "debit", Amount: 25.0},
+		{ID: uuid.New(), Type: "credit", Amount: 100.0},
+		{ID: uuid.New(), Type: "debit", Amount: 25.0},
 	}
 
-	mockRepo.On("GetWalletByUserID", ctx, userID).Return(wallet, nil)
-	mockRepo.On("GetWalletTransactionsWithTotal", ctx, walletID, 10, 0).Return(transactions, int64(2), nil)
+	mockRepo.On("GetWalletTransactionsWithTotal", ctx, userID, 10, 0).Return(transactions, int64(2), nil)
 
 	// Act
 	result, total, err := service.GetWalletTransactions(ctx, userID, 10, 0)
@@ -1091,14 +1082,13 @@ func TestService_GetWalletTransactions_GetWalletError(t *testing.T) {
 
 	userID := uuid.New()
 
-	mockRepo.On("GetWalletByUserID", ctx, userID).Return(nil, errors.New("wallet not found"))
+	mockRepo.On("GetWalletTransactionsWithTotal", ctx, userID, 10, 0).Return(nil, int64(0), errors.New("db error"))
 
 	txs, total, err := service.GetWalletTransactions(ctx, userID, 10, 0)
 
 	assert.Error(t, err)
 	assert.Nil(t, txs)
 	assert.Equal(t, int64(0), total)
-	assert.Contains(t, err.Error(), "wallet not found")
 	mockRepo.AssertExpectations(t)
 }
 
@@ -2115,23 +2105,19 @@ func TestService_GetWalletTransactions_Pagination(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New()
-	walletID := uuid.New()
-	wallet := &models.Wallet{ID: walletID, UserID: userID, Balance: 100.0}
 
 	// Create 5 transactions
 	allTransactions := make([]*models.WalletTransaction, 5)
 	for i := 0; i < 5; i++ {
 		allTransactions[i] = &models.WalletTransaction{
-			ID:       uuid.New(),
-			WalletID: walletID,
-			Type:     "credit",
-			Amount:   float64(10 * (i + 1)),
+			ID:     uuid.New(),
+			Type:   "credit",
+			Amount: float64(10 * (i + 1)),
 		}
 	}
 
 	// Test first page (limit 2, offset 0)
-	mockRepo.On("GetWalletByUserID", ctx, userID).Return(wallet, nil).Once()
-	mockRepo.On("GetWalletTransactionsWithTotal", ctx, walletID, 2, 0).Return(allTransactions[:2], int64(5), nil).Once()
+	mockRepo.On("GetWalletTransactionsWithTotal", ctx, userID, 2, 0).Return(allTransactions[:2], int64(5), nil).Once()
 
 	txs, total, err := service.GetWalletTransactions(ctx, userID, 2, 0)
 
@@ -2148,11 +2134,8 @@ func TestService_GetWalletTransactions_EmptyResult(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New()
-	walletID := uuid.New()
-	wallet := &models.Wallet{ID: walletID, UserID: userID, Balance: 0}
 
-	mockRepo.On("GetWalletByUserID", ctx, userID).Return(wallet, nil)
-	mockRepo.On("GetWalletTransactionsWithTotal", ctx, walletID, 10, 0).Return([]*models.WalletTransaction{}, int64(0), nil)
+	mockRepo.On("GetWalletTransactionsWithTotal", ctx, userID, 10, 0).Return([]*models.WalletTransaction{}, int64(0), nil)
 
 	txs, total, err := service.GetWalletTransactions(ctx, userID, 10, 0)
 

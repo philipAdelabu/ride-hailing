@@ -102,6 +102,11 @@ func (m *MockRepository) GetPaymentsByRideID(ctx context.Context, rideID uuid.UU
 	return args.Get(0).([]*models.Payment), args.Error(1)
 }
 
+func (m *MockRepository) RecordRideEarning(ctx context.Context, driverID, rideID uuid.UUID, grossAmount, commission, netAmount float64, description string) error {
+	args := m.Called(ctx, driverID, rideID, grossAmount, commission, netAmount, description)
+	return args.Error(0)
+}
+
 func (m *MockRepository) GetAllPayments(ctx context.Context, limit, offset int, filter *AdminPaymentFilter) ([]*models.Payment, int64, error) {
 	args := m.Called(ctx, limit, offset, filter)
 	if args.Get(0) == nil {
@@ -1117,8 +1122,7 @@ func TestHandler_GetWalletTransactions_Success(t *testing.T) {
 		createTestWalletTransaction(wallet.ID, "debit", 25.00),
 	}
 
-	mockRepo.On("GetWalletByUserID", mock.Anything, userID).Return(wallet, nil)
-	mockRepo.On("GetWalletTransactionsWithTotal", mock.Anything, wallet.ID, 20, 0).Return(transactions, int64(2), nil)
+	mockRepo.On("GetWalletTransactionsWithTotal", mock.Anything, userID, 20, 0).Return(transactions, int64(2), nil)
 
 	c, w := setupTestContext("GET", "/api/v1/wallet/transactions", nil)
 	setUserContext(c, userID, models.RoleRider)
@@ -1146,8 +1150,7 @@ func TestHandler_GetWalletTransactions_WithPagination(t *testing.T) {
 		createTestWalletTransaction(wallet.ID, "credit", 50.00),
 	}
 
-	mockRepo.On("GetWalletByUserID", mock.Anything, userID).Return(wallet, nil)
-	mockRepo.On("GetWalletTransactionsWithTotal", mock.Anything, wallet.ID, 10, 5).Return(transactions, int64(15), nil)
+	mockRepo.On("GetWalletTransactionsWithTotal", mock.Anything, userID, 10, 5).Return(transactions, int64(15), nil)
 
 	c, w := setupTestContext("GET", "/api/v1/wallet/transactions?limit=10&offset=5", nil)
 	c.Request.URL.RawQuery = "limit=10&offset=5"
@@ -1187,14 +1190,14 @@ func TestHandler_GetWalletTransactions_WalletNotFound(t *testing.T) {
 
 	userID := uuid.New()
 
-	mockRepo.On("GetWalletByUserID", mock.Anything, userID).Return(nil, common.NewNotFoundError("wallet not found", nil))
+	mockRepo.On("GetWalletTransactionsWithTotal", mock.Anything, userID, 20, 0).Return(nil, int64(0), errors.New("database error"))
 
 	c, w := setupTestContext("GET", "/api/v1/wallet/transactions", nil)
 	setUserContext(c, userID, models.RoleRider)
 
 	handler.GetWalletTransactions(c)
 
-	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestHandler_GetWalletTransactions_EmptyList(t *testing.T) {
@@ -1205,10 +1208,8 @@ func TestHandler_GetWalletTransactions_EmptyList(t *testing.T) {
 	handler := createTestHandler(mockRepo, mockStripe)
 
 	userID := uuid.New()
-	wallet := createTestWallet(userID, 150.00)
 
-	mockRepo.On("GetWalletByUserID", mock.Anything, userID).Return(wallet, nil)
-	mockRepo.On("GetWalletTransactionsWithTotal", mock.Anything, wallet.ID, 20, 0).Return([]*models.WalletTransaction{}, int64(0), nil)
+	mockRepo.On("GetWalletTransactionsWithTotal", mock.Anything, userID, 20, 0).Return([]*models.WalletTransaction{}, int64(0), nil)
 
 	c, w := setupTestContext("GET", "/api/v1/wallet/transactions", nil)
 	setUserContext(c, userID, models.RoleRider)
@@ -1229,10 +1230,8 @@ func TestHandler_GetWalletTransactions_DatabaseError(t *testing.T) {
 	handler := createTestHandler(mockRepo, mockStripe)
 
 	userID := uuid.New()
-	wallet := createTestWallet(userID, 150.00)
 
-	mockRepo.On("GetWalletByUserID", mock.Anything, userID).Return(wallet, nil)
-	mockRepo.On("GetWalletTransactionsWithTotal", mock.Anything, wallet.ID, 20, 0).Return(nil, int64(0), errors.New("database error"))
+	mockRepo.On("GetWalletTransactionsWithTotal", mock.Anything, userID, 20, 0).Return(nil, int64(0), errors.New("database error"))
 
 	c, w := setupTestContext("GET", "/api/v1/wallet/transactions", nil)
 	setUserContext(c, userID, models.RoleRider)
@@ -1984,11 +1983,9 @@ func TestHandler_GetWalletTransactions_LargeLimit(t *testing.T) {
 	handler := createTestHandler(mockRepo, mockStripe)
 
 	userID := uuid.New()
-	wallet := createTestWallet(userID, 150.00)
 
-	mockRepo.On("GetWalletByUserID", mock.Anything, userID).Return(wallet, nil)
 	// The handler should cap the limit at 100 (MaxLimit)
-	mockRepo.On("GetWalletTransactionsWithTotal", mock.Anything, wallet.ID, 100, 0).Return([]*models.WalletTransaction{}, int64(0), nil)
+	mockRepo.On("GetWalletTransactionsWithTotal", mock.Anything, userID, 100, 0).Return([]*models.WalletTransaction{}, int64(0), nil)
 
 	c, w := setupTestContext("GET", "/api/v1/wallet/transactions?limit=1000", nil)
 	c.Request.URL.RawQuery = "limit=1000"
@@ -2007,11 +2004,9 @@ func TestHandler_GetWalletTransactions_NegativeOffset(t *testing.T) {
 	handler := createTestHandler(mockRepo, mockStripe)
 
 	userID := uuid.New()
-	wallet := createTestWallet(userID, 150.00)
 
-	mockRepo.On("GetWalletByUserID", mock.Anything, userID).Return(wallet, nil)
 	// The handler should default to 0 for negative offset
-	mockRepo.On("GetWalletTransactionsWithTotal", mock.Anything, wallet.ID, 20, 0).Return([]*models.WalletTransaction{}, int64(0), nil)
+	mockRepo.On("GetWalletTransactionsWithTotal", mock.Anything, userID, 20, 0).Return([]*models.WalletTransaction{}, int64(0), nil)
 
 	c, w := setupTestContext("GET", "/api/v1/wallet/transactions?offset=-10", nil)
 	c.Request.URL.RawQuery = "offset=-10"
