@@ -666,7 +666,7 @@
             {
               "name": "List My Rides",
               "request": {
-                "description": "List rides for the authenticated user",
+                "description": "List rides for the authenticated user. Works for both riders and drivers (role detected from JWT). Supports optional filters: status, start_date, end_date.",
                 "header": [],
                 "method": "GET",
                 "url": {
@@ -686,6 +686,24 @@
                     {
                       "key": "offset",
                       "value": "0"
+                    },
+                    {
+                      "key": "status",
+                      "value": "completed",
+                      "description": "Filter by status: pending|accepted|in_progress|completed|cancelled",
+                      "disabled": true
+                    },
+                    {
+                      "key": "start_date",
+                      "value": "2026-01-01",
+                      "description": "Filter rides on or after this date (YYYY-MM-DD)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "end_date",
+                      "value": "2026-12-31",
+                      "description": "Filter rides on or before this date (YYYY-MM-DD)",
+                      "disabled": true
                     }
                   ],
                   "raw": "{{base_url}}/api/v1/rides"
@@ -10932,6 +10950,43 @@
               "response": []
             },
             {
+              "name": "Get Activity Feed",
+              "request": {
+                "description": "Get paginated activity feed of recent platform events (rides, driver registrations, user signups). Supports limit and offset.",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "method": "GET",
+                "url": {
+                  "host": [
+                    "{{admin_base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "dashboard",
+                    "activity-feed"
+                  ],
+                  "query": [
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    },
+                    {
+                      "key": "offset",
+                      "value": "0"
+                    }
+                  ],
+                  "raw": "{{admin_base_url}}/api/v1/admin/dashboard/activity-feed"
+                }
+              },
+              "response": []
+            },
+            {
               "name": "Get All Users",
               "request": {
                 "description": "Get all users",
@@ -11014,11 +11069,15 @@
             {
               "name": "Suspend User",
               "request": {
-                "description": "Suspend a user",
+                "description": "Suspend a user account. Optionally provide a reason which is recorded in the fraud service.",
                 "header": [
                   {
                     "key": "Authorization",
                     "value": "Bearer {{admin_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
                   }
                 ],
                 "method": "POST",
@@ -11035,6 +11094,15 @@
                     "suspend"
                   ],
                   "raw": "{{admin_base_url}}/api/v1/admin/users/:id/suspend"
+                },
+                "body": {
+                  "mode": "raw",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  },
+                  "raw": "{\n  \"reason\": \"Violation of terms of service\"\n}"
                 }
               },
               "response": []
@@ -11155,6 +11223,43 @@
               "response": []
             },
             {
+              "name": "Get Pending Drivers (Paginated)",
+              "request": {
+                "description": "Get pending driver applications with pagination support.",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "method": "GET",
+                "url": {
+                  "host": [
+                    "{{admin_base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "drivers",
+                    "pending"
+                  ],
+                  "query": [
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    },
+                    {
+                      "key": "offset",
+                      "value": "0"
+                    }
+                  ],
+                  "raw": "{{admin_base_url}}/api/v1/admin/drivers/pending"
+                }
+              },
+              "response": []
+            },
+            {
               "name": "Get Driver",
               "request": {
                 "description": "Get driver details",
@@ -11240,7 +11345,7 @@
             {
               "name": "Get Recent Rides",
               "request": {
-                "description": "Get recent rides",
+                "description": "Get recent rides with driver and rider details. Supports pagination via limit and offset.",
                 "header": [
                   {
                     "key": "Authorization",
@@ -11261,12 +11366,12 @@
                   ],
                   "query": [
                     {
-                      "disabled": true,
+                      "disabled": false,
                       "key": "limit",
                       "value": "20"
                     },
                     {
-                      "disabled": true,
+                      "disabled": false,
                       "key": "offset",
                       "value": "0"
                     }
@@ -11399,7 +11504,7 @@
                           "language": "json"
                         }
                       },
-                      "raw": "{\n  \"code\": \"TM\",\n  \"code3\": \"TKM\",\n  \"currency_code\": \"TMT\",\n  \"default_language\": \"tk\",\n  \"is_active\": true,\n  \"name\": \"Turkmenistan\",\n  \"native_name\": \"T\u00fcrkmenistan\",\n  \"phone_prefix\": \"+993\",\n  \"timezone\": \"Asia/Ashgabat\"\n}"
+                      "raw": "{\n  \"code\": \"TM\",\n  \"code3\": \"TKM\",\n  \"currency_code\": \"TMT\",\n  \"default_language\": \"tk\",\n  \"is_active\": true,\n  \"name\": \"Turkmenistan\",\n  \"native_name\": \"Türkmenistan\",\n  \"phone_prefix\": \"+993\",\n  \"timezone\": \"Asia/Ashgabat\"\n}"
                     },
                     "header": [
                       {
@@ -11574,7 +11679,7 @@
                           "language": "json"
                         }
                       },
-                      "raw": "{\n  \"code\": \"ASH\",\n  \"is_active\": true,\n  \"name\": \"Ashgabat\",\n  \"native_name\": \"A\u015fgabat\",\n  \"timezone\": \"Asia/Ashgabat\"\n}"
+                      "raw": "{\n  \"code\": \"ASH\",\n  \"is_active\": true,\n  \"name\": \"Ashgabat\",\n  \"native_name\": \"Aşgabat\",\n  \"timezone\": \"Asia/Ashgabat\"\n}"
                     },
                     "header": [
                       {
@@ -11751,7 +11856,7 @@
                           "language": "json"
                         }
                       },
-                      "raw": "{\n  \"center_latitude\": 37.9601,\n  \"center_longitude\": 58.3261,\n  \"is_active\": true,\n  \"name\": \"Ashgabat\",\n  \"native_name\": \"A\u015fgabat\",\n  \"population\": 1000000,\n  \"timezone\": \"Asia/Ashgabat\"\n}"
+                      "raw": "{\n  \"center_latitude\": 37.9601,\n  \"center_longitude\": 58.3261,\n  \"is_active\": true,\n  \"name\": \"Ashgabat\",\n  \"native_name\": \"Aşgabat\",\n  \"population\": 1000000,\n  \"timezone\": \"Asia/Ashgabat\"\n}"
                     },
                     "header": [
                       {
@@ -18820,9 +18925,9 @@
               "response": []
             },
             {
-              "name": "Get Driver Location (Realtime)",
+              "name": "Get Driver Location",
               "request": {
-                "description": "Get driver location via realtime service",
+                "description": "Get a driver's current location (latitude, longitude, heading, speed, h3_cell, status). Served by the geo service — the canonical owner of driver location data.",
                 "header": [
                   {
                     "key": "Authorization",
@@ -18832,16 +18937,23 @@
                 "method": "GET",
                 "url": {
                   "host": [
-                    "{{realtime_base_url}}"
+                    "{{geo_base_url}}"
                   ],
                   "path": [
                     "api",
                     "v1",
+                    "geo",
                     "drivers",
-                    ":driver_id",
+                    ":id",
                     "location"
                   ],
-                  "raw": "{{realtime_base_url}}/api/v1/drivers/:driver_id/location"
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "{{driver_id}}"
+                    }
+                  ],
+                  "raw": "{{geo_base_url}}/api/v1/geo/drivers/:id/location"
                 }
               },
               "response": []
