@@ -555,3 +555,17 @@ func (r *Repository) RecordRideEarning(ctx context.Context, driverID, rideID uui
 	)
 	return err
 }
+
+// GetDriverEarningsSummary returns daily earnings, weekly earnings, and pending
+// (not-yet-paid-out) earnings for the given driver from the driver_earnings table.
+func (r *Repository) GetDriverEarningsSummary(ctx context.Context, driverID uuid.UUID) (daily, weekly, pending float64, err error) {
+	err = r.db.QueryRow(ctx, `
+		SELECT
+			COALESCE(SUM(CASE WHEN created_at >= NOW() - INTERVAL '1 day'  THEN net_amount ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN created_at >= NOW() - INTERVAL '7 days' THEN net_amount ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN is_paid_out = false                      THEN net_amount ELSE 0 END), 0)
+		FROM driver_earnings
+		WHERE driver_id = $1
+	`, driverID).Scan(&daily, &weekly, &pending)
+	return
+}

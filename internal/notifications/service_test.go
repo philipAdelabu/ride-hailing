@@ -37,6 +37,9 @@ func setupAsyncMocks(mockRepo *mocks.MockNotificationsRepository, mockFirebase *
 
 	// Status updates
 	mockRepo.On("UpdateNotificationStatus", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+
+	// Language lookup (used by userLang() helper in service methods)
+	mockRepo.On("GetUserLanguage", mock.Anything, mock.Anything).Return("en", nil).Maybe()
 }
 
 // ===== Core Notification Sending Tests =====
@@ -616,6 +619,7 @@ func TestService_NotifyRideRequested_PushError(t *testing.T) {
 	driverID := uuid.New()
 	rideID := uuid.New()
 
+	mockRepo.On("GetUserLanguage", mock.Anything, mock.Anything).Return("en", nil).Maybe()
 	mockRepo.On("CreateNotification", ctx, mock.AnythingOfType("*models.Notification")).
 		Return(errors.New("database error"))
 
@@ -709,7 +713,7 @@ func TestService_NotifyRideCompleted_Success(t *testing.T) {
 	})).Return(nil).Once()
 
 	// Act
-	err := service.NotifyRideCompleted(ctx, riderID, driverID, 50.0)
+	err := service.NotifyRideCompleted(ctx, riderID, driverID, 50.0, "USD", 40.0)
 
 	// Assert
 	assert.NoError(t, err)
@@ -763,7 +767,7 @@ func TestService_NotifyPaymentReceived_Success(t *testing.T) {
 	})).Return(nil)
 
 	// Act
-	err := service.NotifyPaymentReceived(ctx, userID, 100.0)
+	err := service.NotifyPaymentReceived(ctx, userID, 100.0, "USD")
 
 	// Assert
 	assert.NoError(t, err)

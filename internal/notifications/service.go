@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/google/uuid"
+	"github.com/richxcame/ride-hailing/pkg/i18n"
 	"github.com/richxcame/ride-hailing/pkg/logger"
 	"github.com/richxcame/ride-hailing/pkg/models"
 	"github.com/richxcame/ride-hailing/pkg/resilience"
@@ -212,28 +213,35 @@ func (s *Service) sendEmailNotification(ctx context.Context, notification *model
 	})
 }
 
+// userLang resolves the preferred language for a user, defaulting to "en".
+func (s *Service) userLang(ctx context.Context, userID uuid.UUID) string {
+	lang, _ := s.repo.GetUserLanguage(ctx, userID)
+	if lang == "" {
+		lang = i18n.DefaultLang
+	}
+	return lang
+}
+
 // NotifyRideRequested notifies driver about a new ride request
 func (s *Service) NotifyRideRequested(ctx context.Context, driverID, rideID uuid.UUID, pickupLocation string) error {
+	lang := s.userLang(ctx, driverID)
 	data := map[string]interface{}{
 		"ride_id":         rideID.String(),
 		"pickup_location": pickupLocation,
 		"action":          "ride_requested",
 	}
 
-	// Send push notification
 	_, err := s.SendNotification(ctx, driverID, "ride_requested", "push",
-		"New Ride Request",
-		fmt.Sprintf("New ride request from %s", pickupLocation),
+		i18n.Translate("notification.ride.requested.title", lang),
+		i18n.Translate("notification.ride.requested.body", lang, pickupLocation),
 		data)
-
 	if err != nil {
 		return err
 	}
 
-	// Also send SMS for critical notification
 	if _, err := s.SendNotification(ctx, driverID, "ride_requested", "sms",
-		"New Ride Request",
-		"New ride request nearby. Check your app!",
+		i18n.Translate("notification.ride.requested.title", lang),
+		i18n.Translate("notification.ride.requested.sms", lang),
 		data); err != nil {
 		logger.Get().Warn("Failed to send SMS notification for ride request",
 			zap.String("driver_id", driverID.String()),
@@ -245,6 +253,7 @@ func (s *Service) NotifyRideRequested(ctx context.Context, driverID, rideID uuid
 
 // NotifyRideAccepted notifies rider that driver accepted the ride
 func (s *Service) NotifyRideAccepted(ctx context.Context, riderID uuid.UUID, driverName string, eta int) error {
+	lang := s.userLang(ctx, riderID)
 	data := map[string]interface{}{
 		"driver_name": driverName,
 		"eta":         eta,
@@ -252,8 +261,8 @@ func (s *Service) NotifyRideAccepted(ctx context.Context, riderID uuid.UUID, dri
 	}
 
 	_, err := s.SendNotification(ctx, riderID, "ride_accepted", "push",
-		"Driver Found!",
-		fmt.Sprintf("%s will pick you up in %d minutes", driverName, eta),
+		i18n.Translate("notification.ride.accepted.title", lang),
+		i18n.Translate("notification.ride.accepted.body", lang, driverName, eta),
 		data)
 
 	return err
@@ -261,39 +270,48 @@ func (s *Service) NotifyRideAccepted(ctx context.Context, riderID uuid.UUID, dri
 
 // NotifyRideStarted notifies rider that ride has started
 func (s *Service) NotifyRideStarted(ctx context.Context, riderID uuid.UUID) error {
+	lang := s.userLang(ctx, riderID)
 	data := map[string]interface{}{
 		"action": "ride_started",
 	}
 
 	_, err := s.SendNotification(ctx, riderID, "ride_started", "push",
-		"Ride Started",
-		"Your ride has started. Enjoy your trip!",
+		i18n.Translate("notification.ride.started.title", lang),
+		i18n.Translate("notification.ride.started.body", lang),
 		data)
 
 	return err
 }
 
-// NotifyRideCompleted notifies both rider and driver about ride completion
-func (s *Service) NotifyRideCompleted(ctx context.Context, riderID, driverID uuid.UUID, fare float64) error {
-	// Notify rider
+// NotifyRideCompleted notifies both rider and driver about ride completion.
+// currency is the ISO 4217 code (e.g. "USD", "TMT"). driverEarnings is the
+// net amount after platform commission.
+func (s *Service) NotifyRideCompleted(ctx context.Context, riderID, driverID uuid.UUID, fare float64, currency string, driverEarnings float64) error {
+	if currency == "" {
+		currency = "USD"
+	}
+
+	// ── Rider notification ──
+	riderLang := s.userLang(ctx, riderID)
+	formattedFare := i18n.FormatAmount(fare, currency)
 	riderData := map[string]interface{}{
-		"fare":   fare,
-		"action": "ride_completed",
+		"fare":     fare,
+		"currency": currency,
+		"action":   "ride_completed",
 	}
 
 	_, err := s.SendNotification(ctx, riderID, "ride_completed", "push",
-		"Ride Completed",
-		fmt.Sprintf("Your ride is complete. Total fare: $%.2f", fare),
+		i18n.Translate("notification.ride.completed.title.rider", riderLang),
+		i18n.Translate("notification.ride.completed.body.rider", riderLang, formattedFare),
 		riderData)
-
 	if err != nil {
-		logger.Get().Error("Failed to notify rider", zap.Error(err))
+		logger.Get().Error("Failed to notify rider of ride completion", zap.Error(err))
 	}
 
-	// Send receipt email
+	// Send receipt email to rider
 	receiptData := map[string]interface{}{
 		"receipt": map[string]interface{}{
-			"Fare":   fmt.Sprintf("$%.2f", fare),
+			"Fare":   formattedFare,
 			"Date":   time.Now().Format("Jan 02, 2006 3:04 PM"),
 			"Status": "Completed",
 		},
@@ -304,49 +322,61 @@ func (s *Service) NotifyRideCompleted(ctx context.Context, riderID, driverID uui
 		receiptData); err != nil {
 		logger.Get().Warn("Failed to send ride receipt email",
 			zap.String("rider_id", riderID.String()),
-			zap.Float64("fare", fare),
 			zap.Error(err))
 	}
 
-	// Notify driver
+	// ── Driver notification ──
+	driverLang := s.userLang(ctx, driverID)
+	formattedEarnings := i18n.FormatAmount(driverEarnings, currency)
 	driverData := map[string]interface{}{
-		"earnings": fare * 0.8, // 80% for driver, 20% commission
+		"earnings": driverEarnings,
+		"currency": currency,
 		"action":   "ride_completed",
 	}
 
 	_, err = s.SendNotification(ctx, driverID, "ride_completed", "push",
-		"Ride Completed",
-		fmt.Sprintf("Ride completed. You earned $%.2f", fare*0.8),
+		i18n.Translate("notification.ride.completed.title.driver", driverLang),
+		i18n.Translate("notification.ride.completed.body.driver", driverLang, formattedEarnings),
 		driverData)
 
 	return err
 }
 
-// NotifyRideCancelled notifies about ride cancellation
+// NotifyRideCancelled notifies about ride cancellation.
+// cancelledBy should be "rider" or "driver" — it is translated to the user's language.
 func (s *Service) NotifyRideCancelled(ctx context.Context, userID uuid.UUID, cancelledBy string) error {
+	lang := s.userLang(ctx, userID)
+	translatedBy := i18n.Translate("notification.ride.cancelled.by."+cancelledBy, lang)
 	data := map[string]interface{}{
 		"cancelled_by": cancelledBy,
 		"action":       "ride_cancelled",
 	}
 
 	_, err := s.SendNotification(ctx, userID, "ride_cancelled", "push",
-		"Ride Cancelled",
-		fmt.Sprintf("Ride was cancelled by %s", cancelledBy),
+		i18n.Translate("notification.ride.cancelled.title", lang),
+		i18n.Translate("notification.ride.cancelled.body", lang, translatedBy),
 		data)
 
 	return err
 }
 
-// NotifyPaymentReceived notifies user about payment confirmation
-func (s *Service) NotifyPaymentReceived(ctx context.Context, userID uuid.UUID, amount float64) error {
+// NotifyPaymentReceived notifies user about payment confirmation.
+// currency is the ISO 4217 code (e.g. "USD", "TMT").
+func (s *Service) NotifyPaymentReceived(ctx context.Context, userID uuid.UUID, amount float64, currency string) error {
+	if currency == "" {
+		currency = "USD"
+	}
+	lang := s.userLang(ctx, userID)
+	formattedAmount := i18n.FormatAmount(amount, currency)
 	data := map[string]interface{}{
-		"amount": amount,
-		"action": "payment_received",
+		"amount":   amount,
+		"currency": currency,
+		"action":   "payment_received",
 	}
 
 	_, err := s.SendNotification(ctx, userID, "payment_received", "push",
-		"Payment Received",
-		fmt.Sprintf("Payment of $%.2f has been received", amount),
+		i18n.Translate("notification.payment.received.title", lang),
+		i18n.Translate("notification.payment.received.body", lang, formattedAmount),
 		data)
 
 	return err

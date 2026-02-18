@@ -82,6 +82,11 @@ func (m *MockNotificationsRepository) ScheduleNotificationRetry(ctx context.Cont
 	return args.Error(0)
 }
 
+func (m *MockNotificationsRepository) GetUserLanguage(ctx context.Context, userID uuid.UUID) (string, error) {
+	args := m.Called(ctx, userID)
+	return args.String(0), args.Error(1)
+}
+
 // MockFirebaseClient is a mock implementation of notifications.FirebaseClientInterface
 type MockFirebaseClient struct {
 	mock.Mock

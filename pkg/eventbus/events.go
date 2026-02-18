@@ -50,13 +50,15 @@ type RideStartedData struct {
 
 // RideCompletedData is emitted when a ride finishes.
 type RideCompletedData struct {
-	RideID      uuid.UUID `json:"ride_id"`
-	RiderID     uuid.UUID `json:"rider_id"`
-	DriverID    uuid.UUID `json:"driver_id"`
-	FareAmount  float64   `json:"fare_amount"`
-	DistanceKm  float64   `json:"distance_km"`
-	DurationMin float64   `json:"duration_min"`
-	CompletedAt time.Time `json:"completed_at"`
+	RideID         uuid.UUID `json:"ride_id"`
+	RiderID        uuid.UUID `json:"rider_id"`
+	DriverID       uuid.UUID `json:"driver_id"`
+	FareAmount     float64   `json:"fare_amount"`
+	DriverEarnings float64   `json:"driver_earnings"` // fare after platform commission
+	Currency       string    `json:"currency"`        // ISO 4217 currency code
+	DistanceKm     float64   `json:"distance_km"`
+	DurationMin    float64   `json:"duration_min"`
+	CompletedAt    time.Time `json:"completed_at"`
 }
 
 // RideCancelledData is emitted when a ride is cancelled.

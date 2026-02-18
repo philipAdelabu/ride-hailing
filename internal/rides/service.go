@@ -456,7 +456,7 @@ func (s *Service) CompleteRide(ctx context.Context, rideID, driverID uuid.UUID, 
 	actualDuration := int(time.Since(*ride.StartedAt).Minutes())
 
 	// Calculate final fare based on actual distance and duration
-	var finalFare float64
+	var finalFare, driverEarnings float64
 	if s.pricingService != nil {
 		calculation, err := s.pricingService.CalculateFare(ctx, pricing.CalculateInput{
 			PickupLatitude:   ride.PickupLatitude,
@@ -471,11 +471,14 @@ func (s *Service) CompleteRide(ctx context.Context, rideID, driverID uuid.UUID, 
 		if err != nil {
 			logger.Warn("hierarchical pricing failed on completion, falling back to flat pricing", zap.Error(err))
 			finalFare = s.calculateFare(actualDistance, actualDuration, ride.SurgeMultiplier)
+			driverEarnings = finalFare * 0.80 // flat 20% commission fallback
 		} else {
 			finalFare = calculation.TotalFare
+			driverEarnings = calculation.DriverEarnings
 		}
 	} else {
 		finalFare = s.calculateFare(actualDistance, actualDuration, ride.SurgeMultiplier)
+		driverEarnings = finalFare * 0.80
 	}
 
 	tracing.AddSpanAttributes(ctx,
@@ -502,14 +505,20 @@ func (s *Service) CompleteRide(ctx context.Context, rideID, driverID uuid.UUID, 
 	now := time.Now()
 	ride.CompletedAt = &now
 
+	currency := ride.CurrencyCode
+	if currency == "" {
+		currency = "USD"
+	}
 	s.publishEvent(eventbus.SubjectRideCompleted, "ride.completed", "rides-service", eventbus.RideCompletedData{
-		RideID:      rideID,
-		RiderID:     ride.RiderID,
-		DriverID:    driverID,
-		FareAmount:  finalFare,
-		DistanceKm:  actualDistance,
-		DurationMin: float64(actualDuration),
-		CompletedAt: now,
+		RideID:         rideID,
+		RiderID:        ride.RiderID,
+		DriverID:       driverID,
+		FareAmount:     finalFare,
+		DriverEarnings: driverEarnings,
+		Currency:       currency,
+		DistanceKm:     actualDistance,
+		DurationMin:    float64(actualDuration),
+		CompletedAt:    now,
 	})
 
 	return ride, nil

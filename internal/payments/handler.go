@@ -57,6 +57,10 @@ func (h *Handler) RegisterRoutes(router *gin.Engine, jwtProvider jwtkeys.KeyProv
 		protected.POST("/payments/process", h.ProcessPayment)
 		protected.POST("/payments/:id/refund", h.RefundPayment)
 		protected.GET("/payments/:id", h.GetPayment)
+
+		// Driver payout routes
+		protected.GET("/driver/payouts/summary", h.GetPayoutSummary)
+		protected.POST("/driver/payouts/withdraw", h.RequestWithdrawal)
 	}
 
 	// Webhook routes (no auth)
@@ -497,6 +501,62 @@ func (h *Handler) AdminGetPaymentStats(c *gin.Context) {
 	}
 
 	common.SuccessResponse(c, stats)
+}
+
+// GetPayoutSummary returns the payout summary for the authenticated driver.
+// GET /api/v1/driver/payouts/summary
+func (h *Handler) GetPayoutSummary(c *gin.Context) {
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	summary, err := h.service.GetDriverPayoutSummary(c.Request.Context(), userID)
+	if err != nil {
+		appErr, ok := err.(*common.AppError)
+		if ok {
+			common.ErrorResponse(c, appErr.Code, appErr.Message)
+			return
+		}
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to get payout summary")
+		return
+	}
+
+	common.SuccessResponse(c, summary)
+}
+
+// WithdrawRequest represents a withdrawal request body.
+type WithdrawRequest struct {
+	Amount float64 `json:"amount" binding:"required,gt=0"`
+}
+
+// RequestWithdrawal initiates a withdrawal from the driver's wallet.
+// POST /api/v1/driver/payouts/withdraw
+func (h *Handler) RequestWithdrawal(c *gin.Context) {
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		common.ErrorResponse(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var req WithdrawRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if err := h.service.RequestWithdrawal(c.Request.Context(), userID, req.Amount); err != nil {
+		appErr, ok := err.(*common.AppError)
+		if ok {
+			common.ErrorResponse(c, appErr.Code, appErr.Message)
+			return
+		}
+		common.ErrorResponse(c, http.StatusInternalServerError, "failed to process withdrawal")
+		return
+	}
+
+	common.SuccessResponseWithStatus(c, http.StatusOK, nil, "Withdrawal request submitted")
 }
 
 // RegisterAdminRoutes registers only admin payment routes on an existing router group.

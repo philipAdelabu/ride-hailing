@@ -288,3 +288,17 @@ func (r *Repository) GetUserEmail(ctx context.Context, userID uuid.UUID) (string
 
 	return email, nil
 }
+
+// GetUserLanguage retrieves the user's preferred language (e.g. "en", "ru", "tr", "tk").
+// Returns "en" as a safe default when the column is NULL or the user is not found.
+func (r *Repository) GetUserLanguage(ctx context.Context, userID uuid.UUID) (string, error) {
+	var lang *string
+	query := `SELECT preferred_language FROM users WHERE id = $1`
+
+	err := r.db.QueryRow(ctx, query, userID).Scan(&lang)
+	if err != nil || lang == nil || *lang == "" {
+		return "en", nil
+	}
+
+	return *lang, nil
+}

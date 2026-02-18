@@ -346,7 +346,7 @@ func (h *Handler) NotifyRideCompleted(c *gin.Context) {
 		return
 	}
 
-	err = h.service.NotifyRideCompleted(c.Request.Context(), riderID, driverID, req.Fare)
+	err = h.service.NotifyRideCompleted(c.Request.Context(), riderID, driverID, req.Fare, "USD", req.Fare*0.80)
 	if err != nil {
 		common.ErrorResponse(c, http.StatusInternalServerError, "failed to send notification")
 		return

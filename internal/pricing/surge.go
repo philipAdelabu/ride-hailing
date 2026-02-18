@@ -27,6 +27,46 @@ type SurgeFactors struct {
 	WeatherFactor  float64 // Weather conditions (future)
 }
 
+// defaultSurgeMin and defaultSurgeMax are the global fallback bounds.
+const (
+	defaultSurgeMin = 1.0
+	defaultSurgeMax = 5.0
+)
+
+// getSurgeCap queries the per-country surge min/max from pricing_configs for the
+// given location. Falls back to defaultSurgeMin / defaultSurgeMax on any error.
+func (sc *SurgeCalculator) getSurgeCap(ctx context.Context, latitude, longitude float64) (min, max float64) {
+	query := `
+		SELECT COALESCE(pc.surge_min_multiplier, $3),
+		       COALESCE(pc.surge_max_multiplier, $4)
+		FROM pricing_configs pc
+		JOIN countries c ON c.id = pc.country_id
+		WHERE pc.region_id IS NULL
+		  AND pc.city_id   IS NULL
+		  AND pc.zone_id   IS NULL
+		  AND ST_Contains(c.boundary, ST_SetSRID(ST_MakePoint($1, $2), 4326))
+		ORDER BY pc.created_at DESC
+		LIMIT 1
+	`
+
+	var surgeMin, surgeMax float64
+	err := sc.db.QueryRow(ctx, query, longitude, latitude, defaultSurgeMin, defaultSurgeMax).
+		Scan(&surgeMin, &surgeMax)
+	if err != nil {
+		return defaultSurgeMin, defaultSurgeMax
+	}
+
+	// Safety: ensure values are sensible
+	if surgeMin <= 0 {
+		surgeMin = defaultSurgeMin
+	}
+	if surgeMax < surgeMin {
+		surgeMax = defaultSurgeMax
+	}
+
+	return surgeMin, surgeMax
+}
+
 // CalculateSurgeMultiplier calculates the dynamic surge multiplier
 func (sc *SurgeCalculator) CalculateSurgeMultiplier(ctx context.Context, latitude, longitude float64) (float64, error) {
 	factors, err := sc.getSurgeFactors(ctx, latitude, longitude)
@@ -52,8 +92,9 @@ func (sc *SurgeCalculator) CalculateSurgeMultiplier(ctx context.Context, latitud
 	// Add zone-based surge (10% weight)
 	surgeMultiplier += (factors.ZoneMultiplier - 1.0) * 0.1
 
-	// Ensure surge is within reasonable bounds (1.0 to 5.0)
-	surgeMultiplier = math.Max(1.0, math.Min(5.0, surgeMultiplier))
+	// Clamp to per-country surge bounds (falls back to 1.0 / 5.0 if no config found)
+	surgeMin, surgeMax := sc.getSurgeCap(ctx, latitude, longitude)
+	surgeMultiplier = math.Max(surgeMin, math.Min(surgeMax, surgeMultiplier))
 
 	// Round to 1 decimal place
 	surgeMultiplier = math.Round(surgeMultiplier*10) / 10

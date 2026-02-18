@@ -20,6 +20,10 @@ const (
 	revenueRefreshInterval     = 24 * time.Hour
 	// Expire rides stuck in "requested" status after this duration
 	rideExpiryThreshold = 5 * time.Minute
+	// Run payout processing once per day
+	payoutInterval = 24 * time.Hour
+	// Minimum wallet balance eligible for automatic daily payout
+	payoutMinimumBalance = 5.0
 )
 
 // Worker handles scheduled ride processing and maintenance tasks
@@ -31,6 +35,7 @@ type Worker struct {
 	lastDemandZonesRefresh time.Time
 	lastDriverPerfRefresh  time.Time
 	lastRevenueRefresh     time.Time
+	lastPayoutRun          time.Time
 }
 
 // NewWorker creates a new scheduler worker
@@ -66,6 +71,7 @@ func (w *Worker) Start(ctx context.Context) {
 			w.processScheduledRides(ctx)
 			w.expireStaleRides(ctx)
 			w.refreshMaterializedViews(ctx)
+			w.processPendingPayouts(ctx)
 		case <-ctx.Done():
 			w.logger.Info("Scheduler worker stopped")
 			return
@@ -331,6 +337,55 @@ func (w *Worker) refreshMaterializedViews(ctx context.Context) {
 			w.logger.Info("Successfully refreshed revenue metrics view")
 		}
 	}
+}
+
+// processPendingPayouts runs once per day and logs drivers whose wallet balance
+// exceeds the minimum payout threshold. Actual bank transfer (Stripe Connect /
+// local payment rails) is wired separately; this job creates the audit trail.
+func (w *Worker) processPendingPayouts(ctx context.Context) {
+	if time.Since(w.lastPayoutRun) < payoutInterval {
+		return
+	}
+
+	w.logger.Info("Running daily payout processing job")
+
+	query := `
+		SELECT w.user_id, w.balance, w.currency
+		FROM wallets w
+		JOIN users u ON u.id = w.user_id
+		WHERE u.role = 'driver'
+		  AND w.is_active = true
+		  AND w.balance >= $1
+		ORDER BY w.balance DESC
+	`
+
+	rows, err := w.db.Query(ctx, query, payoutMinimumBalance)
+	if err != nil {
+		w.logger.Error("Failed to query drivers eligible for payout", zap.Error(err))
+		return
+	}
+	defer rows.Close()
+
+	var count int
+	for rows.Next() {
+		var driverID uuid.UUID
+		var balance float64
+		var currency string
+		if err := rows.Scan(&driverID, &balance, &currency); err != nil {
+			w.logger.Error("Failed to scan payout row", zap.Error(err))
+			continue
+		}
+		count++
+		w.logger.Info("Driver eligible for payout",
+			zap.String("driver_id", driverID.String()),
+			zap.Float64("balance", balance),
+			zap.String("currency", currency),
+		)
+		// TODO: call Stripe Connect / local payment rail here when integration is ready
+	}
+
+	w.logger.Info("Daily payout job completed", zap.Int("eligible_drivers", count))
+	w.lastPayoutRun = time.Now()
 }
 
 // refreshView refreshes a specific materialized view concurrently

@@ -428,6 +428,98 @@ func (s *Service) HandleStripeWebhook(ctx context.Context, eventType string, pay
 	return nil
 }
 
+// PayoutSummary holds driver payout information.
+type PayoutSummary struct {
+	DriverID          uuid.UUID `json:"driver_id"`
+	WalletBalance     float64   `json:"wallet_balance"`
+	Currency          string    `json:"currency"`
+	TotalEarningsDay  float64   `json:"total_earnings_today"`
+	TotalEarningsWeek float64   `json:"total_earnings_week"`
+	PendingPayouts    float64   `json:"pending_payouts"`
+	NextPayoutDate    string    `json:"next_payout_date"`
+}
+
+// GetDriverPayoutSummary returns payout summary for a driver.
+func (s *Service) GetDriverPayoutSummary(ctx context.Context, driverID uuid.UUID) (*PayoutSummary, error) {
+	wallet, err := s.repo.GetWalletByUserID(ctx, driverID)
+	if err != nil {
+		// Return zero-balance summary when wallet doesn't exist yet
+		return &PayoutSummary{
+			DriverID:       driverID,
+			WalletBalance:  0,
+			Currency:       "USD",
+			NextPayoutDate: time.Now().Add(24 * time.Hour).Format("2006-01-02"),
+		}, nil
+	}
+
+	daily, weekly, pending, err := s.repo.GetDriverEarningsSummary(ctx, driverID)
+	if err != nil {
+		logger.Get().Warn("failed to get driver earnings summary", zap.String("driver_id", driverID.String()), zap.Error(err))
+		daily, weekly, pending = 0, 0, 0
+	}
+
+	return &PayoutSummary{
+		DriverID:          driverID,
+		WalletBalance:     wallet.Balance,
+		Currency:          wallet.Currency,
+		TotalEarningsDay:  daily,
+		TotalEarningsWeek: weekly,
+		PendingPayouts:    pending,
+		NextPayoutDate:    time.Now().Add(24 * time.Hour).Format("2006-01-02"),
+	}, nil
+}
+
+// RequestWithdrawal creates a pending withdrawal transaction from the driver's wallet.
+// Actual bank transfer (Stripe Connect / local payment rails) is done separately.
+func (s *Service) RequestWithdrawal(ctx context.Context, driverID uuid.UUID, amount float64) error {
+	if amount <= 0 {
+		return common.NewBadRequestError("withdrawal amount must be positive", nil)
+	}
+
+	wallet, err := s.repo.GetWalletByUserID(ctx, driverID)
+	if err != nil {
+		return err
+	}
+
+	const minimumWithdrawal = 5.0
+	if amount < minimumWithdrawal {
+		return common.NewBadRequestError(fmt.Sprintf("minimum withdrawal is %.2f", minimumWithdrawal), nil)
+	}
+
+	if wallet.Balance < amount {
+		return common.NewBadRequestError("insufficient wallet balance", nil)
+	}
+
+	// Debit the wallet
+	if err := s.repo.UpdateWalletBalance(ctx, wallet.ID, -amount); err != nil {
+		return err
+	}
+
+	walletTx := &models.WalletTransaction{
+		ID:            uuid.New(),
+		WalletID:      wallet.ID,
+		Type:          "debit",
+		Amount:        amount,
+		Description:   fmt.Sprintf("Withdrawal request (pending transfer) for driver %s", driverID),
+		ReferenceType: "withdrawal",
+		BalanceBefore: wallet.Balance,
+		BalanceAfter:  wallet.Balance - amount,
+		CreatedAt:     time.Now(),
+	}
+
+	if err := s.repo.CreateWalletTransaction(ctx, walletTx); err != nil {
+		return err
+	}
+
+	logger.Get().Info("Withdrawal requested",
+		zap.String("driver_id", driverID.String()),
+		zap.Float64("amount", amount),
+		zap.String("wallet_id", wallet.ID.String()),
+	)
+
+	return nil
+}
+
 func wrapStripeError(err error, fallbackMessage string) error {
 	if err == nil {
 		return nil

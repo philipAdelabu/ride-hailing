@@ -23,6 +23,8 @@ type RepositoryInterface interface {
 	GetRideDriverID(ctx context.Context, rideID uuid.UUID) (*uuid.UUID, error)
 	GetPaymentsByRideID(ctx context.Context, rideID uuid.UUID) ([]*models.Payment, error)
 	RecordRideEarning(ctx context.Context, driverID, rideID uuid.UUID, grossAmount, commission, netAmount float64, description string) error
+	// GetDriverEarningsSummary returns (dailyEarnings, weeklyEarnings, pendingWithdrawals).
+	GetDriverEarningsSummary(ctx context.Context, driverID uuid.UUID) (daily, weekly, pending float64, err error)
 }
 
 // AdminRepositoryInterface extends RepositoryInterface with admin-only methods

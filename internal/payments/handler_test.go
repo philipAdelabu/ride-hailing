@@ -107,6 +107,11 @@ func (m *MockRepository) RecordRideEarning(ctx context.Context, driverID, rideID
 	return args.Error(0)
 }
 
+func (m *MockRepository) GetDriverEarningsSummary(ctx context.Context, driverID uuid.UUID) (float64, float64, float64, error) {
+	args := m.Called(ctx, driverID)
+	return args.Get(0).(float64), args.Get(1).(float64), args.Get(2).(float64), args.Error(3)
+}
+
 func (m *MockRepository) GetAllPayments(ctx context.Context, limit, offset int, filter *AdminPaymentFilter) ([]*models.Payment, int64, error) {
 	args := m.Called(ctx, limit, offset, filter)
 	if args.Get(0) == nil {

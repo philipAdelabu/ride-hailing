@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/richxcame/ride-hailing/pkg/eventbus"
+	"github.com/richxcame/ride-hailing/pkg/i18n"
 	"github.com/richxcame/ride-hailing/pkg/logger"
 	"go.uber.org/zap"
 )
@@ -54,11 +55,11 @@ func (h *EventHandler) onRideRequested(ctx context.Context, event *eventbus.Even
 		return fmt.Errorf("unmarshal ride requested: %w", err)
 	}
 
-	// Notify the rider that their ride request is being processed
+	lang := h.service.userLang(ctx, data.RiderID)
 	_, err := h.service.SendNotification(ctx, data.RiderID,
 		"ride_requested", "push",
-		"Ride Requested",
-		"We're finding a driver for you. Hang tight!",
+		i18n.Translate("notification.ride.requested.title", lang),
+		i18n.Translate("notification.ride.requested.body", lang, data.PickupAddress),
 		map[string]interface{}{"ride_id": data.RideID.String()},
 	)
 	if err != nil {
@@ -73,10 +74,12 @@ func (h *EventHandler) onRideAccepted(ctx context.Context, event *eventbus.Event
 		return fmt.Errorf("unmarshal ride accepted: %w", err)
 	}
 
+	lang := h.service.userLang(ctx, data.RiderID)
 	_, err := h.service.SendNotification(ctx, data.RiderID,
 		"ride_accepted", "push",
-		"Driver Found!",
-		"A driver has accepted your ride and is on the way.",
+		i18n.Translate("notification.ride.accepted.title", lang),
+		// ETA not in the event; use generic accepted body
+		i18n.Translate("notification.ride.accepted.title", lang),
 		map[string]interface{}{
 			"ride_id":   data.RideID.String(),
 			"driver_id": data.DriverID.String(),
@@ -94,10 +97,11 @@ func (h *EventHandler) onRideStarted(ctx context.Context, event *eventbus.Event)
 		return fmt.Errorf("unmarshal ride started: %w", err)
 	}
 
+	lang := h.service.userLang(ctx, data.RiderID)
 	_, err := h.service.SendNotification(ctx, data.RiderID,
 		"ride_started", "push",
-		"Ride Started",
-		"Your ride has begun. Enjoy your trip!",
+		i18n.Translate("notification.ride.started.title", lang),
+		i18n.Translate("notification.ride.started.body", lang),
 		map[string]interface{}{"ride_id": data.RideID.String()},
 	)
 	if err != nil {
@@ -112,14 +116,26 @@ func (h *EventHandler) onRideCompleted(ctx context.Context, event *eventbus.Even
 		return fmt.Errorf("unmarshal ride completed: %w", err)
 	}
 
-	// Push notification to rider
+	currency := data.Currency
+	if currency == "" {
+		currency = "USD"
+	}
+	driverEarnings := data.DriverEarnings
+	if driverEarnings == 0 && data.FareAmount > 0 {
+		driverEarnings = data.FareAmount * 0.80 // safe fallback
+	}
+
+	// Rider: push notification
+	riderLang := h.service.userLang(ctx, data.RiderID)
+	formattedFare := i18n.FormatAmount(data.FareAmount, currency)
 	_, err := h.service.SendNotification(ctx, data.RiderID,
 		"ride_completed", "push",
-		"Ride Completed",
-		fmt.Sprintf("Your ride is complete. Fare: $%.2f", data.FareAmount),
+		i18n.Translate("notification.ride.completed.title.rider", riderLang),
+		i18n.Translate("notification.ride.completed.body.rider", riderLang, formattedFare),
 		map[string]interface{}{
 			"ride_id":     data.RideID.String(),
 			"fare_amount": data.FareAmount,
+			"currency":    currency,
 			"distance_km": data.DistanceKm,
 		},
 	)
@@ -127,15 +143,16 @@ func (h *EventHandler) onRideCompleted(ctx context.Context, event *eventbus.Even
 		logger.Warn("failed to send ride_completed push notification", zap.Error(err))
 	}
 
-	// Also send receipt email to rider
+	// Rider: receipt email
 	_, err = h.service.SendNotification(ctx, data.RiderID,
 		"ride_receipt", "email",
 		"Your Ride Receipt",
-		fmt.Sprintf("Ride completed. Distance: %.1f km, Duration: %.0f min, Fare: $%.2f",
-			data.DistanceKm, data.DurationMin, data.FareAmount),
+		fmt.Sprintf("Ride completed. Distance: %.1f km, Duration: %.0f min, Fare: %s",
+			data.DistanceKm, data.DurationMin, formattedFare),
 		map[string]interface{}{
 			"ride_id":      data.RideID.String(),
 			"fare_amount":  data.FareAmount,
+			"currency":     currency,
 			"distance_km":  data.DistanceKm,
 			"duration_min": data.DurationMin,
 		},
@@ -144,14 +161,17 @@ func (h *EventHandler) onRideCompleted(ctx context.Context, event *eventbus.Even
 		logger.Warn("failed to send ride receipt email", zap.Error(err))
 	}
 
-	// Notify driver about payment
+	// Driver: earnings notification
+	driverLang := h.service.userLang(ctx, data.DriverID)
+	formattedEarnings := i18n.FormatAmount(driverEarnings, currency)
 	_, err = h.service.SendNotification(ctx, data.DriverID,
 		"payment_received", "push",
-		"Payment Received",
-		fmt.Sprintf("You earned $%.2f for this ride.", data.FareAmount*0.80),
+		i18n.Translate("notification.ride.completed.title.driver", driverLang),
+		i18n.Translate("notification.ride.completed.body.driver", driverLang, formattedEarnings),
 		map[string]interface{}{
-			"ride_id": data.RideID.String(),
-			"amount":  data.FareAmount * 0.80,
+			"ride_id":  data.RideID.String(),
+			"amount":   driverEarnings,
+			"currency": currency,
 		},
 	)
 	if err != nil {
@@ -167,26 +187,26 @@ func (h *EventHandler) onRideCancelled(ctx context.Context, event *eventbus.Even
 		return fmt.Errorf("unmarshal ride cancelled: %w", err)
 	}
 
-	// Notify the other party
 	var recipientID uuid.UUID
-	var title, body string
+	var cancelledByKey string
 
 	if data.CancelledBy == "rider" && data.DriverID != uuid.Nil {
 		recipientID = data.DriverID
-		title = "Ride Cancelled"
-		body = "The rider has cancelled the ride."
+		cancelledByKey = "rider"
 	} else if data.CancelledBy == "driver" {
 		recipientID = data.RiderID
-		title = "Ride Cancelled"
-		body = "Your driver has cancelled. We're finding you a new driver."
+		cancelledByKey = "driver"
 	} else {
-		// No one to notify (rider cancelled before driver assigned)
-		return nil
+		return nil // no one to notify
 	}
+
+	lang := h.service.userLang(ctx, recipientID)
+	translatedBy := i18n.Translate("notification.ride.cancelled.by."+cancelledByKey, lang)
 
 	_, err := h.service.SendNotification(ctx, recipientID,
 		"ride_cancelled", "push",
-		title, body,
+		i18n.Translate("notification.ride.cancelled.title", lang),
+		i18n.Translate("notification.ride.cancelled.body", lang, translatedBy),
 		map[string]interface{}{
 			"ride_id":      data.RideID.String(),
 			"cancelled_by": data.CancelledBy,

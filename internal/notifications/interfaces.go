@@ -16,6 +16,7 @@ type RepositoryInterface interface {
 	GetUserDeviceTokens(ctx context.Context, userID uuid.UUID) ([]string, error)
 	GetUserPhoneNumber(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserEmail(ctx context.Context, userID uuid.UUID) (string, error)
+	GetUserLanguage(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserNotifications(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*models.Notification, error)
 	GetUserNotificationsWithTotal(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*models.Notification, int64, error)
 	MarkNotificationAsRead(ctx context.Context, notificationID uuid.UUID) error

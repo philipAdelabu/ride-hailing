@@ -98,6 +98,11 @@ func (m *MockPaymentsRepository) RecordRideEarning(ctx context.Context, driverID
 	return args.Error(0)
 }
 
+func (m *MockPaymentsRepository) GetDriverEarningsSummary(ctx context.Context, driverID uuid.UUID) (float64, float64, float64, error) {
+	args := m.Called(ctx, driverID)
+	return args.Get(0).(float64), args.Get(1).(float64), args.Get(2).(float64), args.Error(3)
+}
+
 // MockStripeClient is a mock implementation of the Stripe client
 type MockStripeClient struct {
 	mock.Mock
